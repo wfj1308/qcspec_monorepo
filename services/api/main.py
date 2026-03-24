@@ -8,7 +8,7 @@ from pathlib import Path
 import os
 
 from dotenv import load_dotenv
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 # Load env files for local development.
@@ -18,7 +18,7 @@ API_ENV = Path(__file__).resolve().parent / ".env"
 load_dotenv(ROOT_ENV, override=False)
 load_dotenv(API_ENV, override=False)
 
-from routers import auth, inspections, photos, projects, proof, reports, settings, team
+from routers import auth, autoreg, inspections, photos, projects, proof, reports, settings, team
 
 
 @asynccontextmanager
@@ -45,13 +45,53 @@ app.add_middleware(
 )
 
 app.include_router(auth.router, prefix="/v1/auth", tags=["auth"])
-app.include_router(projects.router, prefix="/v1/projects", tags=["projects"])
-app.include_router(inspections.router, prefix="/v1/inspections", tags=["inspections"])
-app.include_router(photos.router, prefix="/v1/photos", tags=["photos"])
-app.include_router(reports.router, prefix="/v1/reports", tags=["reports"])
-app.include_router(proof.router, prefix="/v1/proof", tags=["proof"])
-app.include_router(team.router, prefix="/v1/team", tags=["team"])
-app.include_router(settings.router, prefix="/v1/settings", tags=["settings"])
+app.include_router(
+    projects.router,
+    prefix="/v1/projects",
+    tags=["projects"],
+    dependencies=[Depends(auth.require_auth)],
+)
+app.include_router(
+    inspections.router,
+    prefix="/v1/inspections",
+    tags=["inspections"],
+    dependencies=[Depends(auth.require_auth)],
+)
+app.include_router(
+    photos.router,
+    prefix="/v1/photos",
+    tags=["photos"],
+    dependencies=[Depends(auth.require_auth)],
+)
+app.include_router(
+    reports.router,
+    prefix="/v1/reports",
+    tags=["reports"],
+    dependencies=[Depends(auth.require_auth)],
+)
+app.include_router(
+    proof.router,
+    prefix="/v1/proof",
+    tags=["proof"],
+    dependencies=[Depends(auth.require_auth)],
+)
+app.include_router(
+    team.router,
+    prefix="/v1/team",
+    tags=["team"],
+    dependencies=[Depends(auth.require_auth)],
+)
+app.include_router(
+    settings.router,
+    prefix="/v1/settings",
+    tags=["settings"],
+    dependencies=[Depends(auth.require_auth)],
+)
+app.include_router(
+    autoreg.router,
+    tags=["autoreg"],
+    dependencies=[Depends(auth.require_auth)],
+)
 
 
 @app.get("/health")

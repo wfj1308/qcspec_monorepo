@@ -1,7 +1,7 @@
 ﻿import React, { useEffect, useState } from 'react'
 import { useUIStore, useProjectStore, useAuthStore } from './store'
 import { Toast, Card, Button, VPathDisplay } from './components/ui'
-import { useProof, useTeam, useSettings, useProjects } from './hooks/useApi'
+import { useAuthApi, useProof, useTeam, useSettings, useProjects, useAutoreg } from './hooks/useApi'
 import Dashboard from './pages/Dashboard'
 import InspectionPage from './pages/InspectionPage'
 import PhotosPage from './pages/PhotosPage'
@@ -148,6 +148,25 @@ interface SettingsState {
   erpnextSync: boolean
   wechatMiniapp: boolean
   droneImport: boolean
+}
+
+interface ErpDraftState {
+  url: string
+  siteName: string
+  apiKey: string
+  apiSecret: string
+  username: string
+  password: string
+}
+
+interface ErpWritebackDraftState {
+  projectDoctype: string
+  projectLookupField: string
+  projectLookupValue: string
+  gitpegProjectUriField: string
+  gitpegSiteUriField: string
+  gitpegStatusField: string
+  gitpegResultJsonField: string
 }
 
 const ROLE_LABEL: Record<TeamRole, string> = {
@@ -347,23 +366,138 @@ const QUICK_USERS = {
 export default function App() {
   const { activeTab, setActiveTab, toastMsg, sidebarOpen, setSidebarOpen, showToast } = useUIStore()
   const { projects, setProjects, currentProject, setCurrentProject, addProject } = useProjectStore()
-  const { setUser, logout, enterprise, user } = useAuthStore()
-  const { list: listProjectsApi, create: createProjectApi, update: updateProjectApi, remove: removeProjectApi } = useProjects()
+  const { setUser, logout, enterprise, user, token } = useAuthStore()
+  const {
+    list: listProjectsApi,
+    create: createProjectApi,
+    getById: getProjectByIdApi,
+    update: updateProjectApi,
+    remove: removeProjectApi,
+    syncAutoreg: syncAutoregApi,
+  } = useProjects()
+  const {
+    registerProject: registerAutoregProjectApi,
+    registerProjectAlias: registerAutoregProjectAliasApi,
+    listProjects: listAutoregProjectsApi,
+  } = useAutoreg()
+  const {
+    login: loginApi,
+    me: meApi,
+    getEnterprise: getEnterpriseApi,
+    logout: logoutApi,
+    registerEnterprise: registerEnterpriseApi,
+  } = useAuthApi()
   const { listMembers, inviteMember, updateMember: updateMemberApi, removeMember: removeMemberApi } = useTeam()
-  const { getSettings, saveSettings, uploadTemplate } = useSettings()
+  const { getSettings, saveSettings, testErpnext, uploadTemplate } = useSettings()
 
-  const [appReady, setAppReady] = useState(false)
+  const hasPersistedSession = Boolean(token && user?.id && enterprise?.id)
+  const [appReady, setAppReady] = useState(hasPersistedSession)
+  const [sessionChecking, setSessionChecking] = useState(Boolean(token) && !hasPersistedSession)
   const [loginTab, setLoginTab] = useState<'login' | 'register'>('login')
   const [loginForm, setLoginForm] = useState({ account: '', pass: '' })
+  const [loggingIn, setLoggingIn] = useState(false)
   const [entForm, setEntForm] = useState({ name: '', adminPhone: '', pass: '', uscc: '' })
 
   useEffect(() => {
     if (!appReady) return
-    if (!projects.length) {
+    if (!projects.length && enterprise?.id === DEMO_ENTERPRISE.id) {
       setProjects(DEMO_PROJECTS)
       setCurrentProject(DEMO_PROJECTS[0])
     }
-  }, [appReady, projects.length, setProjects, setCurrentProject])
+  }, [appReady, projects.length, enterprise?.id, setProjects, setCurrentProject])
+
+  useEffect(() => {
+    let cancelled = false
+    const abortController = new AbortController()
+    const bootstrapTimeoutMs = Number(import.meta.env.VITE_BOOTSTRAP_TIMEOUT_MS || 8000)
+    const restoreSession = async () => {
+      if (!token) {
+        setAppReady(false)
+        setSessionChecking(false)
+        return
+      }
+
+      const hasLocalSession = Boolean(user?.id && enterprise?.id)
+      if (hasLocalSession) {
+        // Use persisted state for instant first paint; validate in background.
+        setAppReady(true)
+        setSessionChecking(false)
+      } else {
+        setSessionChecking(true)
+      }
+
+      const meRes = await meApi({
+        signal: abortController.signal,
+        timeoutMs: bootstrapTimeoutMs,
+      }) as {
+        id?: string
+        name?: string
+        email?: string
+        title?: string
+        dto_role?: string
+        enterprise_id?: string
+        v_uri?: string
+      } | null
+      if (cancelled || abortController.signal.aborted) return
+      if (!meRes?.id || !meRes.enterprise_id) {
+        if (!hasLocalSession) {
+          setAppReady(false)
+        }
+        setSessionChecking(false)
+        return
+      }
+
+      const enterpriseRes = await getEnterpriseApi(meRes.enterprise_id, {
+        signal: abortController.signal,
+        timeoutMs: bootstrapTimeoutMs,
+      }) as {
+        id?: string
+        name?: string
+        v_uri?: string
+        short_name?: string
+        plan?: 'basic' | 'pro' | 'enterprise'
+        proof_quota?: number
+        proof_used?: number
+      } | null
+      if (cancelled || abortController.signal.aborted) return
+      if (!enterpriseRes?.id) {
+        if (!hasLocalSession) {
+          setAppReady(false)
+        }
+        setSessionChecking(false)
+        return
+      }
+
+      setUser(
+        {
+          id: meRes.id,
+          enterprise_id: meRes.enterprise_id,
+          v_uri: meRes.v_uri || '',
+          name: meRes.name || '用户',
+          email: meRes.email || undefined,
+          dto_role: (meRes.dto_role || 'PUBLIC') as 'PUBLIC' | 'MARKET' | 'AI' | 'SUPERVISOR' | 'OWNER' | 'REGULATOR',
+          title: meRes.title || undefined,
+        },
+        {
+          id: enterpriseRes.id,
+          name: enterpriseRes.name || '企业',
+          v_uri: enterpriseRes.v_uri || 'v://cn/enterprise/',
+          short_name: enterpriseRes.short_name,
+          plan: enterpriseRes.plan || 'enterprise',
+          proof_quota: Number(enterpriseRes.proof_quota || 0),
+          proof_used: Number(enterpriseRes.proof_used || 0),
+        },
+        token
+      )
+      setAppReady(true)
+      setSessionChecking(false)
+    }
+    restoreSession()
+    return () => {
+      cancelled = true
+      abortController.abort()
+    }
+  }, [token, user?.id, enterprise?.id, meApi, getEnterpriseApi, setUser])
 
   useEffect(() => {
     setEnterpriseInfo({
@@ -437,9 +571,26 @@ export default function App() {
     wechatMiniapp: true,
     droneImport: false,
   })
-  const [erpDraft, setErpDraft] = useState({ url: '', apiKey: '' })
+  const [erpDraft, setErpDraft] = useState<ErpDraftState>({
+    url: '',
+    siteName: 'development.localhost',
+    apiKey: '',
+    apiSecret: '',
+    username: '',
+    password: '',
+  })
+  const [erpWritebackDraft, setErpWritebackDraft] = useState<ErpWritebackDraftState>({
+    projectDoctype: 'Project',
+    projectLookupField: 'name',
+    projectLookupValue: '',
+    gitpegProjectUriField: 'gitpeg_project_uri',
+    gitpegSiteUriField: 'gitpeg_site_uri',
+    gitpegStatusField: 'gitpeg_status',
+    gitpegResultJsonField: 'gitpeg_register_result_json',
+  })
   const [erpTesting, setErpTesting] = useState(false)
   const [erpTestMsg, setErpTestMsg] = useState('')
+  const [syncingProjectId, setSyncingProjectId] = useState<string | null>(null)
   const [gitpegVerifying, setGitpegVerifying] = useState(false)
   const [gitpegVerifyMsg, setGitpegVerifyMsg] = useState<{ text: string; color: string }>({ text: '', color: '#64748B' })
   const [webhookTesting, setWebhookTesting] = useState(false)
@@ -458,13 +609,35 @@ export default function App() {
   const [permissionMatrix, setPermissionMatrix] = useState<PermissionRow[]>(() => normalizePermissionMatrix())
   const [permissionTemplate, setPermissionTemplate] = useState<PermTemplate>(() => detectPermissionTemplate(normalizePermissionMatrix()))
   const [projectMeta, setProjectMeta] = useState<Record<string, ProjectRegisterMeta>>({})
-  const { listProofs, verify: verifyProof } = useProof()
+  const { listProofs, verify: verifyProof, stats: proofStatsApi, nodeTree: proofNodeTreeApi } = useProof()
   const [proofRows, setProofRows] = useState<Array<{
     proof_id: string
     summary?: string
     object_type?: string
     action?: string
     created_at?: string
+  }>>([])
+  const [proofStats, setProofStats] = useState<{
+    total: number
+    by_type: Record<string, number>
+    by_action: Record<string, number>
+  }>({
+    total: 0,
+    by_type: {},
+    by_action: {},
+  })
+  const [proofNodeRows, setProofNodeRows] = useState<Array<{
+    uri?: string
+    node_type?: string
+    status?: string
+  }>>([])
+  const [autoregRows, setAutoregRows] = useState<Array<{
+    project_code?: string
+    project_name?: string
+    project_uri?: string
+    site_uri?: string
+    updated_at?: string
+    source_system?: string
   }>>([])
   const [proofLoading, setProofLoading] = useState(false)
   const [proofVerifying, setProofVerifying] = useState<string | null>(null)
@@ -604,15 +777,64 @@ export default function App() {
     if (activeTab !== 'proof' || !proj?.id) return
     let cancelled = false
     setProofLoading(true)
-    listProofs(proj.id).then((res) => {
+    Promise.all([
+      listProofs(proj.id),
+      proofStatsApi(proj.id),
+      proj.v_uri ? proofNodeTreeApi(proj.v_uri) : Promise.resolve(null),
+    ]).then(([listRes, statsRes, treeRes]) => {
       if (cancelled) return
-      const r = res as { data?: typeof proofRows } | null
-      setProofRows(r?.data || [])
+      const listPayload = listRes as { data?: typeof proofRows } | null
+      const statsPayload = statsRes as {
+        total?: number
+        by_type?: Record<string, number>
+        by_action?: Record<string, number>
+      } | null
+      const treePayload = treeRes as { data?: Array<{ uri?: string; node_type?: string; status?: string }> } | null
+
+      setProofRows(listPayload?.data || [])
+      setProofStats({
+        total: Number(statsPayload?.total || 0),
+        by_type: statsPayload?.by_type || {},
+        by_action: statsPayload?.by_action || {},
+      })
+      setProofNodeRows(treePayload?.data || [])
     }).finally(() => {
       if (!cancelled) setProofLoading(false)
     })
     return () => { cancelled = true }
-  }, [activeTab, proj?.id, listProofs])
+  }, [activeTab, proj?.id, proj?.v_uri, listProofs, proofStatsApi, proofNodeTreeApi])
+
+  useEffect(() => {
+    if (!canUseEnterpriseApi || (activeTab !== 'projects' && activeTab !== 'settings')) return
+    listAutoregProjectsApi(20).then((res) => {
+      const payload = res as {
+        items?: Array<{
+          project_code?: string
+          project_name?: string
+          project_uri?: string
+          site_uri?: string
+          updated_at?: string
+          source_system?: string
+        }>
+      } | null
+      setAutoregRows(payload?.items || [])
+    })
+  }, [activeTab, canUseEnterpriseApi, listAutoregProjectsApi])
+
+  useEffect(() => {
+    if (!appReady || !canUseEnterpriseApi || !enterprise?.id) return
+    let cancelled = false
+    listProjectsApi(enterprise.id).then((res) => {
+      if (cancelled) return
+      const payload = res as { data?: Parameters<typeof setProjects>[0] } | null
+      if (!payload?.data) return
+      setProjects(payload.data)
+      if (!currentProject?.id && payload.data.length > 0) {
+        setCurrentProject(payload.data[0])
+      }
+    })
+    return () => { cancelled = true }
+  }, [appReady, canUseEnterpriseApi, enterprise?.id, listProjectsApi, setProjects, setCurrentProject])
 
   const handleVerifyProof = async (proofId: string) => {
     setProofVerifying(proofId)
@@ -627,6 +849,11 @@ export default function App() {
 
   useEffect(() => {
     if (!appReady || !canUseEnterpriseApi || !enterprise?.id) return
+    const needTeamOrSettings =
+      activeTab === 'team' ||
+      activeTab === 'permissions' ||
+      activeTab === 'settings'
+    if (!needTeamOrSettings) return
 
     listMembers(enterprise.id).then((res) => {
       const r = res as { data?: Array<{
@@ -661,11 +888,55 @@ export default function App() {
     getSettings(enterprise.id).then((res) => {
       const r = res as {
         enterprise?: { name?: string; v_uri?: string; credit_code?: string }
-        settings?: Partial<SettingsState> & { permissionMatrix?: Array<Partial<PermissionRow> & { role?: string }> }
+        settings?: Partial<SettingsState> & {
+          permissionMatrix?: Array<Partial<PermissionRow> & { role?: string }>
+          erpnextUrl?: string
+          erpnextSiteName?: string
+          erpnextApiKey?: string
+          erpnextApiSecret?: string
+          erpnextProjectDoctype?: string
+          erpnextProjectLookupField?: string
+          erpnextProjectLookupValue?: string
+          erpnextGitpegProjectUriField?: string
+          erpnextGitpegSiteUriField?: string
+          erpnextGitpegStatusField?: string
+          erpnextGitpegResultJsonField?: string
+        }
       } | null
       if (!r?.settings) return
-      const { permissionMatrix: matrixFromApi, ...settingsFromApi } = r.settings
+      const {
+        permissionMatrix: matrixFromApi,
+        erpnextUrl,
+        erpnextSiteName,
+        erpnextApiKey,
+        erpnextApiSecret,
+        erpnextProjectDoctype,
+        erpnextProjectLookupField,
+        erpnextProjectLookupValue,
+        erpnextGitpegProjectUriField,
+        erpnextGitpegSiteUriField,
+        erpnextGitpegStatusField,
+        erpnextGitpegResultJsonField,
+        ...settingsFromApi
+      } = r.settings
       setSettings((prev) => ({ ...prev, ...settingsFromApi }))
+      setErpDraft((prev) => ({
+        ...prev,
+        url: erpnextUrl ?? prev.url,
+        siteName: erpnextSiteName ?? prev.siteName,
+        apiKey: erpnextApiKey ?? prev.apiKey,
+        apiSecret: erpnextApiSecret ?? prev.apiSecret,
+      }))
+      setErpWritebackDraft((prev) => ({
+        ...prev,
+        projectDoctype: erpnextProjectDoctype ?? prev.projectDoctype,
+        projectLookupField: erpnextProjectLookupField ?? prev.projectLookupField,
+        projectLookupValue: erpnextProjectLookupValue ?? prev.projectLookupValue,
+        gitpegProjectUriField: erpnextGitpegProjectUriField ?? prev.gitpegProjectUriField,
+        gitpegSiteUriField: erpnextGitpegSiteUriField ?? prev.gitpegSiteUriField,
+        gitpegStatusField: erpnextGitpegStatusField ?? prev.gitpegStatusField,
+        gitpegResultJsonField: erpnextGitpegResultJsonField ?? prev.gitpegResultJsonField,
+      }))
       if (matrixFromApi) {
         const matrix = normalizePermissionMatrix(matrixFromApi)
         setPermissionMatrix(matrix)
@@ -680,7 +951,7 @@ export default function App() {
         }))
       }
     })
-  }, [appReady, canUseEnterpriseApi, enterprise?.id, listMembers, getSettings])
+  }, [appReady, canUseEnterpriseApi, enterprise?.id, activeTab, listMembers, getSettings])
 
   const nextRegStep = () => {
     if (registerStep === 1 && (!regForm.name || !regForm.owner_unit || !regForm.type)) {
@@ -748,15 +1019,55 @@ export default function App() {
         seg_start: regForm.seg_start || undefined,
         seg_end: regForm.seg_end || undefined,
         perm_template: permTemplate,
-      }) as { id?: string; v_uri?: string; name?: string } | null
+      }) as {
+        id?: string
+        v_uri?: string
+        name?: string
+        autoreg_sync?: {
+          enabled?: boolean
+          success?: boolean
+          skipped?: boolean
+          reason?: string
+          erp_writeback?: {
+            attempted?: boolean
+            success?: boolean
+            reason?: string
+          }
+        }
+      } | null
 
       if (!created?.id) return
 
       const refreshed = await listProjectsApi(enterprise.id) as { data?: Parameters<typeof setProjects>[0] } | null
-      if (refreshed?.data) {
+      let createdProject: Parameters<typeof setCurrentProject>[0] = null
+      if (refreshed?.data && refreshed.data.length > 0) {
         setProjects(refreshed.data)
-        const createdProject = refreshed.data.find((p) => p.id === created.id) || null
-        if (createdProject) setCurrentProject(createdProject)
+        createdProject = refreshed.data.find((p) => p.id === created.id) || null
+      } else {
+        const fallbackProject = {
+          id: created.id,
+          enterprise_id: enterprise.id,
+          v_uri: created.v_uri || regUri,
+          name: created.name || regForm.name,
+          type: regForm.type,
+          owner_unit: regForm.owner_unit,
+          contractor: regForm.contractor || '',
+          supervisor: regForm.supervisor || '',
+          contract_no: regForm.contract_no || '',
+          start_date: regForm.start_date || '',
+          end_date: regForm.end_date || '',
+          status: 'active' as const,
+          record_count: 0,
+          photo_count: 0,
+          proof_count: 0,
+        }
+        const nextProjects = [fallbackProject, ...projects.filter((p) => p.id !== fallbackProject.id)]
+        setProjects(nextProjects)
+        createdProject = fallbackProject
+        showToast('项目已创建，项目列表刷新超时或为空，已本地兜底展示')
+      }
+      if (createdProject) {
+        setCurrentProject(createdProject)
       }
 
       setProjectMeta((prev) => ({
@@ -777,7 +1088,18 @@ export default function App() {
         name: created.name || regForm.name,
         uri: created.v_uri || regUri,
       })
-      showToast('项目注册成功')
+      if (created.autoreg_sync?.enabled && created.autoreg_sync?.success) {
+        const wb = created.autoreg_sync.erp_writeback
+        if (wb?.attempted && !wb?.success) {
+          showToast('项目注册成功，GitPeg 已登记；ERP 回写失败，可手动重试')
+        } else {
+          showToast('项目注册成功，已完成自动登记')
+        }
+      } else if (created.autoreg_sync?.enabled && !created.autoreg_sync?.success) {
+        showToast('项目注册成功，但自动登记失败，可手动重试')
+      } else {
+        showToast('项目注册成功（自动登记未启用）')
+      }
       return
     }
 
@@ -962,7 +1284,115 @@ export default function App() {
     showToast('项目已删除')
   }
 
-  const persistSettings = async (patch: Partial<SettingsState>) => {
+  const retryProjectAutoreg = async (projectId: string, projectName: string) => {
+    if (!canUseEnterpriseApi || !enterprise?.id) {
+      showToast('演示环境不支持自动登记重试')
+      return
+    }
+    const project = projects.find((p) => p.id === projectId)
+    if (!project) {
+      showToast('项目不存在，无法执行自动登记')
+      return
+    }
+    setSyncingProjectId(projectId)
+    const res = await syncAutoregApi(projectId, {
+      enterprise_id: enterprise.id,
+      force: true,
+      writeback: true,
+    }) as {
+      ok?: boolean
+      result?: {
+        erp_writeback?: { attempted?: boolean; success?: boolean }
+      }
+    } | null
+    setSyncingProjectId(null)
+    if (!res) return
+
+    if (res.ok) {
+      const wb = res.result?.erp_writeback
+      if (wb?.attempted && !wb?.success) {
+        showToast(`项目「${projectName}」自动登记成功，ERP 回写失败`)
+      } else {
+        showToast(`项目「${projectName}」自动登记成功`)
+      }
+      const latestAutoreg = await listAutoregProjectsApi(20) as { items?: typeof autoregRows } | null
+      if (latestAutoreg?.items) setAutoregRows(latestAutoreg.items)
+      return
+    }
+
+    const directPayload = {
+      project_code: project.contract_no || project.id,
+      project_name: project.name,
+      site_code: project.name,
+      site_name: project.name,
+      namespace_uri: enterprise.v_uri,
+      source_system: 'qcspec',
+    }
+    const directRes = await registerAutoregProjectApi(directPayload) as { success?: boolean } | null
+    if (directRes?.success) {
+      showToast(`项目「${projectName}」自动登记成功（直连通道）`)
+      const latestAutoreg = await listAutoregProjectsApi(20) as { items?: typeof autoregRows } | null
+      if (latestAutoreg?.items) setAutoregRows(latestAutoreg.items)
+      return
+    }
+
+    const aliasRes = await registerAutoregProjectAliasApi(directPayload) as { success?: boolean } | null
+    if (aliasRes?.success) {
+      showToast(`项目「${projectName}」自动登记成功（兼容通道）`)
+      const latestAutoreg = await listAutoregProjectsApi(20) as { items?: typeof autoregRows } | null
+      if (latestAutoreg?.items) setAutoregRows(latestAutoreg.items)
+      return
+    }
+
+    showToast(`项目「${projectName}」自动登记失败（已尝试 3 条通道）`)
+  }
+
+  const directProjectAutoreg = async (projectId: string, projectName: string) => {
+    if (!canUseEnterpriseApi || !enterprise?.id) {
+      showToast('演示环境不支持直连登记')
+      return
+    }
+    const project = projects.find((p) => p.id === projectId)
+    if (!project) {
+      showToast('项目不存在，无法执行直连登记')
+      return
+    }
+    setSyncingProjectId(projectId)
+    const payload = {
+      project_code: project.contract_no || project.id,
+      project_name: project.name,
+      site_code: project.name,
+      site_name: project.name,
+      namespace_uri: enterprise.v_uri,
+      source_system: 'qcspec',
+    }
+    const primary = await registerAutoregProjectApi(payload) as { success?: boolean } | null
+    const fallback = primary?.success
+      ? primary
+      : await registerAutoregProjectAliasApi(payload) as { success?: boolean } | null
+    setSyncingProjectId(null)
+    if (!fallback?.success) {
+      showToast(`项目「${projectName}」直连登记失败`)
+      return
+    }
+    const latestAutoreg = await listAutoregProjectsApi(20) as { items?: typeof autoregRows } | null
+    if (latestAutoreg?.items) setAutoregRows(latestAutoreg.items)
+    showToast(`项目「${projectName}」直连登记成功`)
+  }
+
+  const persistSettings = async (patch: Partial<SettingsState> & {
+    erpnextUrl?: string
+    erpnextSiteName?: string
+    erpnextApiKey?: string
+    erpnextApiSecret?: string
+    erpnextProjectDoctype?: string
+    erpnextProjectLookupField?: string
+    erpnextProjectLookupValue?: string
+    erpnextGitpegProjectUriField?: string
+    erpnextGitpegSiteUriField?: string
+    erpnextGitpegStatusField?: string
+    erpnextGitpegResultJsonField?: string
+  }) => {
     const next = { ...settings, ...patch }
     setSettings(next)
 
@@ -1100,20 +1530,46 @@ export default function App() {
     }, 700)
   }
 
-  const testErpConnection = () => {
-    if (!erpDraft.url.trim() || !erpDraft.apiKey.trim()) {
-      setErpTestMsg('⚠️ 请先填写 ERP URL 和 API Key')
+  const testErpConnection = async () => {
+    const hasTokenAuth = Boolean(erpDraft.apiKey.trim())
+    const hasSessionAuth = Boolean(erpDraft.username.trim() && erpDraft.password.trim())
+    if (!erpDraft.url.trim()) {
+      setErpTestMsg('⚠️ 请先填写 ERP URL')
+      return
+    }
+    if (!hasTokenAuth && !hasSessionAuth) {
+      setErpTestMsg('⚠️ 请填写 API Key 或 用户名+密码')
       return
     }
     setErpTesting(true)
     setErpTestMsg('⏳ 测试连接中...')
-    setTimeout(() => {
-      setErpTesting(false)
-      setErpTestMsg('✅ ERPNext 连接成功（模拟）')
-    }, 600)
+    const res = await testErpnext({
+      url: erpDraft.url.trim(),
+      siteName: erpDraft.siteName.trim() || undefined,
+      apiKey: erpDraft.apiKey.trim() || undefined,
+      apiSecret: erpDraft.apiSecret.trim() || undefined,
+      username: erpDraft.username.trim() || undefined,
+      password: erpDraft.password.trim() || undefined,
+      timeoutMs: 10000,
+    }) as {
+      ok?: boolean
+      user?: string
+      authMode?: string
+      latencyMs?: number
+    } | null
+
+    setErpTesting(false)
+    if (res?.ok) {
+      const userLabel = res.user ? `用户 ${res.user}` : '用户已验证'
+      const modeLabel = res.authMode ? ` · ${res.authMode}` : ''
+      const latencyLabel = typeof res.latencyMs === 'number' ? ` · ${res.latencyMs}ms` : ''
+      setErpTestMsg(`✅ ERPNext 连接成功（${userLabel}${modeLabel}${latencyLabel}）`)
+      return
+    }
+    setErpTestMsg('❌ ERPNext 连接失败，请检查 URL、站点名和认证信息')
   }
 
-  const doLogin = (key: keyof typeof QUICK_USERS = 'admin') => {
+  const doDemoLogin = (key: keyof typeof QUICK_USERS = 'admin') => {
     const user = QUICK_USERS[key]
     setUser(user, DEMO_ENTERPRISE, `demo-token-${key}`)
     if (!projects.length) {
@@ -1124,7 +1580,78 @@ export default function App() {
     showToast(`欢迎回来，${user.name}`)
   }
 
-  const doLogout = () => {
+  const doLogin = async () => {
+    const account = loginForm.account.trim()
+    const pass = loginForm.pass
+    if (!account || !pass) {
+      showToast('请填写账号和密码')
+      return
+    }
+
+    setLoggingIn(true)
+    try {
+      const loginRes = await loginApi({
+        email: account,
+        password: pass,
+      }) as {
+        access_token?: string
+        user_id?: string
+        name?: string
+        dto_role?: string
+        enterprise_id?: string
+        v_uri?: string
+      } | null
+
+      if (!loginRes?.access_token || !loginRes.user_id || !loginRes.enterprise_id) {
+        return
+      }
+
+      const enterpriseRes = await getEnterpriseApi(loginRes.enterprise_id) as {
+        id?: string
+        name?: string
+        v_uri?: string
+        short_name?: string
+        plan?: 'basic' | 'pro' | 'enterprise'
+        proof_quota?: number
+        proof_used?: number
+      } | null
+
+      setUser(
+        {
+          id: loginRes.user_id,
+          enterprise_id: loginRes.enterprise_id,
+          v_uri: loginRes.v_uri || '',
+          name: loginRes.name || account,
+          email: account,
+          dto_role: (loginRes.dto_role || 'PUBLIC') as 'PUBLIC' | 'MARKET' | 'AI' | 'SUPERVISOR' | 'OWNER' | 'REGULATOR',
+          title: undefined,
+        },
+        {
+          id: enterpriseRes?.id || loginRes.enterprise_id,
+          name: enterpriseRes?.name || '企业',
+          v_uri: enterpriseRes?.v_uri || 'v://cn/enterprise/',
+          short_name: enterpriseRes?.short_name,
+          plan: enterpriseRes?.plan || 'enterprise',
+          proof_quota: Number(enterpriseRes?.proof_quota || 0),
+          proof_used: Number(enterpriseRes?.proof_used || 0),
+        },
+        loginRes.access_token
+      )
+      setProjects([])
+      setCurrentProject(null)
+      setAppReady(true)
+      showToast(`欢迎回来，${loginRes.name || account}`)
+    } finally {
+      setLoggingIn(false)
+    }
+  }
+
+  const doLogout = async () => {
+    try {
+      await logoutApi()
+    } catch {
+      // Ignore remote logout failures and always clear local session.
+    }
     logout()
     setAppReady(false)
     setLoginTab('login')
@@ -1132,25 +1659,61 @@ export default function App() {
     showToast('已退出登录')
   }
 
-  const doRegisterEnterprise = () => {
-    if (!entForm.name || !entForm.adminPhone || !entForm.pass) {
+  const doRegisterEnterprise = async () => {
+    const adminPhone = entForm.adminPhone.trim()
+    if (!entForm.name || !adminPhone || !entForm.pass) {
       showToast('请完整填写企业注册信息')
       return
     }
-    showToast('企业注册成功，请登录进入平台')
+    if (adminPhone.includes('@')) {
+      showToast('管理员手机号请输入 11 位手机号码，不能填写邮箱')
+      return
+    }
+    if (!/^1\d{10}$/.test(adminPhone)) {
+      showToast('管理员手机号格式不正确，请输入 11 位手机号码')
+      return
+    }
+    const res = await registerEnterpriseApi({
+      name: entForm.name.trim(),
+      adminPhone,
+      password: entForm.pass,
+      creditCode: entForm.uscc.trim() || undefined,
+    }) as {
+      ok?: boolean
+      account?: string
+    } | null
+    if (!res?.ok) return
+    setLoginForm({
+      account: res.account || adminPhone,
+      pass: entForm.pass,
+    })
+    setEntForm({ name: '', adminPhone: '', pass: '', uscc: '' })
+    showToast('企业注册成功，请使用管理员账号登录')
     setLoginTab('login')
   }
 
-  const openProjectDetail = (id: string, edit = false) => {
+  const openProjectDetail = async (id: string, edit = false) => {
     setProjectDetailId(id)
     setProjectDetailOpen(true)
+    let selectedProject = projects.find((p) => p.id === id) || null
+    if (canUseEnterpriseApi) {
+      const latest = await getProjectByIdApi(id) as Record<string, unknown> | null
+      if (latest?.id) {
+        const mergedProjects = projects.map((p) => (p.id === id ? { ...p, ...latest } : p))
+        setProjects(mergedProjects)
+        if (currentProject?.id === id) {
+          const mergedCurrent = mergedProjects.find((p) => p.id === id) || null
+          setCurrentProject(mergedCurrent)
+        }
+        selectedProject = { ...(selectedProject || {}), ...latest } as typeof selectedProject
+      }
+    }
     if (!edit) {
       setDetailEdit(false)
       setDetailProjectDraft(null)
       setDetailDraft(null)
       return
     }
-    const selectedProject = projects.find((p) => p.id === id)
     if (!selectedProject) return
     const meta = projectMeta[id]
     setDetailProjectDraft(buildProjectEditDraft(selectedProject))
@@ -1207,6 +1770,16 @@ export default function App() {
     showToast(canUseEnterpriseApi ? '项目信息已保存' : '演示环境：项目信息已本地保存')
   }
 
+  if (sessionChecking) {
+    return (
+      <div className="login-screen">
+        <div className="login-card">
+          <div className="l-hint">会话校验中...</div>
+        </div>
+      </div>
+    )
+  }
+
   if (!appReady) {
     return (
       <div className="login-screen">
@@ -1225,13 +1798,13 @@ export default function App() {
             <div className="login-form">
               <input className="l-input" value={loginForm.account} onChange={(e) => setLoginForm({ ...loginForm, account: e.target.value })} placeholder="手机号 / 邮箱" />
               <input className="l-input" type="password" value={loginForm.pass} onChange={(e) => setLoginForm({ ...loginForm, pass: e.target.value })} placeholder="密码" />
-              <button className="l-btn" onClick={() => doLogin('admin')}>登录</button>
+              <button className="l-btn" onClick={doLogin} disabled={loggingIn}>{loggingIn ? '登录中...' : '登录'}</button>
               <div className="l-hint">演示账号快速登录</div>
               <div className="demo-accounts">
                 <div className="demo-title">Demo Accounts</div>
-                <button className="demo-btn" onClick={() => doLogin('admin')}><strong>admin@zhongbei.com</strong> | 超级管理员</button>
-                <button className="demo-btn" onClick={() => doLogin('pm')}><strong>pm@zhongbei.com</strong> | 项目经理</button>
-                <button className="demo-btn" onClick={() => doLogin('inspector')}><strong>qc@zhongbei.com</strong> | 质检员</button>
+                <button className="demo-btn" onClick={() => doDemoLogin('admin')}><strong>admin@zhongbei.com</strong> | 超级管理员</button>
+                <button className="demo-btn" onClick={() => doDemoLogin('pm')}><strong>pm@zhongbei.com</strong> | 项目经理</button>
+                <button className="demo-btn" onClick={() => doDemoLogin('inspector')}><strong>qc@zhongbei.com</strong> | 质检员</button>
               </div>
             </div>
           )}
@@ -1239,7 +1812,7 @@ export default function App() {
           {loginTab === 'register' && (
             <div className="login-form">
               <input className="l-input" value={entForm.name} onChange={(e) => setEntForm({ ...entForm, name: e.target.value })} placeholder="企业名称" />
-              <input className="l-input" value={entForm.adminPhone} onChange={(e) => setEntForm({ ...entForm, adminPhone: e.target.value })} placeholder="管理员手机号" />
+              <input className="l-input" value={entForm.adminPhone} onChange={(e) => setEntForm({ ...entForm, adminPhone: e.target.value })} placeholder="管理员手机号（11位）" />
               <input className="l-input" type="password" value={entForm.pass} onChange={(e) => setEntForm({ ...entForm, pass: e.target.value })} placeholder="登录密码" />
               <input className="l-input" value={entForm.uscc} onChange={(e) => setEntForm({ ...entForm, uscc: e.target.value })} placeholder="统一社会信用代码" />
               <button className="l-btn" style={{ background: 'var(--green)' }} onClick={doRegisterEnterprise}>注册企业账号</button>
@@ -1302,6 +1875,7 @@ export default function App() {
             </select>
             <button className="topbar-btn btn-outline" onClick={() => setActiveTab('register')}>＋ 注册项目</button>
             <button className="topbar-btn btn-blue" onClick={() => setActiveTab('inspection')}>📷 开始质检</button>
+            <button className="topbar-btn btn-logout" onClick={doLogout}>退出登录</button>
           </div>
         </div>
 
@@ -1317,6 +1891,59 @@ export default function App() {
           {activeTab === 'proof' && (
             <Card title="Proof 存证链" icon="🔒">
               <VPathDisplay uri={proj.v_uri} />
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+                  gap: 8,
+                  marginBottom: 10,
+                }}
+              >
+                <div style={{ background: '#F8FAFF', border: '1px solid #DBEAFE', borderRadius: 8, padding: 10 }}>
+                  <div style={{ fontSize: 12, color: '#64748B' }}>总存证</div>
+                  <div style={{ fontSize: 20, fontWeight: 800, color: '#1A56DB', lineHeight: 1.2 }}>{proofStats.total}</div>
+                </div>
+                <div style={{ background: '#F8FAFF', border: '1px solid #E2E8F0', borderRadius: 8, padding: 10 }}>
+                  <div style={{ fontSize: 12, color: '#64748B' }}>对象类型</div>
+                  <div style={{ fontSize: 20, fontWeight: 800, color: '#0F172A', lineHeight: 1.2 }}>
+                    {Object.keys(proofStats.by_type).length}
+                  </div>
+                </div>
+                <div style={{ background: '#F8FAFF', border: '1px solid #E2E8F0', borderRadius: 8, padding: 10 }}>
+                  <div style={{ fontSize: 12, color: '#64748B' }}>动作类型</div>
+                  <div style={{ fontSize: 20, fontWeight: 800, color: '#0F172A', lineHeight: 1.2 }}>
+                    {Object.keys(proofStats.by_action).length}
+                  </div>
+                </div>
+              </div>
+              <div style={{ border: '1px solid #E2E8F0', borderRadius: 8, padding: 10, marginBottom: 12, background: '#FCFDFF' }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: '#0F172A', marginBottom: 8 }}>节点树（v://）</div>
+                {proofNodeRows.length === 0 ? (
+                  <div style={{ fontSize: 12, color: '#94A3B8' }}>当前项目暂无节点数据</div>
+                ) : (
+                  <div style={{ display: 'grid', gap: 5 }}>
+                    {proofNodeRows.slice(0, 8).map((node, idx) => (
+                      <div
+                        key={`${node.uri || 'node'}-${idx}`}
+                        style={{
+                          display: 'grid',
+                          gridTemplateColumns: '1fr 86px 70px',
+                          gap: 8,
+                          alignItems: 'center',
+                          fontSize: 12,
+                        }}
+                      >
+                        <span style={{ fontFamily: 'monospace', color: '#334155', wordBreak: 'break-all' }}>{node.uri || '-'}</span>
+                        <span style={{ color: '#64748B' }}>{node.node_type || '-'}</span>
+                        <span style={{ color: '#1A56DB', fontWeight: 700 }}>{node.status || '-'}</span>
+                      </div>
+                    ))}
+                    {proofNodeRows.length > 8 && (
+                      <div style={{ fontSize: 12, color: '#64748B' }}>仅展示前 8 条，共 {proofNodeRows.length} 条</div>
+                    )}
+                  </div>
+                )}
+              </div>
               {proofLoading ? (
                 <div style={{ fontSize: 13, color: '#64748B', padding: '8px 2px' }}>加载中...</div>
               ) : proofRows.length === 0 ? (
@@ -1330,7 +1957,7 @@ export default function App() {
                         {(p.object_type || 'object')} · {(p.action || 'create')} · {p.summary || '-'}
                       </div>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }}>
-                        <span style={{ fontSize: 11, color: '#94A3B8' }}>
+                        <span style={{ fontSize: 12, color: '#94A3B8' }}>
                           {p.created_at ? new Date(p.created_at).toLocaleString('zh-CN').slice(0, 16) : '-'}
                         </span>
                         <Button
@@ -1393,7 +2020,7 @@ export default function App() {
                               <>
                           <td>
                             <div style={{ fontWeight: 700 }}>{p.name}</div>
-                            <div style={{ fontSize: 11, color: '#94A3B8' }}>{p.contract_no || '-'} | {p.start_date || '-'} ~ {p.end_date || '-'}</div>
+                            <div style={{ fontSize: 12, color: '#94A3B8' }}>{p.contract_no || '-'} | {p.start_date || '-'} ~ {p.end_date || '-'}</div>
                           </td>
                           <td>
                             <span className={`type-chip chip-${p.type}`}>
@@ -1403,7 +2030,7 @@ export default function App() {
                           <td style={{ color: '#475569' }}>{p.owner_unit}</td>
                           <td>
                             <div style={{ fontSize: 12, color: '#334155' }}>{segLabel}</div>
-                            <div style={{ fontSize: 11, color: '#94A3B8', marginTop: 2 }}>{permLabel}</div>
+                            <div style={{ fontSize: 12, color: '#94A3B8', marginTop: 2 }}>{permLabel}</div>
                           </td>
                           <td style={{ fontFamily: 'monospace', color: '#1A56DB' }}>{p.v_uri}</td>
                           <td>📝 {p.record_count} | 📷 {p.photo_count}</td>
@@ -1415,6 +2042,24 @@ export default function App() {
                           <td>
                             <div className="action-btns">
                               <button className="act-btn act-enter" onClick={() => { setCurrentProject(p); setActiveTab('inspection') }}>进入质检</button>
+                              {canUseEnterpriseApi && (
+                                <button
+                                  className="act-btn act-detail"
+                                  onClick={() => retryProjectAutoreg(p.id, p.name)}
+                                  disabled={syncingProjectId === p.id}
+                                >
+                                  {syncingProjectId === p.id ? '同步中...' : '重试同步'}
+                                </button>
+                              )}
+                              {canUseEnterpriseApi && (
+                                <button
+                                  className="act-btn act-detail"
+                                  onClick={() => directProjectAutoreg(p.id, p.name)}
+                                  disabled={syncingProjectId === p.id}
+                                >
+                                  {syncingProjectId === p.id ? '登记中...' : '直连登记'}
+                                </button>
+                              )}
                               <button className="act-btn act-edit" onClick={() => openProjectDetail(p.id, true)}>编辑</button>
                               <button className="act-btn act-detail" onClick={() => openProjectDetail(p.id)}>详情</button>
                               <button className="act-btn act-del" onClick={() => removeProject(p.id, p.name)}>删除</button>
@@ -1428,6 +2073,47 @@ export default function App() {
                     </tbody>
                   </table>
                 </div>
+                {canUseEnterpriseApi && (
+                  <div style={{ marginTop: 12, border: '1px solid #E2E8F0', borderRadius: 10, padding: 12, background: '#FCFDFF' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: '#0F172A' }}>自动登记记录</div>
+                      <button
+                        className="act-btn act-detail"
+                        onClick={async () => {
+                          const latest = await listAutoregProjectsApi(20) as { items?: typeof autoregRows } | null
+                          if (latest?.items) setAutoregRows(latest.items)
+                        }}
+                      >
+                        刷新
+                      </button>
+                    </div>
+                    {autoregRows.length === 0 ? (
+                      <div style={{ fontSize: 12, color: '#94A3B8' }}>暂无自动登记记录，可在项目操作列点击“重试同步/直连登记”。</div>
+                    ) : (
+                      <div style={{ display: 'grid', gap: 8 }}>
+                        {autoregRows.slice(0, 6).map((row, idx) => (
+                          <div key={`${row.project_code || row.project_name || 'autoreg'}-${idx}`} style={{ border: '1px solid #E2E8F0', borderRadius: 8, padding: 10, background: '#fff' }}>
+                            <div style={{ fontSize: 13, fontWeight: 700, color: '#0F172A' }}>
+                              {row.project_name || '-'} <span style={{ fontWeight: 500, color: '#64748B' }}>({row.project_code || '-'})</span>
+                            </div>
+                            <div style={{ fontSize: 12, color: '#1A56DB', fontFamily: 'monospace', marginTop: 2, wordBreak: 'break-all' }}>
+                              {row.project_uri || '-'}
+                            </div>
+                            <div style={{ fontSize: 12, color: '#64748B', marginTop: 2 }}>
+                              site: {row.site_uri || '-'} | 来源：{row.source_system || '-'}
+                            </div>
+                            <div style={{ fontSize: 12, color: '#94A3B8', marginTop: 4 }}>
+                              更新：{row.updated_at ? new Date(row.updated_at).toLocaleString('zh-CN') : '-'}
+                            </div>
+                          </div>
+                        ))}
+                        {autoregRows.length > 6 && (
+                          <div style={{ fontSize: 12, color: '#64748B' }}>仅展示前 6 条，共 {autoregRows.length} 条</div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
               </Card>
             </div>
           )}
@@ -1731,7 +2417,7 @@ export default function App() {
                           <div className="reg-proj-name">
                             {p.name}
                             {p.id === registerSuccess?.id && (
-                              <span style={{ marginLeft: 6, fontSize: 10, color: '#059669', fontWeight: 800 }}>NEW</span>
+                              <span style={{ marginLeft: 6, fontSize: 12, color: '#059669', fontWeight: 800 }}>NEW</span>
                             )}
                           </div>
                           <div className="reg-proj-uri">{p.v_uri}</div>
@@ -1786,7 +2472,7 @@ export default function App() {
                       </div>
                       <span className={`role-badge ${roleClass}`}>{roleLabel}</span>
                       <div className="member-projects">参与项目：{m.projects.length} 个</div>
-                      <div style={{ fontSize: 11, color: '#94A3B8' }}>{m.email}</div>
+                      <div style={{ fontSize: 12, color: '#94A3B8' }}>{m.email}</div>
                       <div style={{ display: 'grid', gap: 6 }}>
                         <select
                           className="setting-select"
@@ -1852,7 +2538,7 @@ export default function App() {
                 </div>
                 <div>
                   <div className="node-tree" style={{ marginTop: 0 }}>
-                    <div style={{ fontSize: 10, color: '#475569', letterSpacing: 1, marginBottom: 6 }}>V:// 节点权限结构 · 实时预览</div>
+                    <div style={{ fontSize: 12, color: '#475569', letterSpacing: 1, marginBottom: 6 }}>V:// 节点权限结构 · 实时预览</div>
                     <div>{permissionTreeRoot}</div>
                     {permissionTreeRows.map((row, idx) => (
                       <div key={`${row.role}-${idx}`} className="node-tree-sub">
@@ -1860,7 +2546,7 @@ export default function App() {
                       </div>
                     ))}
                   </div>
-                  <div style={{ fontSize: 11, color: '#64748B', lineHeight: 1.6, marginTop: 8 }}>
+                  <div style={{ fontSize: 12, color: '#64748B', lineHeight: 1.6, marginTop: 8 }}>
                     修改矩阵后节点树立即更新。保存后写入 v:// DTORole 配置。
                   </div>
                 </div>
@@ -1952,7 +2638,7 @@ export default function App() {
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
                         <div style={{ fontSize: 13, fontWeight: 700, color: '#0F172A' }}>GitPeg v:// Proof 存证</div>
                         <span style={{
-                          fontSize: 10,
+                          fontSize: 12,
                           fontWeight: 700,
                           borderRadius: 10,
                           padding: '2px 8px',
@@ -1962,7 +2648,7 @@ export default function App() {
                           {settings.gitpegEnabled ? '已启用' : '未接入'}
                         </span>
                       </div>
-                      <div style={{ fontSize: 11, color: '#64748B' }}>质检记录自动推送到 GitPeg v:// 链，不可篡改存证</div>
+                      <div style={{ fontSize: 12, color: '#64748B' }}>质检记录自动推送到 GitPeg v:// 链，不可篡改存证</div>
                     </div>
                     <input
                       type="checkbox"
@@ -1979,7 +2665,7 @@ export default function App() {
                   {settings.gitpegEnabled && (
                     <div style={{ padding: '0 0 10px 40px' }}>
                       <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 8, padding: 12 }}>
-                        <div style={{ fontSize: 11, fontWeight: 700, color: '#334155', marginBottom: 8 }}>GitPeg 连接配置</div>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 8 }}>GitPeg 连接配置</div>
                         <div style={{ display: 'grid', gap: 8 }}>
                           <input
                             className="setting-input"
@@ -1994,7 +2680,7 @@ export default function App() {
                             {gitpegVerifying ? '验证中...' : '验证'}
                           </button>
                           {gitpegVerifyMsg.text && (
-                            <div style={{ fontSize: 11, color: gitpegVerifyMsg.color }}>{gitpegVerifyMsg.text}</div>
+                            <div style={{ fontSize: 12, color: gitpegVerifyMsg.color }}>{gitpegVerifyMsg.text}</div>
                           )}
                         </div>
                       </div>
@@ -2007,7 +2693,7 @@ export default function App() {
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
                         <div style={{ fontSize: 13, fontWeight: 700, color: '#0F172A' }}>ERPNext 数据同步</div>
                         <span style={{
-                          fontSize: 10,
+                          fontSize: 12,
                           fontWeight: 700,
                           borderRadius: 10,
                           padding: '2px 8px',
@@ -2017,33 +2703,108 @@ export default function App() {
                           {settings.erpnextSync ? '已启用' : '未接入'}
                         </span>
                       </div>
-                      <div style={{ fontSize: 11, color: '#64748B' }}>与 ERPNext 系统同步，质检合格才能计量</div>
+                      <div style={{ fontSize: 12, color: '#64748B' }}>与 ERPNext 系统同步，质检合格才能计量</div>
                     </div>
                     <input type="checkbox" checked={settings.erpnextSync} onChange={(e) => setSettings({ ...settings, erpnextSync: e.target.checked })} />
                   </div>
                   {settings.erpnextSync && (
                     <div style={{ padding: '0 0 10px 40px' }}>
                       <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 8, padding: 12 }}>
-                        <div style={{ fontSize: 11, fontWeight: 700, color: '#334155', marginBottom: 8 }}>ERPNext 连接配置</div>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 8 }}>ERPNext 连接配置</div>
                         <div style={{ display: 'grid', gap: 8 }}>
                           <input
                             className="setting-input"
                             value={erpDraft.url}
                             onChange={(e) => setErpDraft((prev) => ({ ...prev, url: e.target.value }))}
-                            placeholder="https://erp.zhongbei.com"
+                            placeholder="http://development.localhost:8000"
+                            style={{ fontFamily: 'var(--mono)' }}
+                          />
+                          <input
+                            className="setting-input"
+                            value={erpDraft.siteName}
+                            onChange={(e) => setErpDraft((prev) => ({ ...prev, siteName: e.target.value }))}
+                            placeholder="development.localhost（可选）"
                             style={{ fontFamily: 'var(--mono)' }}
                           />
                           <input
                             className="setting-input"
                             value={erpDraft.apiKey}
                             onChange={(e) => setErpDraft((prev) => ({ ...prev, apiKey: e.target.value }))}
-                            placeholder="erpnext_api_key"
+                            placeholder="API Key 或 token key:secret"
+                            type="password"
+                          />
+                          <input
+                            className="setting-input"
+                            value={erpDraft.apiSecret}
+                            onChange={(e) => setErpDraft((prev) => ({ ...prev, apiSecret: e.target.value }))}
+                            placeholder="API Secret（若上面填 key:secret 可留空）"
+                            type="password"
+                          />
+                          <input
+                            className="setting-input"
+                            value={erpDraft.username}
+                            onChange={(e) => setErpDraft((prev) => ({ ...prev, username: e.target.value }))}
+                            placeholder="用户名（可选，用于 session 测试）"
+                          />
+                          <input
+                            className="setting-input"
+                            value={erpDraft.password}
+                            onChange={(e) => setErpDraft((prev) => ({ ...prev, password: e.target.value }))}
+                            placeholder="密码（可选，用于 session 测试）"
                             type="password"
                           />
                           <button className="btn-primary" style={{ flex: 'none' }} onClick={testErpConnection} disabled={erpTesting}>
                             {erpTesting ? '测试中...' : '测试连接'}
                           </button>
-                          {erpTestMsg && <div style={{ fontSize: 11, color: erpTestMsg.includes('✅') ? '#059669' : '#D97706' }}>{erpTestMsg}</div>}
+                          {erpTestMsg && <div style={{ fontSize: 12, color: erpTestMsg.includes('✅') ? '#059669' : '#D97706' }}>{erpTestMsg}</div>}
+                          <div style={{ fontSize: 12, color: '#64748B' }}>
+                            推荐先用 API Key/Secret；若本地 `frappe-bench` 仅有账号密码，可填写用户名/密码测试。
+                          </div>
+                          <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px dashed #CBD5E1', fontSize: 12, color: '#334155', fontWeight: 700 }}>
+                            ERP 回写映射（Project on_submit 同步）
+                          </div>
+                          <input
+                            className="setting-input"
+                            value={erpWritebackDraft.projectDoctype}
+                            onChange={(e) => setErpWritebackDraft((prev) => ({ ...prev, projectDoctype: e.target.value }))}
+                            placeholder="ERP Project Doctype（默认 Project）"
+                          />
+                          <input
+                            className="setting-input"
+                            value={erpWritebackDraft.projectLookupField}
+                            onChange={(e) => setErpWritebackDraft((prev) => ({ ...prev, projectLookupField: e.target.value }))}
+                            placeholder="查找字段（默认 name，可改 custom 字段）"
+                          />
+                          <input
+                            className="setting-input"
+                            value={erpWritebackDraft.projectLookupValue}
+                            onChange={(e) => setErpWritebackDraft((prev) => ({ ...prev, projectLookupValue: e.target.value }))}
+                            placeholder="固定查找值（可空；空时回退合同号/项目名）"
+                          />
+                          <input
+                            className="setting-input"
+                            value={erpWritebackDraft.gitpegProjectUriField}
+                            onChange={(e) => setErpWritebackDraft((prev) => ({ ...prev, gitpegProjectUriField: e.target.value }))}
+                            placeholder="回写字段：gitpeg_project_uri"
+                          />
+                          <input
+                            className="setting-input"
+                            value={erpWritebackDraft.gitpegSiteUriField}
+                            onChange={(e) => setErpWritebackDraft((prev) => ({ ...prev, gitpegSiteUriField: e.target.value }))}
+                            placeholder="回写字段：gitpeg_site_uri"
+                          />
+                          <input
+                            className="setting-input"
+                            value={erpWritebackDraft.gitpegStatusField}
+                            onChange={(e) => setErpWritebackDraft((prev) => ({ ...prev, gitpegStatusField: e.target.value }))}
+                            placeholder="回写字段：gitpeg_status"
+                          />
+                          <input
+                            className="setting-input"
+                            value={erpWritebackDraft.gitpegResultJsonField}
+                            onChange={(e) => setErpWritebackDraft((prev) => ({ ...prev, gitpegResultJsonField: e.target.value }))}
+                            placeholder="回写字段：gitpeg_register_result_json"
+                          />
                         </div>
                       </div>
                     </div>
@@ -2055,7 +2816,7 @@ export default function App() {
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
                         <div style={{ fontSize: 13, fontWeight: 700, color: '#0F172A' }}>微信小程序登入</div>
                         <span style={{
-                          fontSize: 10,
+                          fontSize: 12,
                           fontWeight: 700,
                           borderRadius: 10,
                           padding: '2px 8px',
@@ -2065,7 +2826,7 @@ export default function App() {
                           {settings.wechatMiniapp ? '已启用' : '未接入'}
                         </span>
                       </div>
-                      <div style={{ fontSize: 11, color: '#64748B' }}>施工人员通过微信扫码登录，现场质检录入</div>
+                      <div style={{ fontSize: 12, color: '#64748B' }}>施工人员通过微信扫码登录，现场质检录入</div>
                     </div>
                     <input type="checkbox" checked={settings.wechatMiniapp} onChange={(e) => setSettings({ ...settings, wechatMiniapp: e.target.checked })} />
                   </div>
@@ -2076,7 +2837,7 @@ export default function App() {
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
                         <div style={{ fontSize: 13, fontWeight: 700, color: '#0F172A' }}>无人机数据接入</div>
                         <span style={{
-                          fontSize: 10,
+                          fontSize: 12,
                           fontWeight: 700,
                           borderRadius: 10,
                           padding: '2px 8px',
@@ -2086,7 +2847,7 @@ export default function App() {
                           {settings.droneImport ? '已启用' : 'Beta'}
                         </span>
                       </div>
-                      <div style={{ fontSize: 11, color: '#64748B' }}>大疆无人机巡检数据自动接入质检系统</div>
+                      <div style={{ fontSize: 12, color: '#64748B' }}>大疆无人机巡检数据自动接入质检系统</div>
                     </div>
                     <input type="checkbox" checked={settings.droneImport} onChange={(e) => setSettings({ ...settings, droneImport: e.target.checked })} />
                   </div>
@@ -2107,7 +2868,7 @@ export default function App() {
                     </button>
                   </div>
                   {webhookResult.visible && (
-                    <div style={{ marginTop: 6, fontSize: 11, color: webhookResult.color, fontFamily: 'var(--mono)' }}>
+                    <div style={{ marginTop: 6, fontSize: 12, color: webhookResult.color, fontFamily: 'var(--mono)' }}>
                       {webhookResult.text}
                     </div>
                   )}
@@ -2123,6 +2884,17 @@ export default function App() {
                         gitpegToken: settings.gitpegToken,
                         gitpegEnabled: settings.gitpegEnabled,
                         erpnextSync: settings.erpnextSync,
+                        erpnextUrl: erpDraft.url,
+                        erpnextSiteName: erpDraft.siteName,
+                        erpnextApiKey: erpDraft.apiKey,
+                        erpnextApiSecret: erpDraft.apiSecret,
+                        erpnextProjectDoctype: erpWritebackDraft.projectDoctype,
+                        erpnextProjectLookupField: erpWritebackDraft.projectLookupField,
+                        erpnextProjectLookupValue: erpWritebackDraft.projectLookupValue,
+                        erpnextGitpegProjectUriField: erpWritebackDraft.gitpegProjectUriField,
+                        erpnextGitpegSiteUriField: erpWritebackDraft.gitpegSiteUriField,
+                        erpnextGitpegStatusField: erpWritebackDraft.gitpegStatusField,
+                        erpnextGitpegResultJsonField: erpWritebackDraft.gitpegResultJsonField,
                         wechatMiniapp: settings.wechatMiniapp,
                         droneImport: settings.droneImport,
                       })
@@ -2366,3 +3138,4 @@ export default function App() {
     </div>
   )
 }
+

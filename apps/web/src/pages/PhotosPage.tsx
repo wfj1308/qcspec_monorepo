@@ -1,4 +1,4 @@
-/**
+﻿/**
  * QCSpec · 照片管理页面
  * apps/web/src/pages/PhotosPage.tsx
  */
@@ -26,7 +26,7 @@ export default function PhotosPage() {
   const { currentProject }  = useProjectStore()
   const { enterprise }      = useAuthStore()
   const { showToast, setActiveTab } = useUIStore()
-  const { list }            = usePhotos()
+  const { list, remove: removePhotoApi } = usePhotos()
 
   const [viewMode,  setViewMode]  = useState<ViewMode>('grid')
   const [filter,    setFilter]    = useState<FilterMode>('all')
@@ -52,10 +52,20 @@ export default function PhotosPage() {
 
   const handleBatchDelete = useCallback(async () => {
     if (!selected.size) return
-    selected.forEach(id => removePhoto(id))
+    const ids = Array.from(selected)
+    const results = await Promise.all(ids.map(async (id) => {
+      const res = await removePhotoApi(id) as { ok?: boolean } | null
+      return { id, ok: !!res?.ok }
+    }))
+    results.filter((r) => r.ok).forEach((r) => removePhoto(r.id))
+    const failed = results.length - results.filter((r) => r.ok).length
     clearSelect()
-    showToast(`🗑️ 已删除 ${selected.size} 张照片`)
-  }, [selected, removePhoto, clearSelect, showToast])
+    if (failed > 0) {
+      showToast(`⚠️ 已删除 ${results.length - failed} 张，失败 ${failed} 张`)
+      return
+    }
+    showToast(`🗑️ 已删除 ${results.length} 张照片`)
+  }, [selected, removePhoto, removePhotoApi, clearSelect, showToast])
 
   const handleLinkToInspection = useCallback(() => {
     if (!selected.size) return
@@ -90,7 +100,7 @@ export default function PhotosPage() {
             </div>
             <div>
               <div style={{ fontSize: 22, fontWeight: 900, lineHeight: 1 }}>{s.value}</div>
-              <div style={{ fontSize: 11, color: '#6B7280', marginTop: 2 }}>{s.label}</div>
+              <div style={{ fontSize: 12, color: '#6B7280', marginTop: 2 }}>{s.label}</div>
             </div>
           </div>
         ))}
@@ -237,7 +247,7 @@ function GridView({ photos, selected, onToggle, onPreview }: {
               background: selected.has(p.id) ? '#1A56DB' : 'rgba(255,255,255,0.8)',
               border: `2px solid ${selected.has(p.id) ? '#1A56DB' : 'rgba(0,0,0,0.2)'}`,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 11, color: '#fff',
+              fontSize: 12, color: '#fff',
             }}
           >
             {selected.has(p.id) ? '✓' : ''}
@@ -248,7 +258,7 @@ function GridView({ photos, selected, onToggle, onPreview }: {
             <div style={{
               position: 'absolute', top: 6, right: 6,
               background: 'rgba(5,150,105,0.85)', color: '#fff',
-              fontSize: 9, padding: '2px 5px', borderRadius: 4,
+              fontSize: 12, padding: '2px 5px', borderRadius: 4,
             }}>🔒 Proof</div>
           )}
 
@@ -258,10 +268,10 @@ function GridView({ photos, selected, onToggle, onPreview }: {
             background: 'linear-gradient(transparent, rgba(0,0,0,0.7))',
             padding: '16px 8px 6px',
           }}>
-            <div style={{ fontSize: 11, color: '#fff', fontWeight: 700 }}>
+            <div style={{ fontSize: 12, color: '#fff', fontWeight: 700 }}>
               {p.location || '未知桩号'}
             </div>
-            <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.6)' }}>
+            <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)' }}>
               {p.taken_at ? new Date(p.taken_at).toLocaleDateString('zh-CN') : ''}
             </div>
           </div>
@@ -293,7 +303,7 @@ function ListView({ photos, selected, onToggle, onPreview }: {
             background: selected.has(p.id) ? '#1A56DB' : '#F0F4F8',
             border: `2px solid ${selected.has(p.id) ? '#1A56DB' : '#E2E8F0'}`,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 10, color: '#fff',
+            fontSize: 12, color: '#fff',
           }}>{selected.has(p.id) ? '✓' : ''}</div>
 
           {/* 缩略图 */}
@@ -310,7 +320,7 @@ function ListView({ photos, selected, onToggle, onPreview }: {
             <div style={{ fontSize: 13, fontWeight: 700, color: '#0F172A' }}>
               {p.file_name}
             </div>
-            <div style={{ fontSize: 11, color: '#6B7280', display: 'flex', gap: 10, marginTop: 2 }}>
+            <div style={{ fontSize: 12, color: '#6B7280', display: 'flex', gap: 10, marginTop: 2 }}>
               <span>📍 {p.location || '未知'}</span>
               {p.gps_lat && <span>🛰️ {p.gps_lat.toFixed(4)},{p.gps_lng?.toFixed(4)}</span>}
               {p.taken_at && <span>🕐 {new Date(p.taken_at).toLocaleString('zh-CN').slice(0, 16)}</span>}
@@ -319,12 +329,12 @@ function ListView({ photos, selected, onToggle, onPreview }: {
 
           {/* Proof */}
           {p.proof_id ? (
-            <div style={{ fontFamily: 'monospace', fontSize: 10, color: '#D97706',
+            <div style={{ fontFamily: 'monospace', fontSize: 12, color: '#D97706',
               background: '#FFFBEB', padding: '3px 8px', borderRadius: 4 }}>
               🔒 {p.proof_id.slice(0, 14)}
             </div>
           ) : (
-            <div style={{ fontSize: 10, color: '#9CA3AF' }}>未存证</div>
+            <div style={{ fontSize: 12, color: '#9CA3AF' }}>未存证</div>
           )}
         </div>
       ))}
@@ -365,7 +375,7 @@ function PreviewModal({ photo: p, onClose }: { photo: Photo; onClose: () => void
               { label: '拍摄时间', value: p.taken_at ? new Date(p.taken_at).toLocaleString('zh-CN') : '未知' },
             ].map(item => (
               <div key={item.label}>
-                <div style={{ fontSize: 10, color: '#475569', marginBottom: 3 }}>{item.label}</div>
+                <div style={{ fontSize: 12, color: '#475569', marginBottom: 3 }}>{item.label}</div>
                 <div style={{ fontSize: 13, color: '#E5E7EB' }}>{item.value}</div>
               </div>
             ))}
@@ -391,3 +401,4 @@ function PreviewModal({ photo: p, onClose }: { photo: Photo; onClose: () => void
     </div>
   )
 }
+

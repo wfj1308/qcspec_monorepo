@@ -1,4 +1,4 @@
-/**
+﻿/**
  * QCSpec · 照片上传组件
  * apps/web/src/components/photo/PhotoUpload.tsx
  */
@@ -24,6 +24,11 @@ interface PreviewFile {
   status:   'pending' | 'uploading' | 'done' | 'error'
   proof_id?: string
   v_uri?:    string
+}
+
+const formatDateTime = (d: Date) => {
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}年${pad(d.getMonth() + 1)}月${pad(d.getDate())}日 ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
 }
 
 export default function PhotoUpload({ projectId, enterpriseId, inspectionId, location: propLocation }: Props) {
@@ -91,9 +96,9 @@ export default function PhotoUpload({ projectId, enterpriseId, inspectionId, loc
         ctx.textBaseline = 'middle'
         const y = img.height - barH / 2
 
-        const now   = new Date().toLocaleString('zh-CN').slice(0, 16)
+        const now   = formatDateTime(new Date())
         const gps   = file.gps_lat ? `${file.gps_lat.toFixed(4)},${file.gps_lng?.toFixed(4)}` : ''
-        const label = `QCSpec · ${file.location || '?'} · ${now}${gps ? ' · ' + gps : ''}`
+        const label = `QCSpec · ${file.location || '未知桩号'} · ${now}${gps ? ' · ' + gps : ''}`
 
         ctx.fillText(label, 10, y, img.width - 20)
 
@@ -168,7 +173,7 @@ export default function PhotoUpload({ projectId, enterpriseId, inspectionId, loc
     <Card title="现场照片" icon="📷">
       {/* 桩号输入 */}
       <div style={{ marginBottom: 12 }}>
-        <div style={{ fontSize: 11, fontWeight: 700, color: '#6B7280', marginBottom: 5, letterSpacing: '0.5px', textTransform: 'uppercase' }}>
+        <div style={{ fontSize: 12, fontWeight: 700, color: '#6B7280', marginBottom: 5, letterSpacing: '0.5px', textTransform: 'uppercase' }}>
           拍摄桩号
         </div>
         <input
@@ -245,7 +250,7 @@ export default function PhotoUpload({ projectId, enterpriseId, inspectionId, loc
                     position: 'absolute', bottom: 0, left: 0, right: 0,
                     background: 'rgba(0,0,0,0.65)',
                     padding: '3px 6px',
-                    fontFamily: 'monospace', fontSize: 9, color: '#F59E0B',
+                    fontFamily: 'monospace', fontSize: 12, color: '#F59E0B',
                   }}>
                     {f.proof_id.slice(0, 20)}
                   </div>
@@ -301,3 +306,4 @@ export default function PhotoUpload({ projectId, enterpriseId, inspectionId, loc
     </Card>
   )
 }
+

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * QCSpec · 核心 UI 组件
  * apps/web/src/components/ui/index.tsx
  */
@@ -131,8 +131,8 @@ export function StatCard({ value, label, icon, color = '#EFF6FF', trend }: StatC
       </div>
       <div>
         <div style={{ fontSize: 26, fontWeight: 900, lineHeight: 1 }}>{value}</div>
-        <div style={{ fontSize: 11, color: 'var(--gray)', marginTop: 3 }}>{label}</div>
-        {trend && <div style={{ fontSize: 11, color: '#059669', marginTop: 2 }}>{trend}</div>}
+        <div style={{ fontSize: 12, color: 'var(--gray)', marginTop: 3 }}>{label}</div>
+        {trend && <div style={{ fontSize: 12, color: '#059669', marginTop: 2 }}>{trend}</div>}
       </div>
     </div>
   )
@@ -205,7 +205,7 @@ export function Input({ label, value, onChange, placeholder, type = 'text', requ
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
       {label && (
-        <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--gray)', letterSpacing: '0.5px', textTransform: 'uppercase' }}>
+        <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--gray)', letterSpacing: '0.5px', textTransform: 'uppercase' }}>
           {label}{required && <span style={{ color: '#DC2626', marginLeft: 2 }}>*</span>}
         </label>
       )}
@@ -221,7 +221,7 @@ export function Input({ label, value, onChange, placeholder, type = 'text', requ
           color: 'var(--ink)', outline: 'none', width: '100%',
         }}
       />
-      {hint && <div style={{ fontSize: 11, color: '#9CA3AF' }}>{hint}</div>}
+      {hint && <div style={{ fontSize: 12, color: '#9CA3AF' }}>{hint}</div>}
     </div>
   )
 }
@@ -238,7 +238,7 @@ export function Select({ label, value, onChange, options, required }: SelectProp
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
       {label && (
-        <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--gray)', letterSpacing: '0.5px', textTransform: 'uppercase' }}>
+        <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--gray)', letterSpacing: '0.5px', textTransform: 'uppercase' }}>
           {label}{required && <span style={{ color: '#DC2626', marginLeft: 2 }}>*</span>}
         </label>
       )}
@@ -300,7 +300,7 @@ export function VPathDisplay({ uri, proofId }: VPathProps) {
       padding: '10px 14px', marginBottom: 12,
       display: 'flex', alignItems: 'center', gap: 10,
     }}>
-      <span style={{ fontSize: 11, color: '#475569', whiteSpace: 'nowrap' }}>v://</span>
+      <span style={{ fontSize: 12, color: '#475569', whiteSpace: 'nowrap' }}>v://</span>
       <span style={{
         fontFamily: 'var(--mono)', fontSize: 12,
         color: '#60A5FA', fontWeight: 700, flex: 1, wordBreak: 'break-all',
@@ -309,7 +309,7 @@ export function VPathDisplay({ uri, proofId }: VPathProps) {
       </span>
       {proofId && (
         <span style={{
-          fontFamily: 'var(--mono)', fontSize: 10,
+          fontFamily: 'var(--mono)', fontSize: 12,
           color: '#F59E0B', background: 'rgba(245,158,11,0.1)',
           padding: '2px 8px', borderRadius: 4, whiteSpace: 'nowrap',
         }}>
@@ -319,3 +319,4 @@ export function VPathDisplay({ uri, proofId }: VPathProps) {
     </div>
   )
 }
+

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * QCSpec · 质检录入组件
  * apps/web/src/components/inspection/InspectionForm.tsx
  */
@@ -164,7 +164,7 @@ export default function InspectionForm({ projectId, enterpriseId, onSuccess }: P
           >
             <div style={{ fontSize: 18, marginBottom: 4 }}>{t.icon}</div>
             <div style={{ fontWeight: 700, color: '#0F172A' }}>{t.label}</div>
-            <div style={{ fontSize: 10, color: '#9CA3AF', marginTop: 2 }}>{t.std}</div>
+            <div style={{ fontSize: 12, color: '#9CA3AF', marginTop: 2 }}>{t.std}</div>
           </button>
         ))}
       </div>
@@ -189,7 +189,7 @@ export default function InspectionForm({ projectId, enterpriseId, onSuccess }: P
             placeholder="0.00"
           />
           {typeConfig && (
-            <div style={{ fontSize: 11, color: '#1A56DB', marginTop: 4 }}>
+            <div style={{ fontSize: 12, color: '#1A56DB', marginTop: 4 }}>
               规范标准：{typeConfig.standard} {typeConfig.unit}
               {typeConfig.normRef && (
                 <span style={{ color: '#9CA3AF', marginLeft: 6 }}>{typeConfig.normRef}</span>
@@ -203,7 +203,7 @@ export default function InspectionForm({ projectId, enterpriseId, onSuccess }: P
           placeholder="姓名"
         />
         <div>
-          <div style={{ fontSize: 11, fontWeight: 700, color: '#6B7280', marginBottom: 5, letterSpacing: '0.5px', textTransform: 'uppercase' }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: '#6B7280', marginBottom: 5, letterSpacing: '0.5px', textTransform: 'uppercase' }}>
             检测时间
           </div>
           <input
@@ -227,7 +227,7 @@ export default function InspectionForm({ projectId, enterpriseId, onSuccess }: P
 
       {/* 合格判定 */}
       <div style={{ marginBottom: 12 }}>
-        <div style={{ fontSize: 11, fontWeight: 700, color: '#6B7280', marginBottom: 8, letterSpacing: '0.5px', textTransform: 'uppercase' }}>
+        <div style={{ fontSize: 12, fontWeight: 700, color: '#6B7280', marginBottom: 8, letterSpacing: '0.5px', textTransform: 'uppercase' }}>
           合格判定 <span style={{ color: '#DC2626' }}>*</span>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
@@ -252,7 +252,7 @@ export default function InspectionForm({ projectId, enterpriseId, onSuccess }: P
 
       {/* 备注 */}
       <div style={{ marginBottom: 14 }}>
-        <div style={{ fontSize: 11, fontWeight: 700, color: '#6B7280', marginBottom: 5, letterSpacing: '0.5px', textTransform: 'uppercase' }}>备注</div>
+        <div style={{ fontSize: 12, fontWeight: 700, color: '#6B7280', marginBottom: 5, letterSpacing: '0.5px', textTransform: 'uppercase' }}>备注</div>
         <textarea
           value={remark}
           onChange={e => setRemark(e.target.value)}
@@ -269,7 +269,7 @@ export default function InspectionForm({ projectId, enterpriseId, onSuccess }: P
 
       {/* 提交 */}
       <div style={{ marginBottom: 14 }}>
-        <div style={{ fontSize: 11, fontWeight: 700, color: '#6B7280', marginBottom: 5, letterSpacing: '0.5px', textTransform: 'uppercase' }}>
+        <div style={{ fontSize: 12, fontWeight: 700, color: '#6B7280', marginBottom: 5, letterSpacing: '0.5px', textTransform: 'uppercase' }}>
           关联照片
         </div>
         {linkedPhotos.length ? (
@@ -342,3 +342,4 @@ export default function InspectionForm({ projectId, enterpriseId, onSuccess }: P
     </Card>
   )
 }
+

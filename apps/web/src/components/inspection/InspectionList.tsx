@@ -1,4 +1,4 @@
-/**
+﻿/**
  * QCSpec · 质检记录列表
  * apps/web/src/components/inspection/InspectionList.tsx
  */
@@ -12,6 +12,7 @@ import { useInspections } from '../../hooks/useApi'
 
 interface Props {
   projectId: string
+  onDataChanged?: () => void | Promise<void>
 }
 
 interface PhotoPreviewState {
@@ -26,7 +27,7 @@ const FILTER_OPTS: { value: string; label: string }[] = [
   { value: 'fail', label: '✗ 不合格' },
 ]
 
-export default function InspectionList({ projectId }: Props) {
+export default function InspectionList({ projectId, onDataChanged }: Props) {
   const { inspections, stats, removeInspection, photoLinksByInspection } = useInspectionStore()
   const { photos } = usePhotoStore()
   const { remove } = useInspections()
@@ -57,6 +58,7 @@ export default function InspectionList({ projectId }: Props) {
     if (!confirm('确认删除此记录？')) return
     await remove(id)
     removeInspection(id)
+    await onDataChanged?.()
     showToast('记录已删除')
   }
 
@@ -107,7 +109,7 @@ export default function InspectionList({ projectId }: Props) {
             background: s.bg, borderRadius: 10, padding: '12px 14px',
           }}>
             <div style={{ fontSize: 22, fontWeight: 900, color: s.color }}>{s.val}</div>
-            <div style={{ fontSize: 11, color: s.color, opacity: 0.8, marginTop: 2 }}>{s.label}</div>
+            <div style={{ fontSize: 12, color: s.color, opacity: 0.8, marginTop: 2 }}>{s.label}</div>
           </div>
         ))}
       </div>
@@ -264,12 +266,12 @@ function InspectionRow({
         }}
         onClick={() => setExpanded(!expanded)}
       >
-        <div style={{ fontSize: 11, color: '#9CA3AF', textAlign: 'center' }}>{index}</div>
+        <div style={{ fontSize: 12, color: '#9CA3AF', textAlign: 'center' }}>{index}</div>
         <div>
           <div style={{ fontSize: 13, fontWeight: 700, color: '#0F172A' }}>
             {insp.type_name}
           </div>
-          <div style={{ fontSize: 11, color: '#6B7280', marginTop: 2 }}>
+          <div style={{ fontSize: 12, color: '#6B7280', marginTop: 2 }}>
             📍 {insp.location}
             {insp.person && <span style={{ marginLeft: 8 }}>👤 {insp.person}</span>}
             <span style={{ marginLeft: 8 }}>🕐 {new Date(insp.inspected_at).toLocaleString('zh-CN').slice(0, 16)}</span>
@@ -302,9 +304,9 @@ function InspectionRow({
         </div>
         <div style={{ fontSize: 14, fontWeight: 700, color: '#0F172A', textAlign: 'center' }}>
           {insp.value}
-          <span style={{ fontSize: 10, color: '#9CA3AF', marginLeft: 2 }}>{insp.unit}</span>
+          <span style={{ fontSize: 12, color: '#9CA3AF', marginLeft: 2 }}>{insp.unit}</span>
         </div>
-        <div style={{ fontSize: 11, color: '#9CA3AF', textAlign: 'center' }}>
+        <div style={{ fontSize: 12, color: '#9CA3AF', textAlign: 'center' }}>
           标准: {insp.standard ?? '-'}{insp.unit}
         </div>
         <div style={{ textAlign: 'center' }}>
@@ -316,7 +318,7 @@ function InspectionRow({
             background: '#FEF2F2', color: '#DC2626',
             border: '1px solid #FECACA',
             borderRadius: 6, padding: '4px 8px',
-            fontSize: 11, cursor: 'pointer',
+            fontSize: 12, cursor: 'pointer',
             fontFamily: 'var(--sans)',
           }}
         >
@@ -338,7 +340,7 @@ function InspectionRow({
           )}
           {insp.proof_id && (
             <div style={{
-              fontFamily: 'var(--mono)', fontSize: 10,
+              fontFamily: 'var(--mono)', fontSize: 12,
               color: '#D97706', background: '#FFFBEB',
               padding: '4px 10px', borderRadius: 6,
               display: 'inline-block',
@@ -346,7 +348,7 @@ function InspectionRow({
               🔒 {insp.proof_id}
             </div>
           )}
-          <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 6 }}>
+          <div style={{ fontSize: 12, color: '#9CA3AF', marginTop: 6 }}>
             {new Date(insp.inspected_at).toLocaleString('zh-CN')}
           </div>
         </div>
@@ -485,10 +487,10 @@ function PhotoPreviewModal({
             <div style={{ fontSize: 12, fontWeight: 700, color: '#E2E8F0', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               {photo.file_name}
             </div>
-            <div style={{ fontSize: 11, color: '#94A3B8', marginTop: 2 }}>
+            <div style={{ fontSize: 12, color: '#94A3B8', marginTop: 2 }}>
               📍 {photo.location || '未知桩号'}
             </div>
-            <div style={{ fontSize: 11, color: '#64748B', marginTop: 2 }}>
+            <div style={{ fontSize: 12, color: '#64748B', marginTop: 2 }}>
               {index + 1} / {photos.length}
             </div>
           </div>
@@ -534,3 +536,4 @@ function PhotoPreviewModal({
     </div>
   )
 }
+

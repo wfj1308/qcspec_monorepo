@@ -1,4 +1,4 @@
-/**
+﻿/**
  * QCSpec · 照片上传组件
  * apps/web/src/components/photo/PhotoUploader.tsx
  */
@@ -151,7 +151,7 @@ export default function PhotoUploader({ projectId, enterpriseId, inspectionId }:
         <div style={{ fontSize: 13, fontWeight: 700, color: '#0F172A', marginBottom: 4 }}>
           点击选择或拖拽照片到此处
         </div>
-        <div style={{ fontSize: 11, color: '#9CA3AF' }}>
+        <div style={{ fontSize: 12, color: '#9CA3AF' }}>
           支持 JPG / PNG · 最大 20MB / 张
         </div>
         <input
@@ -176,7 +176,7 @@ export default function PhotoUploader({ projectId, enterpriseId, inspectionId }:
           }}
         />
         <div style={{
-          fontSize: 11, color: gps ? '#059669' : '#9CA3AF',
+          fontSize: 12, color: gps ? '#059669' : '#9CA3AF',
           background: gps ? '#ECFDF5' : '#F0F4F8',
           padding: '8px 12px', borderRadius: 8,
           border: `1px solid ${gps ? '#A7F3D0' : '#E2E8F0'}`,
@@ -241,7 +241,7 @@ export default function PhotoUploader({ projectId, enterpriseId, inspectionId }:
                       background: 'rgba(0,0,0,0.5)', color: '#fff',
                       border: 'none', borderRadius: '50%',
                       width: 22, height: 22, cursor: 'pointer',
-                      fontSize: 11, display: 'flex',
+                      fontSize: 12, display: 'flex',
                       alignItems: 'center', justifyContent: 'center',
                     }}
                   >✕</button>
@@ -252,14 +252,14 @@ export default function PhotoUploader({ projectId, enterpriseId, inspectionId }:
                     position: 'absolute', bottom: 0, left: 0, right: 0,
                     background: 'rgba(0,0,0,0.7)',
                     padding: '3px 6px',
-                    fontFamily: 'monospace', fontSize: 9, color: '#F59E0B',
+                    fontFamily: 'monospace', fontSize: 12, color: '#F59E0B',
                   }}>
                     {pf.proofId.slice(0, 20)}
                   </div>
                 )}
                 {/* 文件名 + 大小 */}
                 <div style={{
-                  fontSize: 10, color: '#6B7280',
+                  fontSize: 12, color: '#6B7280',
                   padding: '4px 6px', background: '#F8FAFF',
                   whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
                 }}>
@@ -305,3 +305,4 @@ export default function PhotoUploader({ projectId, enterpriseId, inspectionId }:
     </Card>
   )
 }
+

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+﻿import React, { useEffect, useState } from 'react'
 import { useProjectStore, useInspectionStore, usePhotoStore, useAuthStore, useUIStore } from '../store'
 import { useProjects, useInspections } from '../hooks/useApi'
 
@@ -6,6 +6,14 @@ interface ActivityItem {
   dot: string
   text: string
   time: string
+}
+
+const formatDateTime = (input?: string) => {
+  if (!input) return '刚刚'
+  const d = new Date(input)
+  if (Number.isNaN(d.getTime())) return '刚刚'
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}年${pad(d.getMonth() + 1)}月${pad(d.getDate())}日 ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
 }
 
 const FALLBACK_ACTIVITY_ITEMS: ActivityItem[] = [
@@ -44,7 +52,7 @@ export default function Dashboard() {
         r.data.map((item) => ({
           dot: item.dot || '#64748B',
           text: item.text || '系统更新',
-          time: item.created_at ? new Date(item.created_at).toLocaleString('zh-CN').slice(0, 16) : '刚刚',
+          time: formatDateTime(item.created_at),
         }))
       )
     })
@@ -178,8 +186,8 @@ export default function Dashboard() {
               ))}
             </div>
             <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid rgba(255,255,255,0.05)' }}>
-              <div style={{ fontSize: 11, color: '#475569' }}>Proof 存证</div>
-              <div style={{ fontFamily: 'var(--mono)', fontSize: 11, color: '#64748B', marginTop: 4 }}>
+              <div style={{ fontSize: 12, color: '#475569' }}>Proof 存证</div>
+              <div style={{ fontFamily: 'var(--mono)', fontSize: 12, color: '#64748B', marginTop: 4 }}>
                 后续版本自动接入 GitPeg v:// Proof 链
               </div>
             </div>
@@ -189,3 +197,4 @@ export default function Dashboard() {
     </div>
   )
 }
+

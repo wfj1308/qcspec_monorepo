@@ -43,6 +43,9 @@ qcspec/
 ```bash
 # 在 Supabase Dashboard → SQL Editor 执行
 infra/supabase/001_init.sql
+infra/supabase/002_storage_bootstrap.sql
+infra/supabase/003_coord_gitpeg_autoreg.sql
+infra/supabase/004_coord_runtime_core.sql
 ```
 
 ### 2. 后端 API

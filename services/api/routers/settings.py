@@ -5,10 +5,13 @@ Enterprise settings routes for QCSpec.
 from __future__ import annotations
 
 import os
+import time
+from functools import lru_cache
 from datetime import datetime
-from typing import Optional
+from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
+import httpx
 from pydantic import BaseModel
 from supabase import Client, create_client
 
@@ -23,10 +26,17 @@ DEFAULT_PERMISSION_MATRIX = [
 ]
 
 
-def get_supabase() -> Client:
-    url = os.getenv("SUPABASE_URL")
-    key = os.getenv("SUPABASE_SERVICE_KEY")
+@lru_cache(maxsize=1)
+def _supabase_client_cached(url: str, key: str) -> Client:
     return create_client(url, key)
+
+
+def get_supabase() -> Client:
+    url = str(os.getenv("SUPABASE_URL") or "").strip()
+    key = str(os.getenv("SUPABASE_SERVICE_KEY") or "").strip()
+    if not url or not key:
+        raise HTTPException(500, "Supabase not configured")
+    return _supabase_client_cached(url, key)
 
 
 class SettingsUpdate(BaseModel):
@@ -43,9 +53,30 @@ class SettingsUpdate(BaseModel):
     gitpegToken: Optional[str] = None
     gitpegEnabled: Optional[bool] = None
     erpnextSync: Optional[bool] = None
+    erpnextUrl: Optional[str] = None
+    erpnextSiteName: Optional[str] = None
+    erpnextApiKey: Optional[str] = None
+    erpnextApiSecret: Optional[str] = None
+    erpnextProjectDoctype: Optional[str] = None
+    erpnextProjectLookupField: Optional[str] = None
+    erpnextProjectLookupValue: Optional[str] = None
+    erpnextGitpegProjectUriField: Optional[str] = None
+    erpnextGitpegSiteUriField: Optional[str] = None
+    erpnextGitpegStatusField: Optional[str] = None
+    erpnextGitpegResultJsonField: Optional[str] = None
     wechatMiniapp: Optional[bool] = None
     droneImport: Optional[bool] = None
     permissionMatrix: Optional[list[dict]] = None
+
+
+class ErpNextTestRequest(BaseModel):
+    url: str
+    siteName: Optional[str] = None
+    apiKey: Optional[str] = None
+    apiSecret: Optional[str] = None
+    username: Optional[str] = None
+    password: Optional[str] = None
+    timeoutMs: Optional[int] = 8000
 
 
 def _normalize_permission_matrix(rows: Optional[list[dict]]) -> list[dict]:
@@ -83,6 +114,61 @@ def _normalize_permission_matrix(rows: Optional[list[dict]]) -> list[dict]:
     return merged
 
 
+def _normalize_erp_url(raw: Optional[str]) -> str:
+    value = str(raw or "").strip().rstrip("/")
+    if not value:
+        raise HTTPException(400, "ERPNext URL is required")
+    if not value.startswith("http://") and not value.startswith("https://"):
+        value = f"http://{value}"
+    return value
+
+
+def _erp_headers(site_name: Optional[str]) -> dict[str, str]:
+    headers = {
+        "Accept": "application/json",
+        "User-Agent": "QCSpec-ERPNext-Test/1.0",
+    }
+    site = str(site_name or "").strip()
+    if site:
+        headers["Host"] = site
+        headers["X-Forwarded-Host"] = site
+        headers["X-Frappe-Site-Name"] = site
+    return headers
+
+
+def _auth_candidates(api_key: Optional[str], api_secret: Optional[str]) -> list[tuple[str, str]]:
+    key = str(api_key or "").strip()
+    secret = str(api_secret or "").strip()
+    candidates: list[tuple[str, str]] = []
+    if key and secret:
+        candidates.append(("token", f"token {key}:{secret}"))
+    elif key:
+        lower = key.lower()
+        if lower.startswith("token "):
+            candidates.append(("token", key))
+        elif lower.startswith("bearer "):
+            candidates.append(("bearer", key))
+        elif ":" in key:
+            candidates.append(("token", f"token {key}"))
+        else:
+            # Some self-hosted gateways only accept Bearer.
+            candidates.append(("bearer", f"Bearer {key}"))
+    return candidates
+
+
+def _extract_logged_user(payload: Any) -> str:
+    if not isinstance(payload, dict):
+        return ""
+    message = payload.get("message")
+    if isinstance(message, str):
+        return message
+    if isinstance(message, dict):
+        user = message.get("user") or message.get("email") or message.get("name")
+        return str(user or "")
+    user = payload.get("user")
+    return str(user or "")
+
+
 def _ensure_config(sb: Client, enterprise_id: str) -> dict:
     row = sb.table("enterprise_configs").select("*").eq("enterprise_id", enterprise_id).limit(1).execute()
     if row.data:
@@ -115,6 +201,18 @@ def _to_payload(cfg: dict, ent: dict) -> dict:
             "gitpegToken": custom.get("gitpeg_token") or "",
             "gitpegEnabled": bool(custom.get("gitpeg_enabled", False)),
             "erpnextSync": bool(custom.get("erpnext_sync", False)),
+            "erpnextUrl": custom.get("erpnext_url") or "",
+            "erpnextSiteName": custom.get("erpnext_site_name") or "",
+            "erpnextApiKey": custom.get("erpnext_api_key") or "",
+            "erpnextApiSecret": custom.get("erpnext_api_secret") or "",
+            "erpnextProjectDoctype": custom.get("erpnext_project_doctype") or "Project",
+            "erpnextProjectLookupField": custom.get("erpnext_project_lookup_field") or "name",
+            "erpnextProjectLookupValue": custom.get("erpnext_project_lookup_value") or "",
+            "erpnextGitpegProjectUriField": custom.get("erpnext_gitpeg_project_uri_field") or "gitpeg_project_uri",
+            "erpnextGitpegSiteUriField": custom.get("erpnext_gitpeg_site_uri_field") or "gitpeg_site_uri",
+            "erpnextGitpegStatusField": custom.get("erpnext_gitpeg_status_field") or "gitpeg_status",
+            "erpnextGitpegResultJsonField": custom.get("erpnext_gitpeg_result_json_field")
+            or "gitpeg_register_result_json",
             "wechatMiniapp": bool(custom.get("wechat_miniapp", True)),
             "droneImport": bool(custom.get("drone_import", False)),
             "permissionMatrix": matrix,
@@ -189,6 +287,80 @@ async def upload_template(
     return _to_payload(res.data[0], ent.data)
 
 
+@router.post("/erpnext/test")
+async def test_erpnext_connection(body: ErpNextTestRequest):
+    url = _normalize_erp_url(body.url)
+    site_name = str(body.siteName or "").strip() or None
+    username = str(body.username or "").strip()
+    password = str(body.password or "").strip()
+    timeout_ms = int(body.timeoutMs or 8000)
+    timeout_s = min(max(timeout_ms / 1000, 2.0), 30.0)
+
+    headers = _erp_headers(site_name)
+    health_url = f"{url}/api/method/frappe.auth.get_logged_user"
+    errors: list[str] = []
+    started_at = time.perf_counter()
+
+    async with httpx.AsyncClient(timeout=timeout_s, follow_redirects=True) as client:
+        for mode, auth_header in _auth_candidates(body.apiKey, body.apiSecret):
+            req_headers = {**headers, "Authorization": auth_header}
+            try:
+                res = await client.get(health_url, headers=req_headers)
+                if res.status_code >= 400:
+                    errors.append(f"{mode}:{res.status_code}")
+                    continue
+                payload = res.json()
+                user = _extract_logged_user(payload)
+                latency_ms = int((time.perf_counter() - started_at) * 1000)
+                return {
+                    "ok": True,
+                    "authMode": mode,
+                    "message": "ERPNext connection successful",
+                    "erpUrl": url,
+                    "siteName": site_name or "",
+                    "user": user,
+                    "latencyMs": latency_ms,
+                }
+            except httpx.TimeoutException:
+                errors.append(f"{mode}:timeout")
+            except Exception as exc:
+                errors.append(f"{mode}:{str(exc)}")
+
+        if username and password:
+            try:
+                login_res = await client.post(
+                    f"{url}/api/method/login",
+                    headers=headers,
+                    data={"usr": username, "pwd": password},
+                )
+                if login_res.status_code >= 400:
+                    errors.append(f"session_login:{login_res.status_code}")
+                else:
+                    check_res = await client.get(health_url, headers=headers)
+                    if check_res.status_code >= 400:
+                        errors.append(f"session_check:{check_res.status_code}")
+                    else:
+                        payload = check_res.json()
+                        user = _extract_logged_user(payload) or username
+                        latency_ms = int((time.perf_counter() - started_at) * 1000)
+                        return {
+                            "ok": True,
+                            "authMode": "session",
+                            "message": "ERPNext connection successful",
+                            "erpUrl": url,
+                            "siteName": site_name or "",
+                            "user": user,
+                            "latencyMs": latency_ms,
+                        }
+            except httpx.TimeoutException:
+                errors.append("session:timeout")
+            except Exception as exc:
+                errors.append(f"session:{str(exc)}")
+
+    detail = "; ".join(errors) if errors else "no valid auth info provided"
+    raise HTTPException(502, f"failed to connect ERPNext ({detail})")
+
+
 @router.patch("/")
 async def update_settings(
     enterprise_id: str,
@@ -238,6 +410,28 @@ async def update_settings(
         custom["gitpeg_enabled"] = body.gitpegEnabled
     if body.erpnextSync is not None:
         custom["erpnext_sync"] = body.erpnextSync
+    if body.erpnextUrl is not None:
+        custom["erpnext_url"] = body.erpnextUrl.strip()
+    if body.erpnextSiteName is not None:
+        custom["erpnext_site_name"] = body.erpnextSiteName.strip()
+    if body.erpnextApiKey is not None:
+        custom["erpnext_api_key"] = body.erpnextApiKey.strip()
+    if body.erpnextApiSecret is not None:
+        custom["erpnext_api_secret"] = body.erpnextApiSecret.strip()
+    if body.erpnextProjectDoctype is not None:
+        custom["erpnext_project_doctype"] = body.erpnextProjectDoctype.strip()
+    if body.erpnextProjectLookupField is not None:
+        custom["erpnext_project_lookup_field"] = body.erpnextProjectLookupField.strip()
+    if body.erpnextProjectLookupValue is not None:
+        custom["erpnext_project_lookup_value"] = body.erpnextProjectLookupValue.strip()
+    if body.erpnextGitpegProjectUriField is not None:
+        custom["erpnext_gitpeg_project_uri_field"] = body.erpnextGitpegProjectUriField.strip()
+    if body.erpnextGitpegSiteUriField is not None:
+        custom["erpnext_gitpeg_site_uri_field"] = body.erpnextGitpegSiteUriField.strip()
+    if body.erpnextGitpegStatusField is not None:
+        custom["erpnext_gitpeg_status_field"] = body.erpnextGitpegStatusField.strip()
+    if body.erpnextGitpegResultJsonField is not None:
+        custom["erpnext_gitpeg_result_json_field"] = body.erpnextGitpegResultJsonField.strip()
     if body.wechatMiniapp is not None:
         custom["wechat_miniapp"] = body.wechatMiniapp
     if body.droneImport is not None:

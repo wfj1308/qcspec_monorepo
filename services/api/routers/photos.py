@@ -87,6 +87,8 @@ async def upload_photo(
         "proof_hash": proof_id.replace("GP-PROOF-", "").lower(),
     }).eq("id", photo_id).execute()
 
+    safe_location = (location or "").strip() or "未知桩号"
+
     # Proof 链
     sb.table("proof_chain").insert({
         "proof_id":      proof_id,
@@ -97,7 +99,7 @@ async def upload_photo(
         "object_type":   "photo",
         "object_id":     photo_id,
         "action":        "upload",
-        "summary":       f"照片上传·{location or '?'}·{file.filename}",
+        "summary":       f"照片上传·{safe_location}·{file.filename}",
         "status":        "confirmed",
     }).execute()
 
@@ -128,11 +130,20 @@ async def list_photos(
 
 @router.delete("/{photo_id}")
 async def delete_photo(photo_id: str, sb: Client = Depends(get_supabase)):
-    photo = sb.table("photos").select("storage_path")\
+    photo = sb.table("photos").select("storage_path,proof_id")\
                .eq("id", photo_id).single().execute()
     if photo.data:
         try:
             sb.storage.from_("qcspec-photos").remove([photo.data["storage_path"]])
+        except Exception:
+            pass
+        try:
+            sb.table("proof_chain").delete()\
+              .eq("object_type", "photo")\
+              .eq("object_id", photo_id).execute()
+            if photo.data.get("proof_id"):
+                sb.table("proof_chain").delete()\
+                  .eq("proof_id", photo.data["proof_id"]).execute()
         except Exception:
             pass
     sb.table("photos").delete().eq("id", photo_id).execute()

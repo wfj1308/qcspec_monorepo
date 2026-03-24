@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import os
 import re
+from functools import lru_cache
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -14,11 +15,17 @@ from supabase import Client, create_client
 
 router = APIRouter()
 
+@lru_cache(maxsize=1)
+def _supabase_client_cached(url: str, key: str) -> Client:
+    return create_client(url, key)
+
 
 def get_supabase() -> Client:
-    url = os.getenv("SUPABASE_URL")
-    key = os.getenv("SUPABASE_SERVICE_KEY")
-    return create_client(url, key)
+    url = str(os.getenv("SUPABASE_URL") or "").strip()
+    key = str(os.getenv("SUPABASE_SERVICE_KEY") or "").strip()
+    if not url or not key:
+        raise HTTPException(500, "Supabase not configured")
+    return _supabase_client_cached(url, key)
 
 
 ROLE_SET = {"PUBLIC", "AI", "SUPERVISOR", "OWNER", "REGULATOR", "MARKET"}
