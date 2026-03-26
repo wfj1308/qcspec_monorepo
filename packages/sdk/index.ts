@@ -46,6 +46,8 @@ export interface Project {
   enterprise_id: string
   v_uri: string
   name: string
+  erp_project_code?: string
+  erp_project_name?: string
   type: string
   owner_unit: string
   contractor?: string

@@ -76,6 +76,8 @@ export interface Project {
   enterprise_id: string
   v_uri:         string
   name:          string
+  erp_project_code?: string
+  erp_project_name?: string
   type:          string
   owner_unit:    string
   contractor?:   string
@@ -83,6 +85,44 @@ export interface Project {
   contract_no?:  string
   start_date?:   string
   end_date?:     string
+  description?:  string
+  seg_type?:     'km' | 'contract' | 'structure' | string
+  seg_start?:    string
+  seg_end?:      string
+  perm_template?: string
+  km_interval?:  number
+  inspection_types?: string[]
+  contract_segs?: Array<{ name?: string; range?: string }>
+  structures?: Array<{ kind?: string; name?: string; code?: string }>
+  zero_personnel?: Array<{
+    name?: string
+    title?: string
+    dto_role?: string
+    certificate?: string
+    executor_uri?: string
+  }>
+  zero_equipment?: Array<{
+    name?: string
+    model_no?: string
+    inspection_item?: string
+    valid_until?: string
+    toolpeg_uri?: string
+    status?: string
+  }>
+  zero_subcontracts?: Array<{
+    unit_name?: string
+    content?: string
+    range?: string
+    node_uri?: string
+  }>
+  zero_materials?: Array<{
+    name?: string
+    spec?: string
+    supplier?: string
+    freq?: string
+  }>
+  zero_sign_status?: 'pending' | 'approved' | 'rejected' | string
+  qc_ledger_unlocked?: boolean
   status:        ProjectStatus
   record_count:  number
   photo_count:   number

@@ -18,7 +18,7 @@ API_ENV = Path(__file__).resolve().parent / ".env"
 load_dotenv(ROOT_ENV, override=False)
 load_dotenv(API_ENV, override=False)
 
-from routers import auth, autoreg, inspections, photos, projects, proof, reports, settings, team
+from routers import auth, autoreg, erpnext, inspections, photos, projects, proof, reports, settings, team
 
 
 @asynccontextmanager
@@ -50,6 +50,11 @@ app.include_router(
     prefix="/v1/projects",
     tags=["projects"],
     dependencies=[Depends(auth.require_auth)],
+)
+app.include_router(
+    projects.public_router,
+    prefix="/v1/projects",
+    tags=["projects-public"],
 )
 app.include_router(
     inspections.router,
@@ -85,6 +90,12 @@ app.include_router(
     settings.router,
     prefix="/v1/settings",
     tags=["settings"],
+    dependencies=[Depends(auth.require_auth)],
+)
+app.include_router(
+    erpnext.router,
+    prefix="/v1/erpnext",
+    tags=["erpnext"],
     dependencies=[Depends(auth.require_auth)],
 )
 app.include_router(

@@ -4,7 +4,7 @@ services/api/routers/inspections.py
 """
 
 from datetime import datetime
-from typing import List, Optional
+from typing import Any, List, Optional
 from uuid import UUID
 import hashlib
 import json
@@ -17,6 +17,13 @@ from pydantic import BaseModel
 from postgrest.exceptions import APIError
 from supabase import Client, create_client
 
+from .erpnext import (
+    evaluate_erpnext_gate_for_inspection,
+    load_erpnext_custom,
+    notify_erpnext_for_inspection,
+)
+from .proof_utxo_engine import ProofUTXOEngine
+
 router = APIRouter()
 
 @lru_cache(maxsize=1)
@@ -26,7 +33,11 @@ def _supabase_client_cached(url: str, key: str) -> Client:
 
 def get_supabase() -> Client:
     url = str(os.getenv("SUPABASE_URL") or "").strip()
-    key = str(os.getenv("SUPABASE_SERVICE_KEY") or "").strip()
+    key = str(
+        os.getenv("SUPABASE_SERVICE_KEY")
+        or os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+        or ""
+    ).strip()
     if not url or not key:
         raise HTTPException(500, "Supabase not configured")
     return _supabase_client_cached(url, key)
@@ -89,6 +100,53 @@ def _gen_proof(v_uri: str, data: dict) -> str:
     return f"GP-PROOF-{h}"
 
 
+def _guess_owner_uri(project_uri: str, person: Optional[str]) -> str:
+    person_name = str(person or "").strip()
+    root = str(project_uri or "").strip()
+    for marker in ("/highway/", "/bridge/", "/urban/", "/road/", "/tunnel/"):
+        idx = root.find(marker)
+        if idx > 0:
+            root = root[: idx + 1]
+            break
+    if not root.endswith("/"):
+        root += "/"
+    if person_name:
+        return f"{root}executor/{person_name}/"
+    return f"{root}executor/system/"
+
+
+def _to_utxo_result(result: str) -> str:
+    text = str(result or "").strip().lower()
+    if text == "pass":
+        return "PASS"
+    if text == "fail":
+        return "FAIL"
+    if text == "warn":
+        return "OBSERVE"
+    return "PENDING"
+
+
+def _utxo_anchor_config(custom: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "enabled": custom.get("proof_utxo_gitpeg_anchor_enabled"),
+        "base_url": custom.get("gitpeg_registrar_base_url"),
+        "anchor_path": custom.get("gitpeg_proof_anchor_path") or "/api/v1/proof/anchor",
+        "anchor_endpoint": custom.get("gitpeg_proof_anchor_endpoint"),
+        "auth_token": custom.get("gitpeg_anchor_token")
+        or custom.get("gitpeg_token")
+        or custom.get("gitpeg_client_secret"),
+        "timeout_s": custom.get("gitpeg_proof_anchor_timeout_s") or 6,
+    }
+
+
+def _utxo_auto_consume_enabled(custom: dict[str, Any]) -> bool:
+    value = custom.get("proof_utxo_auto_consume")
+    if isinstance(value, bool):
+        return value
+    text = str(value or os.getenv("PROOF_UTXO_AUTO_CONSUME") or "").strip().lower()
+    return text in {"1", "true", "yes", "on"}
+
+
 @router.get("/")
 async def list_inspections(
     project_id: str,
@@ -141,7 +199,7 @@ async def create_inspection(
     try:
         proj = _run_with_retry(
             lambda: sb.table("projects")
-            .select("v_uri, enterprise_id")
+            .select("id, v_uri, enterprise_id, name, contract_no, erp_project_code, erp_project_name")
             .eq("id", body.project_id)
             .single()
             .execute(),
@@ -159,6 +217,21 @@ async def create_inspection(
 
     proj_uri = proj.data["v_uri"]
     ent_id = proj.data["enterprise_id"]
+    custom = load_erpnext_custom(sb, ent_id)
+    gate_pack = await evaluate_erpnext_gate_for_inspection(
+        custom,
+        project_code=str(proj.data.get("erp_project_code") or "").strip() or None,
+        stake=str(body.location or "").strip(),
+        subitem=str(body.type_name or body.type or "").strip(),
+        result=str(body.result or "").strip(),
+    )
+    gate = gate_pack.get("gate") if isinstance(gate_pack.get("gate"), dict) else {}
+    if bool(gate.get("enabled")) and not bool(gate.get("allow_submit")):
+        reason = str(gate.get("reason") or "erpnext_gate_blocked")
+        raise HTTPException(
+            409,
+            f"erpnext_gate_blocked:{reason}",
+        )
     now = body.inspected_at or datetime.utcnow().isoformat()
 
     rec = {
@@ -230,6 +303,48 @@ async def create_inspection(
     except Exception:
         pass
 
+    utxo_row: dict[str, Any] | None = None
+    utxo_auto_consume: dict[str, Any] = {"attempted": False, "success": False, "reason": "not_triggered"}
+    try:
+        engine = ProofUTXOEngine(sb)
+        utxo_row = engine.create(
+            proof_id=proof_id,
+            owner_uri=_guess_owner_uri(proj_uri, body.person),
+            project_id=body.project_id,
+            project_uri=proj_uri,
+            proof_type="inspection",
+            result=_to_utxo_result(body.result),
+            state_data={
+                "inspection_id": insp["id"],
+                "v_uri": v_uri,
+                "location": body.location,
+                "type": body.type,
+                "type_name": body.type_name,
+                "value": body.value,
+                "standard": body.standard,
+                "unit": body.unit,
+                "result": body.result,
+                "remark": body.remark,
+            },
+            signer_uri=_guess_owner_uri(proj_uri, body.person),
+            signer_role="AI",
+            conditions=[],
+            parent_proof_id=None,
+            norm_uri=None,
+            anchor_config=_utxo_anchor_config(custom),
+        )
+        if _to_utxo_result(body.result) == "PASS" and _utxo_auto_consume_enabled(custom):
+            utxo_auto_consume = engine.auto_consume_inspection_pass(
+                inspection_proof_id=proof_id,
+                executor_uri=_guess_owner_uri(proj_uri, body.person),
+                executor_role="AI",
+                trigger_action="railpact.settle",
+                anchor_config=_utxo_anchor_config(custom),
+            )
+    except Exception:
+        # Keep backward compatibility when proof_utxo migration is not yet applied.
+        pass
+
     linked_photo_count = 0
     photo_ids = [pid for pid in (body.photo_ids or []) if _is_uuid(pid)]
     if photo_ids:
@@ -246,12 +361,53 @@ async def create_inspection(
         except Exception:
             linked_photo_count = 0
 
+    erpnext_notify: dict = {"attempted": False, "success": False, "reason": "not_triggered"}
+    try:
+        erpnext_notify = await notify_erpnext_for_inspection(
+            custom,
+            project={
+                "id": proj.data.get("id"),
+                "enterprise_id": ent_id,
+                "v_uri": proj_uri,
+                "name": proj.data.get("name"),
+                "erp_project_code": proj.data.get("erp_project_code"),
+                "erp_project_name": proj.data.get("erp_project_name"),
+                "contract_no": proj.data.get("contract_no"),
+            },
+            inspection={
+                "id": insp.get("id"),
+                "location": body.location,
+                "type": body.type,
+                "type_name": body.type_name,
+                "result": body.result,
+                "value": body.value,
+                "standard": body.standard,
+                "unit": body.unit,
+            },
+            proof_id=proof_id,
+        )
+    except Exception as exc:
+        erpnext_notify = {
+            "attempted": True,
+            "success": False,
+            "reason": f"notify_exception:{exc.__class__.__name__}",
+        }
+
     return {
         "inspection_id": insp["id"],
         "v_uri": v_uri,
         "proof_id": proof_id,
         "result": body.result,
         "linked_photo_count": linked_photo_count,
+        "utxo_proof": {
+            "proof_id": utxo_row.get("proof_id") if isinstance(utxo_row, dict) else proof_id,
+            "proof_hash": utxo_row.get("proof_hash") if isinstance(utxo_row, dict) else None,
+            "gitpeg_anchor": utxo_row.get("gitpeg_anchor") if isinstance(utxo_row, dict) else None,
+        },
+        "utxo_auto_consume": utxo_auto_consume,
+        "gate": gate,
+        "metering_lookup": gate_pack.get("metering_lookup"),
+        "erpnext_notify": erpnext_notify,
     }
 
 

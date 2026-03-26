@@ -1,7 +1,7 @@
 ﻿import React, { useEffect, useState } from 'react'
 import { useUIStore, useProjectStore, useAuthStore } from './store'
 import { Toast, Card, Button, VPathDisplay } from './components/ui'
-import { useAuthApi, useProof, useTeam, useSettings, useProjects, useAutoreg } from './hooks/useApi'
+import { useAuthApi, useProof, useTeam, useSettings, useProjects, useAutoreg, useErpnext } from './hooks/useApi'
 import Dashboard from './pages/Dashboard'
 import InspectionPage from './pages/InspectionPage'
 import PhotosPage from './pages/PhotosPage'
@@ -9,7 +9,7 @@ import ReportsPage from './pages/ReportsPage'
 
 const DEMO_ENTERPRISE = {
   id: '11111111-1111-4111-8111-111111111111',
-  v_uri: 'v://cn/zhongbei/',
+  v_uri: 'v://cn.zhongbei/',
   name: '中北工程设计咨询有限公司',
   short_name: '中北工程',
   plan: 'enterprise' as const,
@@ -20,7 +20,7 @@ const DEMO_ENTERPRISE = {
 const DEMO_USER = {
   id: '22222222-2222-4222-8222-222222222222',
   enterprise_id: '11111111-1111-4111-8111-111111111111',
-  v_uri: 'v://cn/zhongbei/executor/ligong/',
+  v_uri: 'v://cn.zhongbei/executor/ligong/',
   name: '李总工',
   email: 'admin@zhongbei.com',
   dto_role: 'OWNER' as const,
@@ -31,7 +31,7 @@ const DEMO_PROJECTS = [
   {
     id: '33333333-3333-4333-8333-333333333333',
     enterprise_id: '11111111-1111-4111-8111-111111111111',
-    v_uri: 'v://cn/zhongbei/highway/jinggang-2026/',
+    v_uri: 'v://cn.zhongbei/highway/jinggang-2026/',
     name: '京港高速大修工程（2026）',
     type: 'highway',
     owner_unit: '河南省高速公路发展有限公司',
@@ -48,7 +48,7 @@ const DEMO_PROJECTS = [
   {
     id: '44444444-4444-4444-8444-444444444444',
     enterprise_id: '11111111-1111-4111-8111-111111111111',
-    v_uri: 'v://cn/zhongbei/bridge/qinhe/',
+    v_uri: 'v://cn.zhongbei/bridge/qinhe/',
     name: '沁河特大桥定期检测工程',
     type: 'bridge',
     owner_unit: '焦作市交通运输局',
@@ -91,6 +91,38 @@ type PermTemplate = 'standard' | 'strict' | 'open' | 'custom'
 type InspectionTypeKey = 'flatness' | 'crack' | 'rut' | 'compaction' | 'settlement'
 type PermissionRole = TeamRole | 'REGULATOR' | 'MARKET'
 type PermissionKey = 'view' | 'input' | 'approve' | 'manage' | 'settle' | 'regulator'
+type ZeroLedgerTab = 'personnel' | 'equipment' | 'subcontract' | 'materials'
+
+interface ZeroPersonnelRow {
+  id: string
+  name: string
+  title: string
+  dtoRole: TeamRole
+  certificate: string
+}
+
+interface ZeroEquipmentRow {
+  id: string
+  name: string
+  modelNo: string
+  inspectionItem: string
+  validUntil: string
+}
+
+interface ZeroSubcontractRow {
+  id: string
+  unitName: string
+  content: string
+  range: string
+}
+
+interface ZeroMaterialRow {
+  id: string
+  name: string
+  spec: string
+  supplier: string
+  freq: string
+}
 
 interface TeamMember {
   id: string
@@ -106,9 +138,16 @@ interface ProjectRegisterMeta {
   segType: SegType
   segStart: string
   segEnd: string
+  kmInterval: number
   inspectionTypes: InspectionTypeKey[]
   contractSegs: { name: string; range: string }[]
   structures: { kind: string; name: string; code: string }[]
+  zeroPersonnel: ZeroPersonnelRow[]
+  zeroEquipment: ZeroEquipmentRow[]
+  zeroSubcontracts: ZeroSubcontractRow[]
+  zeroMaterials: ZeroMaterialRow[]
+  zeroSignStatus: 'pending' | 'approved' | 'rejected'
+  qcLedgerUnlocked: boolean
   permTemplate: PermTemplate
   memberCount: number
 }
@@ -145,6 +184,16 @@ interface SettingsState {
   webhookUrl: string
   gitpegToken: string
   gitpegEnabled: boolean
+  gitpegRegistrarBaseUrl: string
+  gitpegPartnerCode: string
+  gitpegIndustryCode: string
+  gitpegClientId: string
+  gitpegClientSecret: string
+  gitpegRegistrationMode: string
+  gitpegReturnUrl: string
+  gitpegWebhookUrl: string
+  gitpegWebhookSecret: string
+  gitpegModuleCandidates: string[]
   erpnextSync: boolean
   wechatMiniapp: boolean
   droneImport: boolean
@@ -167,6 +216,11 @@ interface ErpWritebackDraftState {
   gitpegSiteUriField: string
   gitpegStatusField: string
   gitpegResultJsonField: string
+  gitpegRegistrationIdField: string
+  gitpegNodeUriField: string
+  gitpegShellUriField: string
+  gitpegProofHashField: string
+  gitpegIndustryProfileIdField: string
 }
 
 const ROLE_LABEL: Record<TeamRole, string> = {
@@ -350,6 +404,126 @@ const INSPECTION_TYPE_LABEL: Record<InspectionTypeKey, string> = INSPECTION_TYPE
   {} as Record<InspectionTypeKey, string>
 )
 
+const INSPECTION_TYPE_KEYS = new Set<InspectionTypeKey>(INSPECTION_TYPE_OPTIONS.map((item) => item.key))
+
+const normalizeSegType = (value: unknown): SegType => {
+  const text = String(value || '').toLowerCase()
+  return text === 'contract' || text === 'structure' ? text : 'km'
+}
+
+const normalizePermTemplate = (value: unknown): PermTemplate => {
+  const text = String(value || '').toLowerCase()
+  return text === 'strict' || text === 'open' || text === 'custom' ? text : 'standard'
+}
+
+const normalizeKmInterval = (value: unknown, fallback = 20): number => {
+  const parsed = Number(value)
+  if (!Number.isFinite(parsed)) return fallback
+  return Math.max(1, Math.min(500, Math.round(parsed)))
+}
+
+const normalizeInspectionTypeKeys = (values: unknown): InspectionTypeKey[] => {
+  if (!Array.isArray(values)) return []
+  const out: InspectionTypeKey[] = []
+  values.forEach((item) => {
+    const key = String(item || '') as InspectionTypeKey
+    if (INSPECTION_TYPE_KEYS.has(key) && !out.includes(key)) out.push(key)
+  })
+  return out
+}
+
+const normalizeContractSegs = (values: unknown): Array<{ name: string; range: string }> => {
+  if (!Array.isArray(values)) return []
+  return values
+    .filter((item): item is { name?: unknown; range?: unknown } => typeof item === 'object' && item !== null)
+    .map((item) => ({
+      name: String(item.name || '').trim(),
+      range: String(item.range || '').trim(),
+    }))
+    .filter((item) => item.name || item.range)
+}
+
+const normalizeStructures = (values: unknown): Array<{ kind: string; name: string; code: string }> => {
+  if (!Array.isArray(values)) return []
+  return values
+    .filter((item): item is { kind?: unknown; name?: unknown; code?: unknown } => typeof item === 'object' && item !== null)
+    .map((item) => ({
+      kind: String(item.kind || '').trim(),
+      name: String(item.name || '').trim(),
+      code: String(item.code || '').trim(),
+    }))
+    .filter((item) => item.kind || item.name || item.code)
+}
+
+const normalizeTeamRole = (value: unknown, fallback: TeamRole = 'AI'): TeamRole => {
+  const role = String(value || '').toUpperCase()
+  if (role === 'OWNER' || role === 'SUPERVISOR' || role === 'AI' || role === 'PUBLIC') {
+    return role as TeamRole
+  }
+  return fallback
+}
+
+const normalizeZeroPersonnelRows = (values: unknown): ZeroPersonnelRow[] => {
+  if (!Array.isArray(values)) return []
+  return values
+    .filter((item): item is Record<string, unknown> => typeof item === 'object' && item !== null)
+    .map((item, idx) => ({
+      id: String(item.id || `zp-${idx + 1}`),
+      name: String(item.name || '').trim(),
+      title: String(item.title || '').trim(),
+      dtoRole: normalizeTeamRole(item.dto_role ?? item.dtoRole, 'AI'),
+      certificate: String(item.certificate || '').trim(),
+    }))
+    .filter((item) => item.name || item.title || item.certificate)
+}
+
+const normalizeZeroEquipmentRows = (values: unknown): ZeroEquipmentRow[] => {
+  if (!Array.isArray(values)) return []
+  return values
+    .filter((item): item is Record<string, unknown> => typeof item === 'object' && item !== null)
+    .map((item, idx) => ({
+      id: String(item.id || `ze-${idx + 1}`),
+      name: String(item.name || '').trim(),
+      modelNo: String(item.model_no ?? item.modelNo ?? '').trim(),
+      inspectionItem: String(item.inspection_item ?? item.inspectionItem ?? '').trim(),
+      validUntil: String(item.valid_until ?? item.validUntil ?? '').trim(),
+    }))
+    .filter((item) => item.name || item.modelNo || item.inspectionItem || item.validUntil)
+}
+
+const normalizeZeroSubcontractRows = (values: unknown): ZeroSubcontractRow[] => {
+  if (!Array.isArray(values)) return []
+  return values
+    .filter((item): item is Record<string, unknown> => typeof item === 'object' && item !== null)
+    .map((item, idx) => ({
+      id: String(item.id || `zs-${idx + 1}`),
+      unitName: String(item.unit_name ?? item.unitName ?? '').trim(),
+      content: String(item.content || '').trim(),
+      range: String(item.range || '').trim(),
+    }))
+    .filter((item) => item.unitName || item.content || item.range)
+}
+
+const normalizeZeroMaterialRows = (values: unknown): ZeroMaterialRow[] => {
+  if (!Array.isArray(values)) return []
+  return values
+    .filter((item): item is Record<string, unknown> => typeof item === 'object' && item !== null)
+    .map((item, idx) => ({
+      id: String(item.id || `zm-${idx + 1}`),
+      name: String(item.name || '').trim(),
+      spec: String(item.spec || '').trim(),
+      supplier: String(item.supplier || '').trim(),
+      freq: String(item.freq || '').trim(),
+    }))
+    .filter((item) => item.name || item.spec || item.supplier || item.freq)
+}
+
+const normalizeZeroSignStatus = (value: unknown): 'pending' | 'approved' | 'rejected' => {
+  const v = String(value || '').toLowerCase()
+  if (v === 'approved' || v === 'rejected') return v
+  return 'pending'
+}
+
 const ACTIVITY_ITEMS = [
   { dot: '#059669', text: '王质检在京港高速大修录入了路面平整度记录', time: '10 分钟前' },
   { dot: '#1A56DB', text: '张项目经理注册了新项目：沁河特大桥定检', time: '2 小时前' },
@@ -358,10 +532,63 @@ const ACTIVITY_ITEMS = [
 ]
 
 const QUICK_USERS = {
-  admin: { ...DEMO_USER, name: '李总工', email: 'admin@zhongbei.com', dto_role: 'OWNER' as const, title: '超级管理员' },
-  pm: { ...DEMO_USER, id: '22222222-2222-4222-8222-222222222223', name: '张项目经理', email: 'pm@zhongbei.com', dto_role: 'SUPERVISOR' as const, title: '项目经理' },
-  inspector: { ...DEMO_USER, id: '22222222-2222-4222-8222-222222222224', name: '王质检', email: 'qc@zhongbei.com', dto_role: 'AI' as const, title: '质检员' },
+  admin: {
+    ...DEMO_USER,
+    name: '李总工',
+    email: 'admin@zhongbei.com',
+    dto_role: 'OWNER' as const,
+    title: '超级管理员',
+    v_uri: 'v://cn.zhongbei/executor/admin/',
+  },
+  pm: {
+    ...DEMO_USER,
+    id: '22222222-2222-4222-8222-222222222223',
+    name: '张项目经理',
+    email: 'pm@zhongbei.com',
+    dto_role: 'SUPERVISOR' as const,
+    title: '项目经理',
+    v_uri: 'v://cn.zhongbei/executor/pm/',
+  },
+  inspector: {
+    ...DEMO_USER,
+    id: '22222222-2222-4222-8222-222222222224',
+    name: '王质检',
+    email: 'qc@zhongbei.com',
+    dto_role: 'AI' as const,
+    title: '质检员',
+    v_uri: 'v://cn.zhongbei/executor/qc/',
+  },
 }
+
+const QUICK_LOGIN_ACCOUNTS: Array<{
+  key: keyof typeof QUICK_USERS
+  account: string
+  password: string
+  roleLabel: string
+  desc: string
+}> = [
+  {
+    key: 'admin',
+    account: 'admin@zhongbei.com',
+    password: 'Admin@2026',
+    roleLabel: '超级管理员',
+    desc: '企业配置 / 权限模板 / 系统集成',
+  },
+  {
+    key: 'pm',
+    account: 'pm@zhongbei.com',
+    password: 'PM@2026',
+    roleLabel: '项目经理',
+    desc: '项目注册 / 进度与报告管理',
+  },
+  {
+    key: 'inspector',
+    account: 'qc@zhongbei.com',
+    password: 'QC@2026',
+    roleLabel: '质检员',
+    desc: '现场录入 / 拍照 / 提交质检',
+  },
+]
 
 export default function App() {
   const { activeTab, setActiveTab, toastMsg, sidebarOpen, setSidebarOpen, showToast } = useUIStore()
@@ -374,12 +601,14 @@ export default function App() {
     update: updateProjectApi,
     remove: removeProjectApi,
     syncAutoreg: syncAutoregApi,
+    completeGitpeg: completeGitpegApi,
   } = useProjects()
   const {
     registerProject: registerAutoregProjectApi,
     registerProjectAlias: registerAutoregProjectAliasApi,
     listProjects: listAutoregProjectsApi,
   } = useAutoreg()
+  const { getProjectBasics: getErpProjectBasicsApi } = useErpnext()
   const {
     login: loginApi,
     me: meApi,
@@ -388,11 +617,12 @@ export default function App() {
     registerEnterprise: registerEnterpriseApi,
   } = useAuthApi()
   const { listMembers, inviteMember, updateMember: updateMemberApi, removeMember: removeMemberApi } = useTeam()
-  const { getSettings, saveSettings, testErpnext, uploadTemplate } = useSettings()
+  const { getSettings, saveSettings, testErpnext, testGitpegRegistrar, uploadTemplate } = useSettings()
 
+  const isDemoToken = typeof token === 'string' && token.startsWith('demo-token-')
   const hasPersistedSession = Boolean(token && user?.id && enterprise?.id)
-  const [appReady, setAppReady] = useState(hasPersistedSession)
-  const [sessionChecking, setSessionChecking] = useState(Boolean(token) && !hasPersistedSession)
+  const [appReady, setAppReady] = useState(hasPersistedSession && isDemoToken)
+  const [sessionChecking, setSessionChecking] = useState(Boolean(token) && !isDemoToken)
   const [loginTab, setLoginTab] = useState<'login' | 'register'>('login')
   const [loginForm, setLoginForm] = useState({ account: '', pass: '' })
   const [loggingIn, setLoggingIn] = useState(false)
@@ -418,13 +648,17 @@ export default function App() {
       }
 
       const hasLocalSession = Boolean(user?.id && enterprise?.id)
-      if (hasLocalSession) {
-        // Use persisted state for instant first paint; validate in background.
-        setAppReady(true)
+      if (token.startsWith('demo-token-')) {
+        setAppReady(hasLocalSession)
         setSessionChecking(false)
-      } else {
-        setSessionChecking(true)
+        return
       }
+      if (hasLocalSession && appReady) {
+        setSessionChecking(false)
+        return
+      }
+      setAppReady(false)
+      setSessionChecking(true)
 
       const meRes = await meApi({
         signal: abortController.signal,
@@ -440,9 +674,7 @@ export default function App() {
       } | null
       if (cancelled || abortController.signal.aborted) return
       if (!meRes?.id || !meRes.enterprise_id) {
-        if (!hasLocalSession) {
-          setAppReady(false)
-        }
+        setAppReady(false)
         setSessionChecking(false)
         return
       }
@@ -461,9 +693,7 @@ export default function App() {
       } | null
       if (cancelled || abortController.signal.aborted) return
       if (!enterpriseRes?.id) {
-        if (!hasLocalSession) {
-          setAppReady(false)
-        }
+        setAppReady(false)
         setSessionChecking(false)
         return
       }
@@ -497,7 +727,7 @@ export default function App() {
       cancelled = true
       abortController.abort()
     }
-  }, [token, user?.id, enterprise?.id, meApi, getEnterpriseApi, setUser])
+  }, [token, user?.id, enterprise?.id, appReady, meApi, getEnterpriseApi, setUser])
 
   useEffect(() => {
     setEnterpriseInfo({
@@ -527,6 +757,8 @@ export default function App() {
     name: '',
     type: 'highway',
     owner_unit: '',
+    erp_project_code: '',
+    erp_project_name: '',
     contractor: '',
     supervisor: '',
     contract_no: '',
@@ -536,12 +768,39 @@ export default function App() {
     seg_start: 'K0+000',
     seg_end: 'K100+000',
   })
+  const [erpBindingLoading, setErpBindingLoading] = useState(false)
+  const [erpBinding, setErpBinding] = useState<{
+    success: boolean
+    code: string
+    name: string
+    reason: string
+  }>({
+    success: false,
+    code: '',
+    name: '',
+    reason: 'pending',
+  })
   const [regKmInterval, setRegKmInterval] = useState(20)
   const [registerSuccess, setRegisterSuccess] = useState<{ id: string; name: string; uri: string } | null>(null)
   const [vpathStatus, setVpathStatus] = useState<'checking' | 'available' | 'taken'>('checking')
   const [regInspectionTypes, setRegInspectionTypes] = useState<InspectionTypeKey[]>(['flatness', 'crack'])
   const [contractSegs, setContractSegs] = useState([{ name: '一标段', range: 'K0~K30' }])
   const [structures, setStructures] = useState([{ kind: '桥梁', name: '沁河大桥', code: 'QH-B01' }])
+  const [zeroLedgerTab, setZeroLedgerTab] = useState<ZeroLedgerTab>('personnel')
+  const [zeroPersonnel, setZeroPersonnel] = useState<ZeroPersonnelRow[]>([
+    { id: 'zp-1', name: '石玉山', title: '项目负责人', dtoRole: 'OWNER', certificate: '一级建造师' },
+    { id: 'zp-2', name: '王质检', title: '质检员', dtoRole: 'AI', certificate: '质检员证' },
+  ])
+  const [zeroEquipment, setZeroEquipment] = useState<ZeroEquipmentRow[]>([
+    { id: 'ze-1', name: '灌砂筒', modelNo: 'BZY-001', inspectionItem: '压实度', validUntil: '2027-03-01' },
+    { id: 'ze-2', name: '弯沉仪', modelNo: 'BZY-002', inspectionItem: '弯沉值', validUntil: '2026-12-31' },
+  ])
+  const [zeroSubcontracts, setZeroSubcontracts] = useState<ZeroSubcontractRow[]>([
+    { id: 'zs-1', unitName: '', content: '路面施工', range: '' },
+  ])
+  const [zeroMaterials, setZeroMaterials] = useState<ZeroMaterialRow[]>([
+    { id: 'zm-1', name: '沥青混合料', spec: 'AC-13C', supplier: '', freq: '每批次检测' },
+  ])
 
   const [members, setMembers] = useState<TeamMember[]>([
     { id: '55555555-5555-4555-8555-555555555551', name: '李总工', title: '总工程师', email: 'admin@zhongbei.com', role: 'OWNER', color: '#1A56DB', projects: ['33333333-3333-4333-8333-333333333333', '44444444-4444-4444-8444-444444444444'] },
@@ -567,6 +826,16 @@ export default function App() {
     webhookUrl: '',
     gitpegToken: '',
     gitpegEnabled: false,
+    gitpegRegistrarBaseUrl: 'https://gitpeg.cn',
+    gitpegPartnerCode: 'wastewater-site',
+    gitpegIndustryCode: 'wastewater',
+    gitpegClientId: 'ptn_wastewater_001',
+    gitpegClientSecret: '',
+    gitpegRegistrationMode: 'DOMAIN',
+    gitpegReturnUrl: '',
+    gitpegWebhookUrl: '',
+    gitpegWebhookSecret: '',
+    gitpegModuleCandidates: ['proof', 'utrip', 'openapi'],
     erpnextSync: false,
     wechatMiniapp: true,
     droneImport: false,
@@ -587,6 +856,11 @@ export default function App() {
     gitpegSiteUriField: 'gitpeg_site_uri',
     gitpegStatusField: 'gitpeg_status',
     gitpegResultJsonField: 'gitpeg_register_result_json',
+    gitpegRegistrationIdField: 'gitpeg_registration_id',
+    gitpegNodeUriField: 'gitpeg_node_uri',
+    gitpegShellUriField: 'gitpeg_shell_uri',
+    gitpegProofHashField: 'gitpeg_proof_hash',
+    gitpegIndustryProfileIdField: 'gitpeg_industry_profile_id',
   })
   const [erpTesting, setErpTesting] = useState(false)
   const [erpTestMsg, setErpTestMsg] = useState('')
@@ -641,35 +915,100 @@ export default function App() {
   }>>([])
   const [proofLoading, setProofLoading] = useState(false)
   const [proofVerifying, setProofVerifying] = useState<string | null>(null)
+  const [gitpegCallbackHandled, setGitpegCallbackHandled] = useState(false)
   const isDemoEnterprise = enterprise?.id === DEMO_ENTERPRISE.id
   const canUseEnterpriseApi = !!enterprise?.id && !isDemoEnterprise
 
-  const regUri = `v://cn/zhongbei/${regForm.type}/${(regForm.name || 'project').replace(/\s+/g, '').slice(0, 20).toLowerCase()}/`
+  const regUri = `v://cn.zhongbei/${regForm.type}/${(regForm.name || 'project').replace(/\s+/g, '').slice(0, 20).toLowerCase()}/`
   const detailProject = projects.find((p) => p.id === projectDetailId) || null
   const detailMeta = (projectDetailId && projectMeta[projectDetailId]) || null
   const buildDefaultProjectMeta = (): ProjectRegisterMeta => ({
     segType: 'km',
     segStart: 'K0+000',
     segEnd: 'K100+000',
+    kmInterval: 20,
     inspectionTypes: ['flatness', 'crack'],
     contractSegs: [],
     structures: [],
+    zeroPersonnel: [],
+    zeroEquipment: [],
+    zeroSubcontracts: [],
+    zeroMaterials: [],
+    zeroSignStatus: 'pending',
+    qcLedgerUnlocked: false,
     permTemplate: 'standard',
     memberCount: members.length,
   })
   const normalizeProjectMeta = (meta?: Partial<ProjectRegisterMeta> | null): ProjectRegisterMeta => {
     const base = buildDefaultProjectMeta()
     if (!meta) return base
-    const selectedInspectionTypes = Array.isArray(meta.inspectionTypes)
-      ? meta.inspectionTypes.filter((key): key is InspectionTypeKey => INSPECTION_TYPE_OPTIONS.some((item) => item.key === key))
-      : []
+    const selectedInspectionTypes = normalizeInspectionTypeKeys(meta.inspectionTypes)
     return {
       ...base,
       ...meta,
+      segType: normalizeSegType(meta.segType ?? base.segType),
+      permTemplate: normalizePermTemplate(meta.permTemplate ?? base.permTemplate),
+      kmInterval: normalizeKmInterval(meta.kmInterval, base.kmInterval),
       inspectionTypes: selectedInspectionTypes.length > 0 ? selectedInspectionTypes : base.inspectionTypes,
-      contractSegs: Array.isArray(meta.contractSegs) ? meta.contractSegs.map((item) => ({ ...item })) : base.contractSegs,
-      structures: Array.isArray(meta.structures) ? meta.structures.map((item) => ({ ...item })) : base.structures,
+      contractSegs: normalizeContractSegs(meta.contractSegs).length > 0
+        ? normalizeContractSegs(meta.contractSegs)
+        : base.contractSegs,
+      structures: normalizeStructures(meta.structures).length > 0
+        ? normalizeStructures(meta.structures)
+        : base.structures,
+      zeroPersonnel: normalizeZeroPersonnelRows(meta.zeroPersonnel).length > 0
+        ? normalizeZeroPersonnelRows(meta.zeroPersonnel)
+        : base.zeroPersonnel,
+      zeroEquipment: normalizeZeroEquipmentRows(meta.zeroEquipment).length > 0
+        ? normalizeZeroEquipmentRows(meta.zeroEquipment)
+        : base.zeroEquipment,
+      zeroSubcontracts: normalizeZeroSubcontractRows(meta.zeroSubcontracts).length > 0
+        ? normalizeZeroSubcontractRows(meta.zeroSubcontracts)
+        : base.zeroSubcontracts,
+      zeroMaterials: normalizeZeroMaterialRows(meta.zeroMaterials).length > 0
+        ? normalizeZeroMaterialRows(meta.zeroMaterials)
+        : base.zeroMaterials,
+      zeroSignStatus: normalizeZeroSignStatus(meta.zeroSignStatus),
+      qcLedgerUnlocked: Boolean(meta.qcLedgerUnlocked),
     }
+  }
+  const projectMetaFromRow = (project: typeof projects[number]): ProjectRegisterMeta | null => {
+    const row = project as unknown as Record<string, unknown>
+    const hasPersistedMeta =
+      typeof row.seg_type === 'string' ||
+      typeof row.seg_start === 'string' ||
+      typeof row.seg_end === 'string' ||
+      typeof row.km_interval !== 'undefined' ||
+      Array.isArray(row.inspection_types) ||
+      Array.isArray(row.contract_segs) ||
+      Array.isArray(row.structures) ||
+      Array.isArray(row.zero_personnel) ||
+      Array.isArray(row.zero_equipment) ||
+      Array.isArray(row.zero_subcontracts) ||
+      Array.isArray(row.zero_materials) ||
+      typeof row.zero_sign_status === 'string' ||
+      typeof row.qc_ledger_unlocked !== 'undefined' ||
+      typeof row.perm_template === 'string'
+
+    if (!hasPersistedMeta) return null
+
+    return normalizeProjectMeta({
+      segType: normalizeSegType(row.seg_type),
+      segStart: String(row.seg_start || 'K0+000'),
+      segEnd: String(row.seg_end || 'K100+000'),
+      kmInterval: normalizeKmInterval(row.km_interval, 20),
+      inspectionTypes: normalizeInspectionTypeKeys(row.inspection_types),
+      contractSegs: normalizeContractSegs(row.contract_segs),
+      structures: normalizeStructures(row.structures),
+      zeroPersonnel: normalizeZeroPersonnelRows(row.zero_personnel),
+      zeroEquipment: normalizeZeroEquipmentRows(row.zero_equipment),
+      zeroSubcontracts: normalizeZeroSubcontractRows(row.zero_subcontracts),
+      zeroMaterials: normalizeZeroMaterialRows(row.zero_materials),
+      zeroSignStatus: normalizeZeroSignStatus(row.zero_sign_status),
+      qcLedgerUnlocked: Boolean(row.qc_ledger_unlocked),
+      permTemplate: normalizePermTemplate(row.perm_template),
+      memberCount: members.length,
+    })
   }
   const toggleInspectionType = (
     key: InspectionTypeKey,
@@ -692,7 +1031,7 @@ export default function App() {
     start_date: project.start_date || '',
     end_date: project.end_date || '',
   })
-  const permissionTreeRoot = enterprise?.v_uri || proj.v_uri || 'v://cn/zhongbei/'
+  const permissionTreeRoot = enterprise?.v_uri || proj.v_uri || 'v://cn.zhongbei/'
   const permissionTreeRows = permissionMatrix.map((row) => {
     const granted = PERMISSION_COLUMNS.filter((col) => row[col.key]).map((col) => col.label)
     return {
@@ -711,6 +1050,35 @@ export default function App() {
     const m = Math.round((v - k) * 1000)
     if (m === 0) return `K${k}`
     return `K${k}+${String(m).padStart(3, '0')}`
+  }
+  const makeRowId = (prefix: string) => `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`
+  const normalizeNodeSegment = (value: string, fallback = '（待填）') => {
+    const cleaned = String(value || '').trim().replace(/[\\/]/g, '-').replace(/\s+/g, '')
+    return cleaned || fallback
+  }
+  const normalizeCodeSegment = (value: string) => String(value || '').trim().replace(/[^\w\u4e00-\u9fa5-]/g, '').replace(/\s+/g, '')
+  const buildExecutorUri = (name: string) => `v://cn.zhongbei/executor/${normalizeNodeSegment(name)}/`
+  const buildToolNodeName = (name: string, modelNo: string) => {
+    const safeName = normalizeNodeSegment(name, '待填仪器')
+    const safeModel = normalizeCodeSegment(modelNo)
+    return safeModel ? `${safeName}-${safeModel}` : safeName
+  }
+  const buildToolUri = (name: string, modelNo: string) => `v://cn.zhongbei/tools/${buildToolNodeName(name, modelNo)}/`
+  const buildSubcontractUri = (unitName: string) => `v://cn.zhongbei/subcontract/${normalizeNodeSegment(unitName, '待填分包')}/`
+  const getEquipmentValidity = (validUntil: string) => {
+    if (!validUntil) {
+      return { label: '待填', color: '#64748B', bg: '#F1F5F9', ok: false }
+    }
+    const now = new Date()
+    const target = new Date(`${validUntil}T23:59:59`)
+    const days = Math.floor((target.getTime() - now.getTime()) / 86400000)
+    if (days < 0) {
+      return { label: '❌ 已过期', color: '#DC2626', bg: '#FEE2E2', ok: false }
+    }
+    if (days < 90) {
+      return { label: `⚠️ ${days}天`, color: '#D97706', bg: '#FEF3C7', ok: false }
+    }
+    return { label: '✓ 有效', color: '#059669', bg: '#DCFCE7', ok: true }
   }
   const regRangeTreeLines = (() => {
     if (segType === 'km') {
@@ -736,6 +1104,28 @@ export default function App() {
       .filter((st) => st.kind.trim() || st.name.trim() || st.code.trim())
       .map((st, idx) => `${st.kind || '构造物'}/${st.name || `节点${idx + 1}`}${st.code ? ` (${st.code})` : ''}/`)
   })()
+  const zeroPersonnelCount = zeroPersonnel.filter((row) => row.name.trim()).length
+  const zeroEquipmentCount = zeroEquipment.filter((row) => row.name.trim()).length
+  const zeroLedgerSummary = `${zeroPersonnelCount}名人员 · ${zeroEquipmentCount}台仪器 · 等待秩签审批`
+  const zeroLedgerTreeRows = (() => {
+    const rows: Array<{ text: string; color?: string }> = []
+    zeroPersonnel
+      .filter((row) => row.name.trim())
+      .forEach((row) => rows.push({ text: `executor/${normalizeNodeSegment(row.name)}/ [${row.dtoRole}]`, color: '#34D399' }))
+    zeroEquipment
+      .filter((row) => row.name.trim())
+      .forEach((row) => {
+        const validity = getEquipmentValidity(row.validUntil)
+        rows.push({ text: `tools/${buildToolNodeName(row.name, row.modelNo)}/ ${validity.label}`, color: validity.ok ? '#A78BFA' : validity.color })
+      })
+    zeroSubcontracts
+      .filter((row) => row.unitName.trim())
+      .forEach((row) => rows.push({ text: `subcontract/${normalizeNodeSegment(row.unitName)}/ 自动生成`, color: '#60A5FA' }))
+    zeroMaterials
+      .filter((row) => row.name.trim())
+      .forEach((row) => rows.push({ text: `materials/${normalizeNodeSegment(row.name)}${row.spec ? `-${normalizeCodeSegment(row.spec)}` : ''}/`, color: '#F59E0B' }))
+    return rows
+  })()
   const registerSegCount = projects.reduce((sum, project) => {
     const meta = projectMeta[project.id]
     if (!meta) return sum + 1
@@ -755,6 +1145,121 @@ export default function App() {
     if (typeFilter && p.type !== typeFilter) return false
     return true
   })
+
+  useEffect(() => {
+    if (gitpegCallbackHandled || typeof window === 'undefined') return
+    const params = new URLSearchParams(window.location.search)
+    const code = params.get('code')?.trim() || ''
+    if (!code) {
+      setGitpegCallbackHandled(true)
+      return
+    }
+    if (!appReady || !canUseEnterpriseApi || !enterprise?.id) return
+
+    const projectId = params.get('project_id')?.trim() || params.get('projectId')?.trim() || ''
+    const sessionId = params.get('session_id')?.trim() || params.get('sessionId')?.trim() || ''
+    const registrationId = params.get('registration_id')?.trim() || params.get('registrationId')?.trim() || ''
+    const cleanCallbackParams = () => {
+      const url = new URL(window.location.href)
+      ;[
+        'code',
+        'session_id',
+        'sessionId',
+        'registration_id',
+        'registrationId',
+        'project_id',
+        'projectId',
+        'enterprise_id',
+        'enterpriseId',
+      ].forEach((key) => url.searchParams.delete(key))
+      const nextSearch = url.searchParams.toString()
+      const nextUrl = `${url.pathname}${nextSearch ? `?${nextSearch}` : ''}${url.hash}`
+      window.history.replaceState({}, '', nextUrl)
+    }
+
+    setGitpegCallbackHandled(true)
+    if (!projectId) {
+      showToast('GitPeg 已回跳，但缺少 project_id；请确认 return_url 带 project_id 参数，或等待 webhook 自动激活')
+      cleanCallbackParams()
+      return
+    }
+
+    completeGitpegApi(projectId, {
+      code,
+      session_id: sessionId || undefined,
+      registration_id: registrationId || undefined,
+      enterprise_id: enterprise.id,
+    }).then(async (res) => {
+      const payload = res as {
+        ok?: boolean
+        node_uri?: string
+        registration_id?: string
+        erp_writeback?: { attempted?: boolean; success?: boolean }
+      } | null
+      if (!payload?.ok) return
+
+      const refreshed = await listProjectsApi(enterprise.id) as { data?: Parameters<typeof setProjects>[0] } | null
+      if (refreshed?.data) {
+        setProjects(refreshed.data)
+        const activated = refreshed.data.find((p) => p.id === projectId) || null
+        if (activated) {
+          setCurrentProject(activated)
+          setRegisterSuccess({
+            id: activated.id,
+            name: activated.name,
+            uri: activated.v_uri,
+          })
+        }
+      }
+
+      const writeback = payload.erp_writeback
+      if (writeback?.attempted && !writeback?.success) {
+        showToast('GitPeg 节点已激活，但 ERP 回写失败，请在系统设置检查 ERP 字段映射')
+      } else {
+        showToast(`GitPeg 节点激活成功：${payload.node_uri || '-'}`)
+      }
+    }).finally(() => {
+      cleanCallbackParams()
+    })
+  }, [
+    gitpegCallbackHandled,
+    appReady,
+    canUseEnterpriseApi,
+    enterprise?.id,
+    completeGitpegApi,
+    listProjectsApi,
+    setProjects,
+    setCurrentProject,
+    showToast,
+  ])
+
+  useEffect(() => {
+    setProjectMeta((prev) => {
+      let changed = false
+      const next = { ...prev }
+      const validIds = new Set(projects.map((project) => project.id))
+
+      Object.keys(next).forEach((projectId) => {
+        if (!validIds.has(projectId)) {
+          delete next[projectId]
+          changed = true
+        }
+      })
+
+      projects.forEach((project) => {
+        const derived = projectMetaFromRow(project)
+        if (!derived) return
+        const existing = next[project.id]
+        const same = existing && JSON.stringify(existing) === JSON.stringify(derived)
+        if (!same) {
+          next[project.id] = derived
+          changed = true
+        }
+      })
+
+      return changed ? next : prev
+    })
+  }, [projects, members.length])
 
   useEffect(() => {
     if (registerSuccess) {
@@ -894,6 +1399,8 @@ export default function App() {
           erpnextSiteName?: string
           erpnextApiKey?: string
           erpnextApiSecret?: string
+          erpnextUsername?: string
+          erpnextPassword?: string
           erpnextProjectDoctype?: string
           erpnextProjectLookupField?: string
           erpnextProjectLookupValue?: string
@@ -901,6 +1408,11 @@ export default function App() {
           erpnextGitpegSiteUriField?: string
           erpnextGitpegStatusField?: string
           erpnextGitpegResultJsonField?: string
+          erpnextGitpegRegistrationIdField?: string
+          erpnextGitpegNodeUriField?: string
+          erpnextGitpegShellUriField?: string
+          erpnextGitpegProofHashField?: string
+          erpnextGitpegIndustryProfileIdField?: string
         }
       } | null
       if (!r?.settings) return
@@ -910,6 +1422,8 @@ export default function App() {
         erpnextSiteName,
         erpnextApiKey,
         erpnextApiSecret,
+        erpnextUsername,
+        erpnextPassword,
         erpnextProjectDoctype,
         erpnextProjectLookupField,
         erpnextProjectLookupValue,
@@ -917,6 +1431,11 @@ export default function App() {
         erpnextGitpegSiteUriField,
         erpnextGitpegStatusField,
         erpnextGitpegResultJsonField,
+        erpnextGitpegRegistrationIdField,
+        erpnextGitpegNodeUriField,
+        erpnextGitpegShellUriField,
+        erpnextGitpegProofHashField,
+        erpnextGitpegIndustryProfileIdField,
         ...settingsFromApi
       } = r.settings
       setSettings((prev) => ({ ...prev, ...settingsFromApi }))
@@ -926,6 +1445,8 @@ export default function App() {
         siteName: erpnextSiteName ?? prev.siteName,
         apiKey: erpnextApiKey ?? prev.apiKey,
         apiSecret: erpnextApiSecret ?? prev.apiSecret,
+        username: erpnextUsername ?? prev.username,
+        password: erpnextPassword ?? prev.password,
       }))
       setErpWritebackDraft((prev) => ({
         ...prev,
@@ -936,6 +1457,11 @@ export default function App() {
         gitpegSiteUriField: erpnextGitpegSiteUriField ?? prev.gitpegSiteUriField,
         gitpegStatusField: erpnextGitpegStatusField ?? prev.gitpegStatusField,
         gitpegResultJsonField: erpnextGitpegResultJsonField ?? prev.gitpegResultJsonField,
+        gitpegRegistrationIdField: erpnextGitpegRegistrationIdField ?? prev.gitpegRegistrationIdField,
+        gitpegNodeUriField: erpnextGitpegNodeUriField ?? prev.gitpegNodeUriField,
+        gitpegShellUriField: erpnextGitpegShellUriField ?? prev.gitpegShellUriField,
+        gitpegProofHashField: erpnextGitpegProofHashField ?? prev.gitpegProofHashField,
+        gitpegIndustryProfileIdField: erpnextGitpegIndustryProfileIdField ?? prev.gitpegIndustryProfileIdField,
       }))
       if (matrixFromApi) {
         const matrix = normalizePermissionMatrix(matrixFromApi)
@@ -953,16 +1479,105 @@ export default function App() {
     })
   }, [appReady, canUseEnterpriseApi, enterprise?.id, activeTab, listMembers, getSettings])
 
+  const normalizeDateOnly = (value?: string): string => {
+    const text = String(value || '').trim()
+    if (!text) return ''
+    const match = text.match(/^(\d{4}-\d{2}-\d{2})/)
+    return match ? match[1] : ''
+  }
+
+  const pullErpProjectBinding = async () => {
+    if (!settings.erpnextSync) {
+      showToast('ERP 同步未启用，无需拉取 ERP 项目')
+      return
+    }
+    if (!canUseEnterpriseApi || !enterprise?.id) {
+      showToast('当前环境未连接企业后端，无法从 ERP 拉取项目')
+      return
+    }
+    const lookupCode = String(regForm.erp_project_code || '').trim()
+    const lookupName = String(regForm.erp_project_name || '').trim()
+    if (!lookupCode) {
+      showToast('请先填写 ERP 项目编码（如 PROJ-0001）')
+      return
+    }
+    setErpBindingLoading(true)
+    const res = await getErpProjectBasicsApi({
+      enterprise_id: enterprise.id,
+      project_code: lookupCode,
+      ...(lookupName ? { project_name: lookupName } : {}),
+    }) as {
+      project_basics?: {
+        project_code?: string
+        project_name?: string
+        owner_unit?: string
+        contractor?: string
+        supervisor?: string
+        contract_no?: string
+        start_date?: string
+        end_date?: string
+        description?: string
+      }
+    } | null
+    setErpBindingLoading(false)
+    const basics = res?.project_basics
+    if (!basics) {
+      setErpBinding({ success: false, code: lookupCode, name: '', reason: 'fetch_failed' })
+      return
+    }
+    const boundCode = String(basics.project_code || lookupCode).trim()
+    const boundName = String(basics.project_name || '').trim()
+    if (!boundCode || !boundName) {
+      setErpBinding({ success: false, code: boundCode || lookupCode, name: boundName, reason: 'missing_basics' })
+      showToast('ERP 返回缺少项目编码或项目名称，无法绑定')
+      return
+    }
+
+    setRegForm((prev) => ({
+      ...prev,
+      erp_project_code: boundCode,
+      erp_project_name: boundName,
+      owner_unit: String(basics.owner_unit || prev.owner_unit || '').trim(),
+      contractor: String(basics.contractor || prev.contractor || '').trim(),
+      supervisor: String(basics.supervisor || prev.supervisor || '').trim(),
+      contract_no: String(basics.contract_no || prev.contract_no || '').trim(),
+      start_date: normalizeDateOnly(basics.start_date) || prev.start_date,
+      end_date: normalizeDateOnly(basics.end_date) || prev.end_date,
+      description: String(basics.description || prev.description || '').trim(),
+    }))
+    setErpBinding({
+      success: true,
+      code: boundCode,
+      name: boundName,
+      reason: '',
+    })
+    showToast(`ERP 绑定成功：${boundCode} / ${boundName}`)
+  }
+
   const nextRegStep = () => {
     if (registerStep === 1 && (!regForm.name || !regForm.owner_unit || !regForm.type)) {
       showToast('请先完成项目基本信息')
+      return
+    }
+    if (
+      registerStep === 1 &&
+      settings.erpnextSync &&
+      (!erpBinding.success
+        || erpBinding.code !== String(regForm.erp_project_code || '').trim()
+        || erpBinding.name !== String(regForm.erp_project_name || '').trim())
+    ) {
+      showToast('ERP 同步已启用，请先点击“从 ERP 拉取并绑定”')
       return
     }
     if (registerStep === 2 && regInspectionTypes.length === 0) {
       showToast('请至少选择 1 个主要检测类型')
       return
     }
-    setRegisterStep((s) => Math.min(3, s + 1))
+    if (registerStep === 3 && zeroPersonnelCount === 0 && zeroEquipmentCount === 0) {
+      showToast('零号台帐至少需要 1 名人员或 1 台仪器')
+      return
+    }
+    setRegisterStep((s) => Math.min(4, s + 1))
   }
   const prevRegStep = () => setRegisterStep((s) => Math.max(1, s - 1))
 
@@ -971,10 +1586,14 @@ export default function App() {
   const resetRegister = () => {
     setRegisterStep(1)
     setRegisterSuccess(null)
+    setErpBindingLoading(false)
+    setErpBinding({ success: false, code: '', name: '', reason: 'pending' })
     setRegForm({
       name: '',
       type: 'highway',
       owner_unit: '',
+      erp_project_code: '',
+      erp_project_name: '',
       contractor: '',
       supervisor: '',
       contract_no: '',
@@ -990,11 +1609,39 @@ export default function App() {
     setSegType('km')
     setPermTemplate('standard')
     setRegKmInterval(20)
+    setZeroLedgerTab('personnel')
+    setZeroPersonnel([
+      { id: 'zp-1', name: '石玉山', title: '项目负责人', dtoRole: 'OWNER', certificate: '一级建造师' },
+      { id: 'zp-2', name: '王质检', title: '质检员', dtoRole: 'AI', certificate: '质检员证' },
+    ])
+    setZeroEquipment([
+      { id: 'ze-1', name: '灌砂筒', modelNo: 'BZY-001', inspectionItem: '压实度', validUntil: '2027-03-01' },
+      { id: 'ze-2', name: '弯沉仪', modelNo: 'BZY-002', inspectionItem: '弯沉值', validUntil: '2026-12-31' },
+    ])
+    setZeroSubcontracts([{ id: 'zs-1', unitName: '', content: '路面施工', range: '' }])
+    setZeroMaterials([{ id: 'zm-1', name: '沥青混合料', spec: 'AC-13C', supplier: '', freq: '每批次检测' }])
   }
 
   const submitRegister = async () => {
     if (!regForm.name || !regForm.owner_unit) {
       showToast('请先填写项目名称和业主单位')
+      return
+    }
+    if (settings.erpnextSync && (!canUseEnterpriseApi || !enterprise?.id)) {
+      showToast('ERP 同步已启用，当前环境不支持离线注册，请连接后端后重试')
+      return
+    }
+    if (settings.erpnextSync && !regForm.erp_project_code.trim()) {
+      showToast('ERP 同步已启用，请填写 ERP 项目编码（如 PROJ-0001）')
+      return
+    }
+    if (
+      settings.erpnextSync &&
+      (!erpBinding.success
+        || erpBinding.code !== String(regForm.erp_project_code || '').trim()
+        || erpBinding.name !== String(regForm.erp_project_name || '').trim())
+    ) {
+      showToast('请先从 ERP 拉取并绑定项目，再确认注册')
       return
     }
     if (projects.some((p) => p.v_uri === regUri)) {
@@ -1003,12 +1650,56 @@ export default function App() {
       return
     }
 
+    const zeroPersonnelPayload = zeroPersonnel
+      .map((row) => ({
+        name: row.name.trim(),
+        title: row.title.trim(),
+        dto_role: row.dtoRole,
+        certificate: row.certificate.trim(),
+        executor_uri: buildExecutorUri(row.name),
+      }))
+      .filter((row) => row.name || row.title || row.certificate)
+
+    const zeroEquipmentPayload = zeroEquipment
+      .map((row) => {
+        const validity = getEquipmentValidity(row.validUntil)
+        return {
+          name: row.name.trim(),
+          model_no: row.modelNo.trim(),
+          inspection_item: row.inspectionItem.trim(),
+          valid_until: row.validUntil,
+          toolpeg_uri: buildToolUri(row.name, row.modelNo),
+          status: validity.label,
+        }
+      })
+      .filter((row) => row.name || row.model_no)
+
+    const zeroSubcontractsPayload = zeroSubcontracts
+      .map((row) => ({
+        unit_name: row.unitName.trim(),
+        content: row.content.trim(),
+        range: row.range.trim(),
+        node_uri: buildSubcontractUri(row.unitName),
+      }))
+      .filter((row) => row.unit_name || row.content || row.range)
+
+    const zeroMaterialsPayload = zeroMaterials
+      .map((row) => ({
+        name: row.name.trim(),
+        spec: row.spec.trim(),
+        supplier: row.supplier.trim(),
+        freq: row.freq.trim(),
+      }))
+      .filter((row) => row.name || row.spec || row.supplier || row.freq)
+
     if (canUseEnterpriseApi && enterprise?.id) {
       const created = await createProjectApi({
         enterprise_id: enterprise.id,
         name: regForm.name,
         type: regForm.type,
         owner_unit: regForm.owner_unit,
+        erp_project_code: (settings.erpnextSync ? erpBinding.code : regForm.erp_project_code) || undefined,
+        erp_project_name: (settings.erpnextSync ? erpBinding.name : regForm.erp_project_name) || undefined,
         contractor: regForm.contractor || undefined,
         supervisor: regForm.supervisor || undefined,
         contract_no: regForm.contract_no || undefined,
@@ -1018,16 +1709,34 @@ export default function App() {
         seg_type: segType,
         seg_start: regForm.seg_start || undefined,
         seg_end: regForm.seg_end || undefined,
+        km_interval: regKmInterval,
+        inspection_types: regInspectionTypes,
+        contract_segs: contractSegs,
+        structures,
+        zero_personnel: zeroPersonnelPayload,
+        zero_equipment: zeroEquipmentPayload,
+        zero_subcontracts: zeroSubcontractsPayload,
+        zero_materials: zeroMaterialsPayload,
+        zero_sign_status: 'pending',
+        qc_ledger_unlocked: false,
         perm_template: permTemplate,
       }) as {
         id?: string
         v_uri?: string
         name?: string
+        erp_project_code?: string
+        erp_project_name?: string
         autoreg_sync?: {
           enabled?: boolean
           success?: boolean
+          pending_activation?: boolean
           skipped?: boolean
           reason?: string
+          autoreg?: {
+            hosted_register_url?: string
+            session_id?: string
+            expires_at?: string
+          }
           erp_writeback?: {
             attempted?: boolean
             success?: boolean
@@ -1049,6 +1758,8 @@ export default function App() {
           enterprise_id: enterprise.id,
           v_uri: created.v_uri || regUri,
           name: created.name || regForm.name,
+          erp_project_code: created.erp_project_code || (settings.erpnextSync ? erpBinding.code : regForm.erp_project_code) || '',
+          erp_project_name: created.erp_project_name || (settings.erpnextSync ? erpBinding.name : regForm.erp_project_name) || '',
           type: regForm.type,
           owner_unit: regForm.owner_unit,
           contractor: regForm.contractor || '',
@@ -1076,9 +1787,16 @@ export default function App() {
           segType,
           segStart: regForm.seg_start,
           segEnd: regForm.seg_end,
+          kmInterval: regKmInterval,
           inspectionTypes: regInspectionTypes,
           contractSegs,
           structures,
+          zeroPersonnel: normalizeZeroPersonnelRows(zeroPersonnelPayload),
+          zeroEquipment: normalizeZeroEquipmentRows(zeroEquipmentPayload),
+          zeroSubcontracts: normalizeZeroSubcontractRows(zeroSubcontractsPayload),
+          zeroMaterials: normalizeZeroMaterialRows(zeroMaterialsPayload),
+          zeroSignStatus: 'pending',
+          qcLedgerUnlocked: false,
           permTemplate,
           memberCount: members.length,
         },
@@ -1088,7 +1806,15 @@ export default function App() {
         name: created.name || regForm.name,
         uri: created.v_uri || regUri,
       })
-      if (created.autoreg_sync?.enabled && created.autoreg_sync?.success) {
+      if (created.autoreg_sync?.enabled && created.autoreg_sync?.pending_activation) {
+        const hostedUrl = created.autoreg_sync?.autoreg?.hosted_register_url
+        if (hostedUrl && typeof window !== 'undefined') {
+          window.open(hostedUrl, '_blank', 'noopener,noreferrer')
+        }
+        showToast(hostedUrl
+          ? '项目已创建，已打开 GitPeg 注册页，请完成节点激活'
+          : '项目已创建，GitPeg 注册会话已创建，请完成节点激活')
+      } else if (created.autoreg_sync?.enabled && created.autoreg_sync?.success) {
         const wb = created.autoreg_sync.erp_writeback
         if (wb?.attempted && !wb?.success) {
           showToast('项目注册成功，GitPeg 已登记；ERP 回写失败，可手动重试')
@@ -1096,7 +1822,11 @@ export default function App() {
           showToast('项目注册成功，已完成自动登记')
         }
       } else if (created.autoreg_sync?.enabled && !created.autoreg_sync?.success) {
-        showToast('项目注册成功，但自动登记失败，可手动重试')
+        if (created.autoreg_sync?.reason === 'gitpeg_registrar_config_incomplete') {
+          showToast('项目注册成功，但 GitPeg Registrar 配置不完整，尚未激活主权节点')
+        } else {
+          showToast('项目注册成功，但自动登记失败，可手动重试')
+        }
       } else {
         showToast('项目注册成功（自动登记未启用）')
       }
@@ -1111,6 +1841,8 @@ export default function App() {
       enterprise_id: proj.enterprise_id,
       v_uri: regUri,
       name: regForm.name,
+      erp_project_code: settings.erpnextSync ? erpBinding.code : regForm.erp_project_code,
+      erp_project_name: settings.erpnextSync ? erpBinding.name : (regForm.erp_project_name || regForm.name),
       type: regForm.type,
       owner_unit: regForm.owner_unit,
       contractor: regForm.contractor,
@@ -1118,6 +1850,20 @@ export default function App() {
       contract_no: regForm.contract_no,
       start_date: regForm.start_date,
       end_date: regForm.end_date,
+      seg_type: segType,
+      seg_start: regForm.seg_start,
+      seg_end: regForm.seg_end,
+      km_interval: regKmInterval,
+      inspection_types: regInspectionTypes,
+      contract_segs: contractSegs,
+      structures,
+      zero_personnel: zeroPersonnelPayload,
+      zero_equipment: zeroEquipmentPayload,
+      zero_subcontracts: zeroSubcontractsPayload,
+      zero_materials: zeroMaterialsPayload,
+      zero_sign_status: 'pending',
+      qc_ledger_unlocked: false,
+      perm_template: permTemplate,
       status: 'active' as const,
       record_count: 0,
       photo_count: 0,
@@ -1131,9 +1877,16 @@ export default function App() {
         segType,
         segStart: regForm.seg_start,
         segEnd: regForm.seg_end,
+        kmInterval: regKmInterval,
         inspectionTypes: regInspectionTypes,
         contractSegs,
         structures,
+        zeroPersonnel: normalizeZeroPersonnelRows(zeroPersonnelPayload),
+        zeroEquipment: normalizeZeroEquipmentRows(zeroEquipmentPayload),
+        zeroSubcontracts: normalizeZeroSubcontractRows(zeroSubcontractsPayload),
+        zeroMaterials: normalizeZeroMaterialRows(zeroMaterialsPayload),
+        zeroSignStatus: 'pending',
+        qcLedgerUnlocked: false,
         permTemplate,
         memberCount: members.length,
       },
@@ -1302,6 +2055,9 @@ export default function App() {
     }) as {
       ok?: boolean
       result?: {
+        pending_activation?: boolean
+        reason?: string
+        autoreg?: { hosted_register_url?: string }
         erp_writeback?: { attempted?: boolean; success?: boolean }
       }
     } | null
@@ -1309,6 +2065,18 @@ export default function App() {
     if (!res) return
 
     if (res.ok) {
+      if (res.result?.pending_activation) {
+        const hostedUrl = res.result?.autoreg?.hosted_register_url
+        if (hostedUrl && typeof window !== 'undefined') {
+          window.open(hostedUrl, '_blank', 'noopener,noreferrer')
+        }
+        showToast(hostedUrl
+          ? `项目「${projectName}」已创建 GitPeg 注册会话，已打开激活页`
+          : `项目「${projectName}」已创建 GitPeg 注册会话，待完成激活`)
+        const latestAutoreg = await listAutoregProjectsApi(20) as { items?: typeof autoregRows } | null
+        if (latestAutoreg?.items) setAutoregRows(latestAutoreg.items)
+        return
+      }
       const wb = res.result?.erp_writeback
       if (wb?.attempted && !wb?.success) {
         showToast(`项目「${projectName}」自动登记成功，ERP 回写失败`)
@@ -1317,6 +2085,15 @@ export default function App() {
       }
       const latestAutoreg = await listAutoregProjectsApi(20) as { items?: typeof autoregRows } | null
       if (latestAutoreg?.items) setAutoregRows(latestAutoreg.items)
+      return
+    }
+
+    if (res.result?.reason === 'gitpeg_registrar_config_incomplete') {
+      showToast(`项目「${projectName}」未激活：请先配置 GitPeg Registrar 参数`)
+      return
+    }
+    if (settings.gitpegEnabled) {
+      showToast(`项目「${projectName}」GitPeg 激活失败，请检查 Registrar 服务与凭证`)
       return
     }
 
@@ -1357,6 +2134,10 @@ export default function App() {
       showToast('项目不存在，无法执行直连登记')
       return
     }
+    if (settings.gitpegEnabled) {
+      showToast('当前为 GitPeg Registrar 模式，请使用“重试同步”完成节点激活')
+      return
+    }
     setSyncingProjectId(projectId)
     const payload = {
       project_code: project.contract_no || project.id,
@@ -1385,6 +2166,8 @@ export default function App() {
     erpnextSiteName?: string
     erpnextApiKey?: string
     erpnextApiSecret?: string
+    erpnextUsername?: string
+    erpnextPassword?: string
     erpnextProjectDoctype?: string
     erpnextProjectLookupField?: string
     erpnextProjectLookupValue?: string
@@ -1392,6 +2175,11 @@ export default function App() {
     erpnextGitpegSiteUriField?: string
     erpnextGitpegStatusField?: string
     erpnextGitpegResultJsonField?: string
+    erpnextGitpegRegistrationIdField?: string
+    erpnextGitpegNodeUriField?: string
+    erpnextGitpegShellUriField?: string
+    erpnextGitpegProofHashField?: string
+    erpnextGitpegIndustryProfileIdField?: string
   }) => {
     const next = { ...settings, ...patch }
     setSettings(next)
@@ -1497,20 +2285,74 @@ export default function App() {
     showToast('权限矩阵已保存')
   }
 
-  const verifyGitpegToken = () => {
-    if (!settings.gitpegToken.trim()) {
-      setGitpegVerifyMsg({ text: '⚠️ 请先填写 Token', color: '#D97706' })
+  const verifyGitpegToken = async () => {
+    const baseUrl = settings.gitpegRegistrarBaseUrl.trim()
+    const partnerCode = settings.gitpegPartnerCode.trim()
+    const industryCode = settings.gitpegIndustryCode.trim()
+    const clientId = settings.gitpegClientId.trim()
+    const clientSecret = settings.gitpegClientSecret.trim()
+
+    if (!baseUrl || !partnerCode || !industryCode || !clientId || !clientSecret) {
+      setGitpegVerifyMsg({
+        text: '⚠️ 请填写 Base URL / Partner Code / Industry Code / Client ID / Client Secret',
+        color: '#D97706',
+      })
       return
     }
+
+    if (!/^https?:\/\//i.test(baseUrl)) {
+      setGitpegVerifyMsg({ text: '⚠️ Base URL 需要以 http:// 或 https:// 开头', color: '#D97706' })
+      return
+    }
+
     setGitpegVerifying(true)
     setGitpegVerifyMsg({ text: '⏳ 验证中...', color: '#64748B' })
-    setTimeout(() => {
-      setGitpegVerifying(false)
+    const res = await testGitpegRegistrar({
+      baseUrl,
+      partnerCode,
+      industryCode,
+      clientId,
+      clientSecret,
+      registrationMode: settings.gitpegRegistrationMode || 'DOMAIN',
+      returnUrl: settings.gitpegReturnUrl.trim() || undefined,
+      webhookUrl: settings.gitpegWebhookUrl.trim() || undefined,
+      moduleCandidates: (settings.gitpegModuleCandidates || []).map((item) => String(item || '').trim()).filter(Boolean),
+      timeoutMs: 12000,
+    }) as {
+      ok?: boolean
+      session_id?: string
+      warnings?: string[]
+      token_exchange_probe?: {
+        result?: string
+      }
+    } | null
+
+    setGitpegVerifying(false)
+    if (!res?.ok) {
+      setGitpegVerifyMsg({ text: '❌ 联调失败，请查看后端错误提示', color: '#DC2626' })
+      return
+    }
+
+    const warnings = Array.isArray(res.warnings) ? res.warnings : []
+    const probe = res.token_exchange_probe?.result || ''
+    if (warnings.length > 0) {
       setGitpegVerifyMsg({
-        text: '✅ 连接成功 · v://cn/zhongbei/ 节点已就绪 · 延迟 42ms',
-        color: '#059669',
+        text: `⚠️ 连通成功（session: ${res.session_id || '-' }），但有告警：${warnings.join('；')}`,
+        color: '#D97706',
       })
-    }, 420)
+      return
+    }
+    if (probe === 'credentials_rejected') {
+      setGitpegVerifyMsg({
+        text: `⚠️ 会话创建成功（session: ${res.session_id || '-' }），但 client_id/client_secret 可能被拒绝`,
+        color: '#D97706',
+      })
+      return
+    }
+    setGitpegVerifyMsg({
+      text: `✅ 联调成功（session: ${res.session_id || '-' }）`,
+      color: '#059669',
+    })
   }
 
   const testWebhook = () => {
@@ -1578,6 +2420,21 @@ export default function App() {
     }
     setAppReady(true)
     showToast(`欢迎回来，${user.name}`)
+  }
+
+  const fillQuickLogin = (key: keyof typeof QUICK_USERS) => {
+    const preset = QUICK_LOGIN_ACCOUNTS.find((item) => item.key === key)
+    if (!preset) return
+    setLoginForm({
+      account: preset.account,
+      pass: preset.password,
+    })
+    showToast(`已填充 ${preset.roleLabel} 账号信息`)
+  }
+
+  const quickLoginNow = (key: keyof typeof QUICK_USERS) => {
+    fillQuickLogin(key)
+    doDemoLogin(key)
   }
 
   const doLogin = async () => {
@@ -1751,6 +2608,43 @@ export default function App() {
       contract_no: detailProjectDraft.contract_no || '',
       start_date: detailProjectDraft.start_date || '',
       end_date: detailProjectDraft.end_date || '',
+      seg_type: detailDraft.segType,
+      seg_start: detailDraft.segStart || '',
+      seg_end: detailDraft.segEnd || '',
+      km_interval: normalizeKmInterval(detailDraft.kmInterval, 20),
+      inspection_types: detailDraft.inspectionTypes,
+      contract_segs: detailDraft.contractSegs,
+      structures: detailDraft.structures,
+      zero_personnel: detailDraft.zeroPersonnel.map((row) => ({
+        name: row.name,
+        title: row.title,
+        dto_role: row.dtoRole,
+        certificate: row.certificate,
+        executor_uri: buildExecutorUri(row.name),
+      })),
+      zero_equipment: detailDraft.zeroEquipment.map((row) => ({
+        name: row.name,
+        model_no: row.modelNo,
+        inspection_item: row.inspectionItem,
+        valid_until: row.validUntil,
+        toolpeg_uri: buildToolUri(row.name, row.modelNo),
+        status: getEquipmentValidity(row.validUntil).label,
+      })),
+      zero_subcontracts: detailDraft.zeroSubcontracts.map((row) => ({
+        unit_name: row.unitName,
+        content: row.content,
+        range: row.range,
+        node_uri: buildSubcontractUri(row.unitName),
+      })),
+      zero_materials: detailDraft.zeroMaterials.map((row) => ({
+        name: row.name,
+        spec: row.spec,
+        supplier: row.supplier,
+        freq: row.freq,
+      })),
+      zero_sign_status: detailDraft.zeroSignStatus,
+      qc_ledger_unlocked: detailDraft.qcLedgerUnlocked,
+      perm_template: detailDraft.permTemplate,
     }
 
     if (canUseEnterpriseApi && enterprise?.id) {
@@ -1802,9 +2696,25 @@ export default function App() {
               <div className="l-hint">演示账号快速登录</div>
               <div className="demo-accounts">
                 <div className="demo-title">Demo Accounts</div>
-                <button className="demo-btn" onClick={() => doDemoLogin('admin')}><strong>admin@zhongbei.com</strong> | 超级管理员</button>
-                <button className="demo-btn" onClick={() => doDemoLogin('pm')}><strong>pm@zhongbei.com</strong> | 项目经理</button>
-                <button className="demo-btn" onClick={() => doDemoLogin('inspector')}><strong>qc@zhongbei.com</strong> | 质检员</button>
+                {QUICK_LOGIN_ACCOUNTS.map((item) => {
+                  const profile = QUICK_USERS[item.key]
+                  return (
+                    <div className="demo-item" key={item.key}>
+                      <div className="demo-line">
+                        <strong>{item.account}</strong>
+                        <span>{item.roleLabel}</span>
+                      </div>
+                      <div className="demo-subline">
+                        姓名：{profile.name} · 密码：{item.password}
+                      </div>
+                      <div className="demo-subline">{item.desc}</div>
+                      <div className="demo-actions">
+                        <button className="demo-btn demo-btn-ghost" onClick={() => fillQuickLogin(item.key)}>填充</button>
+                        <button className="demo-btn demo-btn-primary" onClick={() => quickLoginNow(item.key)}>快捷登录</button>
+                      </div>
+                    </div>
+                  )
+                })}
               </div>
             </div>
           )}
@@ -2144,7 +3054,8 @@ export default function App() {
                 {[
                   { num: 1, label: '项目信息' },
                   { num: 2, label: '检测范围' },
-                  { num: 3, label: '确认注册' },
+                  { num: 3, label: '零号台帐' },
+                  { num: 4, label: '确认注册' },
                 ].map((step) => (
                   <div
                     key={step.num}
@@ -2220,6 +3131,59 @@ export default function App() {
                           <input className="form-input" value={regForm.contract_no} onChange={(e) => setRegForm({ ...regForm, contract_no: e.target.value })} placeholder="合同编号" />
                         </div>
                         <div className="form-group">
+                          <label className="form-label">ERP 项目编码</label>
+                          <input
+                            className="form-input"
+                            value={regForm.erp_project_code}
+                            onChange={(e) => {
+                              const value = e.target.value
+                              setRegForm((prev) => ({ ...prev, erp_project_code: value }))
+                              if (settings.erpnextSync) setErpBinding({ success: false, code: '', name: '', reason: 'dirty' })
+                            }}
+                            placeholder="例如：PROJ-0001"
+                          />
+                        </div>
+                        <div className="form-group">
+                          <label className="form-label">ERP 项目名称</label>
+                          <input
+                            className="form-input"
+                            value={regForm.erp_project_name}
+                            onChange={(e) => {
+                              const value = e.target.value
+                              setRegForm((prev) => ({ ...prev, erp_project_name: value }))
+                              if (settings.erpnextSync) setErpBinding({ success: false, code: '', name: '', reason: 'dirty' })
+                            }}
+                            placeholder={settings.erpnextSync ? '将由 ERP 拉取后自动回填' : '可选：用于 ERP 精准匹配'}
+                          />
+                        </div>
+                        {settings.erpnextSync && (
+                          <div className="form-group full">
+                            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                              <button className="btn-secondary" onClick={pullErpProjectBinding} disabled={erpBindingLoading}>
+                                {erpBindingLoading ? '拉取中...' : '从 ERP 拉取并绑定'}
+                              </button>
+                              <span style={{
+                                fontSize: 12,
+                                color: erpBinding.success ? '#047857' : '#B45309',
+                                background: erpBinding.success ? '#ECFDF5' : '#FFFBEB',
+                                border: `1px solid ${erpBinding.success ? '#A7F3D0' : '#FCD34D'}`,
+                                borderRadius: 999,
+                                padding: '4px 10px',
+                                fontWeight: 600,
+                              }}>
+                                {erpBinding.success
+                                  ? `已绑定：${erpBinding.code} / ${erpBinding.name}`
+                                  : '未绑定：请先从 ERP 拉取后再进入下一步'}
+                              </span>
+                            </div>
+                          </div>
+                        )}
+                        {!settings.erpnextSync && (
+                          <div className="form-group full">
+                            <div className="form-hint">ERP 同步未启用，当前注册不做 ERP 强制绑定。</div>
+                          </div>
+                        )}
+                        <div className="form-group">
                           <label className="form-label">开工日期</label>
                           <input className="form-input" type="date" value={regForm.start_date} onChange={(e) => setRegForm({ ...regForm, start_date: e.target.value })} />
                         </div>
@@ -2249,7 +3213,7 @@ export default function App() {
                         <div className="reg-info-box blue">
                           <span className="reg-info-icon">ℹ️</span>
                           <div className="reg-info-text">
-                            检测范围会映射为 v:// 子节点，每个分段都将成为独立归档节点。
+                            检测范围会映射为 v:// 子节点，并与零号台帐、质检台帐共同组成项目主节点结构。
                           </div>
                         </div>
                         <div className="seg-grid">
@@ -2348,13 +3312,255 @@ export default function App() {
                               <div className="node-tree-sub" key={`${line}-${idx}`}>├─ {line}</div>
                             ))
                             : <div className="node-tree-sub">├─ 输入范围参数后自动生成子节点</div>}
-                          <div className="node-tree-sub">└─ reports/</div>
+                          <div className="node-tree-sub">├─ 零号台帐/（步骤3填写）</div>
+                          <div className="node-tree-sub">└─ 质检台帐/（监理秩签后解锁）</div>
                         </div>
                       </div>
                     </>
                   )}
 
                   {registerStep === 3 && (
+                    <div className="form-card">
+                      <div className="form-card-title">📋 零号台帐</div>
+                      <div className="reg-info-box green">
+                        <span className="reg-info-icon">ℹ️</span>
+                        <div className="reg-info-text">开工前建立零号台帐，监理秩签审批通过后质检台帐解锁。</div>
+                      </div>
+                      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
+                        {[
+                          { key: 'personnel', label: '👤 施工人员' },
+                          { key: 'equipment', label: '🔧 检测仪器' },
+                          { key: 'subcontract', label: '🏢 分包单位' },
+                          { key: 'materials', label: '📦 原材料' },
+                        ].map((tab) => (
+                          <button
+                            key={tab.key}
+                            className="btn-secondary"
+                            style={{
+                              padding: '8px 14px',
+                              borderColor: zeroLedgerTab === tab.key ? '#1D4ED8' : '#CBD5E1',
+                              color: zeroLedgerTab === tab.key ? '#1D4ED8' : '#475569',
+                              background: zeroLedgerTab === tab.key ? '#EFF6FF' : '#fff',
+                            }}
+                            onClick={() => setZeroLedgerTab(tab.key as ZeroLedgerTab)}
+                          >
+                            {tab.label}
+                          </button>
+                        ))}
+                      </div>
+
+                      {zeroLedgerTab === 'personnel' && (
+                        <div style={{ marginBottom: 14 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                            <div style={{ fontSize: 12, color: '#64748B' }}>姓名 · 职务 · DTORole · 资质证书 · executor 节点地址实时生成</div>
+                            <button
+                              className="btn-secondary"
+                              onClick={() => setZeroPersonnel((prev) => [...prev, {
+                                id: makeRowId('zp'),
+                                name: '',
+                                title: '质检员',
+                                dtoRole: 'AI',
+                                certificate: '',
+                              }])}
+                            >
+                              + 添加人员
+                            </button>
+                          </div>
+                          <div style={{ overflowX: 'auto' }}>
+                            <table className="perm-table" style={{ minWidth: 900 }}>
+                              <thead>
+                                <tr>
+                                  <th>姓名</th><th>职务</th><th>DTORole</th><th>资质证书</th><th>executor 节点</th><th style={{ width: 68 }}>操作</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {zeroPersonnel.map((row) => (
+                                  <tr key={row.id}>
+                                    <td><input className="form-input" value={row.name} onChange={(e) => setZeroPersonnel((prev) => prev.map((x) => x.id === row.id ? { ...x, name: e.target.value } : x))} placeholder="姓名" /></td>
+                                    <td><input className="form-input" value={row.title} onChange={(e) => setZeroPersonnel((prev) => prev.map((x) => x.id === row.id ? { ...x, title: e.target.value } : x))} placeholder="职务/职称" /></td>
+                                    <td>
+                                      <select className="form-select" value={row.dtoRole} onChange={(e) => setZeroPersonnel((prev) => prev.map((x) => x.id === row.id ? { ...x, dtoRole: e.target.value as TeamRole } : x))}>
+                                        <option value="OWNER">OWNER</option>
+                                        <option value="SUPERVISOR">SUPERVISOR</option>
+                                        <option value="AI">AI</option>
+                                        <option value="PUBLIC">PUBLIC</option>
+                                      </select>
+                                    </td>
+                                    <td><input className="form-input" value={row.certificate} onChange={(e) => setZeroPersonnel((prev) => prev.map((x) => x.id === row.id ? { ...x, certificate: e.target.value } : x))} placeholder="资质证书" /></td>
+                                    <td><code style={{ color: '#1D4ED8', fontSize: 12 }}>{buildExecutorUri(row.name)}</code></td>
+                                    <td><button className="act-btn act-del" onClick={() => setZeroPersonnel((prev) => prev.filter((x) => x.id !== row.id))}>删除</button></td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      )}
+
+                      {zeroLedgerTab === 'equipment' && (
+                        <div style={{ marginBottom: 14 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                            <div style={{ fontSize: 12, color: '#64748B' }}>检定有效期自动计算剩余天数：&gt;90天有效，&lt;90天预警，已过期标红</div>
+                            <button
+                              className="btn-secondary"
+                              onClick={() => setZeroEquipment((prev) => [...prev, {
+                                id: makeRowId('ze'),
+                                name: '',
+                                modelNo: '',
+                                inspectionItem: '压实度',
+                                validUntil: '',
+                              }])}
+                            >
+                              + 添加仪器
+                            </button>
+                          </div>
+                          <div style={{ overflowX: 'auto' }}>
+                            <table className="perm-table" style={{ minWidth: 980 }}>
+                              <thead>
+                                <tr>
+                                  <th>仪器名称</th><th>型号编号</th><th>检测项目</th><th>检定有效期</th><th>ToolPeg 节点</th><th>状态</th><th style={{ width: 68 }}>操作</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {zeroEquipment.map((row) => {
+                                  const validity = getEquipmentValidity(row.validUntil)
+                                  return (
+                                    <tr key={row.id}>
+                                      <td><input className="form-input" value={row.name} onChange={(e) => setZeroEquipment((prev) => prev.map((x) => x.id === row.id ? { ...x, name: e.target.value } : x))} placeholder="仪器名称" /></td>
+                                      <td><input className="form-input" value={row.modelNo} onChange={(e) => setZeroEquipment((prev) => prev.map((x) => x.id === row.id ? { ...x, modelNo: e.target.value } : x))} placeholder="型号/编号" /></td>
+                                      <td><input className="form-input" value={row.inspectionItem} onChange={(e) => setZeroEquipment((prev) => prev.map((x) => x.id === row.id ? { ...x, inspectionItem: e.target.value } : x))} placeholder="检测项目" /></td>
+                                      <td><input className="form-input" type="date" value={row.validUntil} onChange={(e) => setZeroEquipment((prev) => prev.map((x) => x.id === row.id ? { ...x, validUntil: e.target.value } : x))} /></td>
+                                      <td><code style={{ color: '#1D4ED8', fontSize: 12 }}>{buildToolUri(row.name, row.modelNo)}</code></td>
+                                      <td><span style={{ fontSize: 12, fontWeight: 700, color: validity.color, background: validity.bg, borderRadius: 999, padding: '3px 10px' }}>{validity.label}</span></td>
+                                      <td><button className="act-btn act-del" onClick={() => setZeroEquipment((prev) => prev.filter((x) => x.id !== row.id))}>删除</button></td>
+                                    </tr>
+                                  )
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      )}
+
+                      {zeroLedgerTab === 'subcontract' && (
+                        <div style={{ marginBottom: 14 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                            <div style={{ fontSize: 12, color: '#64748B' }}>单位名称 · 分包内容 · 桩号范围 · 自动生成子节点</div>
+                            <button
+                              className="btn-secondary"
+                              onClick={() => setZeroSubcontracts((prev) => [...prev, {
+                                id: makeRowId('zs'),
+                                unitName: '',
+                                content: '路面施工',
+                                range: '',
+                              }])}
+                            >
+                              + 添加分包
+                            </button>
+                          </div>
+                          <div style={{ overflowX: 'auto' }}>
+                            <table className="perm-table" style={{ minWidth: 860 }}>
+                              <thead>
+                                <tr>
+                                  <th>单位名称</th><th>分包内容</th><th>桩号范围</th><th>自动生成子节点</th><th style={{ width: 68 }}>操作</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {zeroSubcontracts.map((row) => (
+                                  <tr key={row.id}>
+                                    <td><input className="form-input" value={row.unitName} onChange={(e) => setZeroSubcontracts((prev) => prev.map((x) => x.id === row.id ? { ...x, unitName: e.target.value } : x))} placeholder="分包单位全称" /></td>
+                                    <td><input className="form-input" value={row.content} onChange={(e) => setZeroSubcontracts((prev) => prev.map((x) => x.id === row.id ? { ...x, content: e.target.value } : x))} placeholder="分包内容" /></td>
+                                    <td><input className="form-input" value={row.range} onChange={(e) => setZeroSubcontracts((prev) => prev.map((x) => x.id === row.id ? { ...x, range: e.target.value } : x))} placeholder="K0~K20" /></td>
+                                    <td><code style={{ color: '#1D4ED8', fontSize: 12 }}>{buildSubcontractUri(row.unitName)}</code></td>
+                                    <td><button className="act-btn act-del" onClick={() => setZeroSubcontracts((prev) => prev.filter((x) => x.id !== row.id))}>删除</button></td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      )}
+
+                      {zeroLedgerTab === 'materials' && (
+                        <div style={{ marginBottom: 14 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                            <div style={{ fontSize: 12, color: '#64748B' }}>材料名称 · 规格 · 供应商 · 检测频率要求</div>
+                            <button
+                              className="btn-secondary"
+                              onClick={() => setZeroMaterials((prev) => [...prev, {
+                                id: makeRowId('zm'),
+                                name: '',
+                                spec: '',
+                                supplier: '',
+                                freq: '每批次检测',
+                              }])}
+                            >
+                              + 添加材料
+                            </button>
+                          </div>
+                          <div style={{ overflowX: 'auto' }}>
+                            <table className="perm-table" style={{ minWidth: 860 }}>
+                              <thead>
+                                <tr>
+                                  <th>材料名称</th><th>规格</th><th>供应商</th><th>检测频率要求</th><th style={{ width: 68 }}>操作</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {zeroMaterials.map((row) => (
+                                  <tr key={row.id}>
+                                    <td><input className="form-input" value={row.name} onChange={(e) => setZeroMaterials((prev) => prev.map((x) => x.id === row.id ? { ...x, name: e.target.value } : x))} placeholder="材料名称" /></td>
+                                    <td><input className="form-input" value={row.spec} onChange={(e) => setZeroMaterials((prev) => prev.map((x) => x.id === row.id ? { ...x, spec: e.target.value } : x))} placeholder="规格型号" /></td>
+                                    <td><input className="form-input" value={row.supplier} onChange={(e) => setZeroMaterials((prev) => prev.map((x) => x.id === row.id ? { ...x, supplier: e.target.value } : x))} placeholder="供应商" /></td>
+                                    <td><input className="form-input" value={row.freq} onChange={(e) => setZeroMaterials((prev) => prev.map((x) => x.id === row.id ? { ...x, freq: e.target.value } : x))} placeholder="每批次检测" /></td>
+                                    <td><button className="act-btn act-del" onClick={() => setZeroMaterials((prev) => prev.filter((x) => x.id !== row.id))}>删除</button></td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      )}
+
+                      <div style={{ fontSize: 12, color: '#475569', fontWeight: 700, marginBottom: 6 }}>节点树实时预览</div>
+                      <div className="node-tree" style={{ marginBottom: 12 }}>
+                        <div>{regUri}</div>
+                        <div className="node-tree-sub" style={{ color: '#F59E0B' }}>├─ 零号台帐/</div>
+                        {zeroLedgerTreeRows.length > 0 ? zeroLedgerTreeRows.map((row, idx) => (
+                          <div key={`${row.text}-${idx}`} className="node-tree-sub" style={{ color: row.color || '#34D399' }}>
+                            {idx === zeroLedgerTreeRows.length - 1 ? '└─' : '├─'} {row.text}
+                          </div>
+                        )) : (
+                          <div className="node-tree-sub">└─ （等待填写零号台帐）</div>
+                        )}
+                        <div className="node-tree-sub" style={{ color: '#94A3B8' }}>└─ 质检台帐/（等待监理秩签后解锁）</div>
+                      </div>
+
+                      <div className="reg-info-box green" style={{ marginBottom: 0, alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap' }}>
+                        <div>
+                          <div style={{ fontSize: 13, fontWeight: 700, color: '#047857', marginBottom: 4 }}>🔏 秩签（Ordosign）审批</div>
+                          <div style={{ fontSize: 12, color: '#334155' }}>项目负责人秩签 → 监理工程师秩签 → 质检台帐解锁</div>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                          <div style={{ textAlign: 'center' }}>
+                            <div style={{ width: 42, height: 42, borderRadius: '50%', border: '2px dashed #6EE7B7', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#fff' }}>项</div>
+                            <div style={{ fontSize: 10, color: '#64748B' }}>待签</div>
+                          </div>
+                          <span style={{ color: '#10B981' }}>→</span>
+                          <div style={{ textAlign: 'center' }}>
+                            <div style={{ width: 42, height: 42, borderRadius: '50%', border: '2px dashed #6EE7B7', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#fff' }}>监</div>
+                            <div style={{ fontSize: 10, color: '#64748B' }}>待签</div>
+                          </div>
+                          <span style={{ color: '#10B981' }}>→</span>
+                          <div style={{ textAlign: 'center' }}>
+                            <div style={{ width: 42, height: 42, borderRadius: '50%', border: '2px dashed #6EE7B7', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#fff' }}>🔓</div>
+                            <div style={{ fontSize: 10, color: '#64748B' }}>质检台帐</div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {registerStep === 4 && (
                     <div className="form-card">
                       <div className="form-card-title">✅ 确认项目信息</div>
                       <div className="reg-info-box green">
@@ -2372,18 +3578,22 @@ export default function App() {
                         <span style={{ color: '#64748B' }}>施工单位</span><span>{regForm.contractor || '-'}</span>
                         <span style={{ color: '#64748B' }}>监理单位</span><span>{regForm.supervisor || '-'}</span>
                         <span style={{ color: '#64748B' }}>合同编号</span><span>{regForm.contract_no || '-'}</span>
+                        <span style={{ color: '#64748B' }}>ERP 项目编码</span><span>{regForm.erp_project_code || '-'}</span>
+                        <span style={{ color: '#64748B' }}>ERP 项目名称</span><span>{regForm.erp_project_name || '-'}</span>
                         <span style={{ color: '#64748B' }}>工期</span><span>{regForm.start_date || '-'} ~ {regForm.end_date || '-'}</span>
                         <span style={{ color: '#64748B' }}>分段方式</span><span>{segType === 'km' ? '按桩号' : segType === 'contract' ? '按合同段' : '按结构物'}</span>
+                        <span style={{ color: '#64748B' }}>分段间隔</span><span>{regKmInterval} km</span>
                         <span style={{ color: '#64748B' }}>主要检测类型</span>
                         <span>{regInspectionTypes.length ? regInspectionTypes.map((key) => INSPECTION_TYPE_LABEL[key]).join(' / ') : '-'}</span>
                         <span style={{ color: '#64748B' }}>v:// URI</span><code style={{ color: '#1A56DB', wordBreak: 'break-all' }}>{regUri}</code>
+                        <span style={{ color: '#64748B' }}>零号台帐</span><span style={{ color: '#047857', fontWeight: 700 }}>{zeroLedgerSummary}</span>
                       </div>
                     </div>
                   )}
 
                   <div className="btn-row">
                     <button className="btn-secondary" onClick={prevRegStep} disabled={registerStep === 1}>上一步</button>
-                    {registerStep < 3 ? (
+                    {registerStep < 4 ? (
                       <button className="btn-primary" onClick={nextRegStep}>下一步</button>
                     ) : (
                       <button className="btn-primary btn-green" onClick={submitRegister}>确认注册</button>
@@ -2671,11 +3881,90 @@ export default function App() {
                             className="setting-input"
                             value={settings.gitpegToken}
                             onChange={(e) => setSettings({ ...settings, gitpegToken: e.target.value })}
-                            placeholder="gitpeg_token_xxxxxxxxxxxxxxxx"
+                            placeholder="可选：兼容模式 Token（官方 Partner 接口可留空）"
                             type="password"
                             style={{ fontFamily: 'var(--mono)' }}
                           />
                           <input className="setting-input" value={enterpriseInfo.vUri} readOnly style={{ fontFamily: 'var(--mono)', color: '#1A56DB' }} />
+                          <input
+                            className="setting-input"
+                            value={settings.gitpegRegistrarBaseUrl}
+                            onChange={(e) => setSettings({ ...settings, gitpegRegistrarBaseUrl: e.target.value })}
+                            placeholder="GitPeg Registrar Base URL（例如：https://gitpeg.cn）"
+                            style={{ fontFamily: 'var(--mono)' }}
+                          />
+                          <input
+                            className="setting-input"
+                            value={settings.gitpegPartnerCode}
+                            onChange={(e) => setSettings({ ...settings, gitpegPartnerCode: e.target.value })}
+                            placeholder="Partner Code（例如：wastewater-site）"
+                            style={{ fontFamily: 'var(--mono)' }}
+                          />
+                          <input
+                            className="setting-input"
+                            value={settings.gitpegIndustryCode}
+                            onChange={(e) => setSettings({ ...settings, gitpegIndustryCode: e.target.value })}
+                            placeholder="Industry Code（例如：wastewater）"
+                            style={{ fontFamily: 'var(--mono)' }}
+                          />
+                          <input
+                            className="setting-input"
+                            value={settings.gitpegClientId}
+                            onChange={(e) => setSettings({ ...settings, gitpegClientId: e.target.value })}
+                            placeholder="Client ID（例如：ptn_wastewater_001）"
+                            style={{ fontFamily: 'var(--mono)' }}
+                          />
+                          <input
+                            className="setting-input"
+                            value={settings.gitpegClientSecret}
+                            onChange={(e) => setSettings({ ...settings, gitpegClientSecret: e.target.value })}
+                            placeholder="Client Secret"
+                            type="password"
+                            style={{ fontFamily: 'var(--mono)' }}
+                          />
+                          <select
+                            className="setting-select"
+                            value={settings.gitpegRegistrationMode}
+                            onChange={(e) => setSettings({ ...settings, gitpegRegistrationMode: e.target.value })}
+                          >
+                            <option value="DOMAIN">DOMAIN</option>
+                            <option value="SHELL">SHELL</option>
+                          </select>
+                          <input
+                            className="setting-input"
+                            value={settings.gitpegReturnUrl}
+                            onChange={(e) => setSettings({ ...settings, gitpegReturnUrl: e.target.value })}
+                            placeholder="Return URL（GitPeg 回跳地址）"
+                            style={{ fontFamily: 'var(--mono)' }}
+                          />
+                          <input
+                            className="setting-input"
+                            value={settings.gitpegWebhookUrl}
+                            onChange={(e) => setSettings({ ...settings, gitpegWebhookUrl: e.target.value })}
+                            placeholder="Webhook URL（GitPeg 回调到 QCSpec）"
+                            style={{ fontFamily: 'var(--mono)' }}
+                          />
+                          <input
+                            className="setting-input"
+                            value={settings.gitpegWebhookSecret}
+                            onChange={(e) => setSettings({ ...settings, gitpegWebhookSecret: e.target.value })}
+                            placeholder="Webhook Secret（用于 X-Gitpeg-Signature HMAC-SHA256 校验）"
+                            type="password"
+                            style={{ fontFamily: 'var(--mono)' }}
+                          />
+                          <input
+                            className="setting-input"
+                            value={(settings.gitpegModuleCandidates || []).join(',')}
+                            onChange={(e) => setSettings({
+                              ...settings,
+                              gitpegModuleCandidates: e.target.value
+                                .split(',')
+                                .map((item) => item.trim())
+                                .filter(Boolean),
+                            })}
+                            placeholder="Module Candidates（逗号分隔：proof,utrip,openapi）"
+                            style={{ fontFamily: 'var(--mono)' }}
+                          />
                           <button className="btn-primary" style={{ flex: 'none' }} onClick={verifyGitpegToken} disabled={gitpegVerifying}>
                             {gitpegVerifying ? '验证中...' : '验证'}
                           </button>
@@ -2805,6 +4094,36 @@ export default function App() {
                             onChange={(e) => setErpWritebackDraft((prev) => ({ ...prev, gitpegResultJsonField: e.target.value }))}
                             placeholder="回写字段：gitpeg_register_result_json"
                           />
+                          <input
+                            className="setting-input"
+                            value={erpWritebackDraft.gitpegRegistrationIdField}
+                            onChange={(e) => setErpWritebackDraft((prev) => ({ ...prev, gitpegRegistrationIdField: e.target.value }))}
+                            placeholder="回写字段：gitpeg_registration_id"
+                          />
+                          <input
+                            className="setting-input"
+                            value={erpWritebackDraft.gitpegNodeUriField}
+                            onChange={(e) => setErpWritebackDraft((prev) => ({ ...prev, gitpegNodeUriField: e.target.value }))}
+                            placeholder="回写字段：gitpeg_node_uri"
+                          />
+                          <input
+                            className="setting-input"
+                            value={erpWritebackDraft.gitpegShellUriField}
+                            onChange={(e) => setErpWritebackDraft((prev) => ({ ...prev, gitpegShellUriField: e.target.value }))}
+                            placeholder="回写字段：gitpeg_shell_uri"
+                          />
+                          <input
+                            className="setting-input"
+                            value={erpWritebackDraft.gitpegProofHashField}
+                            onChange={(e) => setErpWritebackDraft((prev) => ({ ...prev, gitpegProofHashField: e.target.value }))}
+                            placeholder="回写字段：gitpeg_proof_hash"
+                          />
+                          <input
+                            className="setting-input"
+                            value={erpWritebackDraft.gitpegIndustryProfileIdField}
+                            onChange={(e) => setErpWritebackDraft((prev) => ({ ...prev, gitpegIndustryProfileIdField: e.target.value }))}
+                            placeholder="回写字段：gitpeg_industry_profile_id"
+                          />
                         </div>
                       </div>
                     </div>
@@ -2883,11 +4202,23 @@ export default function App() {
                         webhookUrl: settings.webhookUrl,
                         gitpegToken: settings.gitpegToken,
                         gitpegEnabled: settings.gitpegEnabled,
+                        gitpegRegistrarBaseUrl: settings.gitpegRegistrarBaseUrl,
+                        gitpegPartnerCode: settings.gitpegPartnerCode,
+                        gitpegIndustryCode: settings.gitpegIndustryCode,
+                        gitpegClientId: settings.gitpegClientId,
+                        gitpegClientSecret: settings.gitpegClientSecret,
+                        gitpegRegistrationMode: settings.gitpegRegistrationMode,
+                        gitpegReturnUrl: settings.gitpegReturnUrl,
+                        gitpegWebhookUrl: settings.gitpegWebhookUrl,
+                        gitpegWebhookSecret: settings.gitpegWebhookSecret,
+                        gitpegModuleCandidates: settings.gitpegModuleCandidates,
                         erpnextSync: settings.erpnextSync,
                         erpnextUrl: erpDraft.url,
                         erpnextSiteName: erpDraft.siteName,
                         erpnextApiKey: erpDraft.apiKey,
                         erpnextApiSecret: erpDraft.apiSecret,
+                        erpnextUsername: erpDraft.username,
+                        erpnextPassword: erpDraft.password,
                         erpnextProjectDoctype: erpWritebackDraft.projectDoctype,
                         erpnextProjectLookupField: erpWritebackDraft.projectLookupField,
                         erpnextProjectLookupValue: erpWritebackDraft.projectLookupValue,
@@ -2895,6 +4226,11 @@ export default function App() {
                         erpnextGitpegSiteUriField: erpWritebackDraft.gitpegSiteUriField,
                         erpnextGitpegStatusField: erpWritebackDraft.gitpegStatusField,
                         erpnextGitpegResultJsonField: erpWritebackDraft.gitpegResultJsonField,
+                        erpnextGitpegRegistrationIdField: erpWritebackDraft.gitpegRegistrationIdField,
+                        erpnextGitpegNodeUriField: erpWritebackDraft.gitpegNodeUriField,
+                        erpnextGitpegShellUriField: erpWritebackDraft.gitpegShellUriField,
+                        erpnextGitpegProofHashField: erpWritebackDraft.gitpegProofHashField,
+                        erpnextGitpegIndustryProfileIdField: erpWritebackDraft.gitpegIndustryProfileIdField,
                         wechatMiniapp: settings.wechatMiniapp,
                         droneImport: settings.droneImport,
                       })
@@ -2977,8 +4313,18 @@ export default function App() {
                     <span style={{ color: '#64748B' }}>施工单位</span><span>{detailProject.contractor || '-'}</span>
                     <span style={{ color: '#64748B' }}>监理单位</span><span>{detailProject.supervisor || '-'}</span>
                     <span style={{ color: '#64748B' }}>合同编号</span><span>{detailProject.contract_no || '-'}</span>
+                    <span style={{ color: '#64748B' }}>ERP 项目编码</span><span>{detailProject.erp_project_code || '-'}</span>
+                    <span style={{ color: '#64748B' }}>ERP 项目名称</span><span>{detailProject.erp_project_name || '-'}</span>
                     <span style={{ color: '#64748B' }}>工期</span><span>{detailProject.start_date || '-'} ~ {detailProject.end_date || '-'}</span>
                     <span style={{ color: '#64748B' }}>v:// URI</span><code style={{ color: '#1A56DB', wordBreak: 'break-all' }}>{detailProject.v_uri}</code>
+                    <span style={{ color: '#64748B' }}>零号台帐</span>
+                    <span>
+                      {`${(Array.isArray(detailProject.zero_personnel) ? detailProject.zero_personnel.filter((row) => String(row?.name || '').trim()).length : 0)}名人员 · ${(Array.isArray(detailProject.zero_equipment) ? detailProject.zero_equipment.filter((row) => String(row?.name || '').trim()).length : 0)}台仪器 · 等待秩签审批`}
+                    </span>
+                    <span style={{ color: '#64748B' }}>秩签状态</span>
+                    <span>{detailProject.zero_sign_status || 'pending'}</span>
+                    <span style={{ color: '#64748B' }}>质检台帐</span>
+                    <span>{detailProject.qc_ledger_unlocked ? '已解锁' : '待解锁（监理秩签后）'}</span>
                   </div>
                 )}
 
@@ -3014,6 +4360,7 @@ export default function App() {
                     <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr', rowGap: 8, fontSize: 13 }}>
                       <span style={{ color: '#64748B' }}>分段方式</span><span>{detailMeta.segType}</span>
                       <span style={{ color: '#64748B' }}>桩号范围</span><span>{detailMeta.segStart || '-'} ~ {detailMeta.segEnd || '-'}</span>
+                      <span style={{ color: '#64748B' }}>分段间隔</span><span>{detailMeta.kmInterval} km</span>
                       <span style={{ color: '#64748B' }}>主要检测类型</span>
                       <span>
                         {(detailMeta.inspectionTypes || []).length
@@ -3034,6 +4381,14 @@ export default function App() {
                       <input value={detailDraft.segStart} onChange={(e) => setDetailDraft({ ...detailDraft, segStart: e.target.value })} style={{ padding: 8, border: '1px solid #E2E8F0', borderRadius: 6 }} />
                       <span style={{ color: '#64748B' }}>桩号终点</span>
                       <input value={detailDraft.segEnd} onChange={(e) => setDetailDraft({ ...detailDraft, segEnd: e.target.value })} style={{ padding: 8, border: '1px solid #E2E8F0', borderRadius: 6 }} />
+                      <span style={{ color: '#64748B' }}>分段间隔(km)</span>
+                      <input
+                        type="number"
+                        min={1}
+                        value={detailDraft.kmInterval}
+                        onChange={(e) => setDetailDraft({ ...detailDraft, kmInterval: normalizeKmInterval(e.target.value, detailDraft.kmInterval) })}
+                        style={{ padding: 8, border: '1px solid #E2E8F0', borderRadius: 6 }}
+                      />
                       <span style={{ color: '#64748B' }}>主要检测类型</span>
                       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                         {INSPECTION_TYPE_OPTIONS.map((opt) => {

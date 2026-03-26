@@ -22,7 +22,11 @@ def _supabase_client_cached(url: str, key: str) -> Client:
 
 def get_supabase() -> Client:
     url = str(os.getenv("SUPABASE_URL") or "").strip()
-    key = str(os.getenv("SUPABASE_SERVICE_KEY") or "").strip()
+    key = str(
+        os.getenv("SUPABASE_SERVICE_KEY")
+        or os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+        or ""
+    ).strip()
     if not url or not key:
         raise HTTPException(500, "Supabase not configured")
     return _supabase_client_cached(url, key)

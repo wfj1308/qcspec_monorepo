@@ -8,17 +8,33 @@ from typing import Optional
 from supabase import create_client, Client
 from datetime import datetime
 import os, hashlib, json
+from .proof_utxo_engine import ProofUTXOEngine
 
 router = APIRouter()
 
 def get_supabase() -> Client:
-    return create_client(os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_SERVICE_KEY"))
+    return create_client(
+        os.getenv("SUPABASE_URL"),
+        os.getenv("SUPABASE_SERVICE_KEY") or os.getenv("SUPABASE_SERVICE_ROLE_KEY"),
+    )
 
 def _gen_proof(v_uri: str, data: dict) -> str:
     payload = json.dumps({"uri": v_uri, "data": data,
         "ts": datetime.utcnow().isoformat()}, sort_keys=True)
     h = hashlib.sha256(payload.encode()).hexdigest()[:16].upper()
     return f"GP-PROOF-{h}"
+
+
+def _guess_owner_uri(project_uri: str) -> str:
+    root = str(project_uri or "").strip()
+    for marker in ("/highway/", "/bridge/", "/urban/", "/road/", "/tunnel/"):
+        idx = root.find(marker)
+        if idx > 0:
+            root = root[: idx + 1]
+            break
+    if not root.endswith("/"):
+        root += "/"
+    return f"{root}executor/system/"
 
 
 @router.post("/upload", status_code=201)
@@ -102,6 +118,35 @@ async def upload_photo(
         "summary":       f"照片上传·{safe_location}·{file.filename}",
         "status":        "confirmed",
     }).execute()
+
+    try:
+        ProofUTXOEngine(sb).create(
+            proof_id=proof_id,
+            owner_uri=_guess_owner_uri(proj_uri),
+            project_id=project_id,
+            project_uri=proj_uri,
+            proof_type="photo",
+            result="PASS",
+            state_data={
+                "photo_id": photo_id,
+                "v_uri": v_uri,
+                "file_name": file.filename,
+                "location": location,
+                "inspection_id": inspection_id,
+                "storage_path": storage_path,
+                "storage_url": public_url if isinstance(public_url, str) else "",
+                "gps_lat": gps_lat,
+                "gps_lng": gps_lng,
+            },
+            signer_uri=_guess_owner_uri(proj_uri),
+            signer_role="AI",
+            conditions=[],
+            parent_proof_id=None,
+            norm_uri=None,
+        )
+    except Exception:
+        # Keep old flow running if proof_utxo migration has not been applied yet.
+        pass
 
     return {
         "photo_id":    photo_id,

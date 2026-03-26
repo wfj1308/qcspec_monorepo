@@ -7,7 +7,7 @@ import React, { useState, useCallback } from 'react'
 import { INSPECTION_TYPES } from '@qcspec/types'
 import type { InspectResult } from '@qcspec/types'
 import { Button, Input, Select, Card, VPathDisplay } from '../ui'
-import { useInspections } from '../../hooks/useApi'
+import { useErpnext, useInspections } from '../../hooks/useApi'
 import { useInspectionStore, useUIStore, useProjectStore, usePhotoStore } from '../../store'
 
 const TYPE_OPTIONS = [
@@ -44,8 +44,14 @@ interface Props {
   onSuccess?:   () => void
 }
 
+const toLocalDateTimeSeconds = (date: Date = new Date()): string => {
+  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000)
+  return local.toISOString().slice(0, 19)
+}
+
 export default function InspectionForm({ projectId, enterpriseId, onSuccess }: Props) {
   const { submit, loading } = useInspections()
+  const { gateCheck } = useErpnext()
   const { addInspection, setInspectionPhotoLinks } = useInspectionStore()
   const { showToast, setActiveTab } = useUIStore()
   const { currentProject }  = useProjectStore()
@@ -58,8 +64,9 @@ export default function InspectionForm({ projectId, enterpriseId, onSuccess }: P
   const [remark,   setRemark]   = useState('')
   const [result,   setResult]   = useState<InspectResult | ''>('')
   const [lastProof, setLastProof] = useState('')
+  const [gateStatus, setGateStatus] = useState('')
   const [inspectedAt, setInspectedAt] = useState(
-    () => new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16)
+    () => toLocalDateTimeSeconds()
   )
 
   // 选类型时自动填标准值和自动判定
@@ -84,7 +91,7 @@ export default function InspectionForm({ projectId, enterpriseId, onSuccess }: P
 
   const loadTemplate = (key: string) => {
     setType(key)
-    setInspectedAt(new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16))
+    setInspectedAt(toLocalDateTimeSeconds())
     autoJudge(value)
   }
 
@@ -93,6 +100,58 @@ export default function InspectionForm({ projectId, enterpriseId, onSuccess }: P
       showToast('⚠️ 请填写检测类型、桩号、实测值并选择结果')
       return
     }
+    const subitemLabel = typeConfig?.label || type
+    if (enterpriseId) {
+      const gateRes = await gateCheck({
+        enterprise_id: enterpriseId,
+        project_id: projectId,
+        stake: location.trim(),
+        subitem: subitemLabel,
+        result: result as 'pass' | 'warn' | 'fail',
+      }) as {
+        gate?: {
+          enabled?: boolean
+          allow_submit?: boolean
+          can_release?: boolean
+          action?: string
+          reason?: string
+        }
+        metering_lookup?: {
+          success?: boolean
+          count?: number
+        }
+      } | null
+
+      const gate = gateRes?.gate
+      const count = Number(gateRes?.metering_lookup?.count || 0)
+      if (result === 'pass' && !gateRes) {
+        showToast('⛔ ERP 门禁检查失败，暂不允许以“合格”结果提交')
+        return
+      }
+      if (gate?.enabled) {
+        if (!gate.allow_submit) {
+          if (gate.reason === 'no_pending_metering_request') {
+            showToast('⛔ 未匹配到待审批计量申请，当前“合格”结果不可提交放行')
+          } else if (gate.reason === 'missing_erp_project_code_binding') {
+            showToast('⛔ 当前项目未绑定 ERP 项目编码，请到项目注册/详情补齐 ERP 项目编码')
+          } else {
+            showToast(`⛔ ERP 门禁未通过：${gate.reason || 'unknown'}`)
+          }
+          setGateStatus(`门禁拦截：${gate.reason || 'unknown'}（匹配计量 ${count} 条）`)
+          return
+        }
+        if (gate.action === 'release') {
+          setGateStatus(`门禁通过：匹配 ${count} 条待审批计量申请，提交后将通知 ERP 放行`)
+        } else if (gate.action === 'block') {
+          setGateStatus(`门禁判定：提交后将通知 ERP 拦截（原因：${gate.reason || 'inspection_not_passed'}）`)
+        }
+      } else {
+        setGateStatus('')
+      }
+    } else {
+      setGateStatus('')
+    }
+
     const body = {
       project_id:  projectId,
       location,
@@ -107,7 +166,18 @@ export default function InspectionForm({ projectId, enterpriseId, onSuccess }: P
       inspected_at: inspectedAt ? new Date(inspectedAt).toISOString() : new Date().toISOString(),
       photo_ids: pendingLinkPhotoIds.length ? pendingLinkPhotoIds : undefined,
     }
-    const res = await submit(body) as { inspection_id?: string; proof_id?: string } | null
+    const res = await submit(body) as {
+      inspection_id?: string
+      proof_id?: string
+      erpnext_notify?: {
+        success?: boolean
+        gate?: {
+          action?: string
+          reason?: string
+          can_release?: boolean
+        }
+      }
+    } | null
     if (res?.inspection_id) {
       addInspection({
         id:           res.inspection_id,
@@ -134,7 +204,16 @@ export default function InspectionForm({ projectId, enterpriseId, onSuccess }: P
       setValue('')
       setRemark('')
       setResult('')
-      setInspectedAt(new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16))
+      setGateStatus('')
+      setInspectedAt(toLocalDateTimeSeconds())
+      const gateAction = res.erpnext_notify?.gate?.action
+      if (gateAction === 'release') {
+        showToast('✅ 质检已保存，并已通知 ERPNext 放行计量')
+      } else if (gateAction === 'block') {
+        showToast('✅ 质检已保存，并已通知 ERPNext 拦截计量')
+      } else {
+        showToast('✅ 质检记录已保存')
+      }
       onSuccess?.()
     }
   }
@@ -208,6 +287,7 @@ export default function InspectionForm({ projectId, enterpriseId, onSuccess }: P
           </div>
           <input
             type="datetime-local"
+            step={1}
             value={inspectedAt}
             onChange={(e) => setInspectedAt(e.target.value)}
             style={{
@@ -329,6 +409,11 @@ export default function InspectionForm({ projectId, enterpriseId, onSuccess }: P
       >
         {loading ? '保存中...' : '保存质检记录'}
       </Button>
+      {gateStatus && (
+        <div style={{ marginTop: 8, fontSize: 12, color: '#0F766E' }}>
+          {gateStatus}
+        </div>
+      )}
 
       {/* 最新 Proof */}
       {lastProof && (

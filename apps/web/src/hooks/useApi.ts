@@ -262,6 +262,21 @@ export function useProjects() {
     })
   }, [request])
 
+  const completeGitpeg = useCallback(async (
+    project_id: string,
+    body: {
+      code: string
+      registration_id?: string
+      session_id?: string
+      enterprise_id?: string
+    }
+  ) => {
+    return request(`/v1/projects/${project_id}/gitpeg/complete`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    })
+  }, [request])
+
   const listActivity = useCallback(async (enterprise_id: string, limit = 20) => {
     return request(`/v1/projects/activity?enterprise_id=${enterprise_id}&limit=${limit}`)
   }, [request])
@@ -293,7 +308,7 @@ export function useProjects() {
     }
   }, [showToast, token, logout])
 
-  return { list, create, update, stats, getById, remove, syncAutoreg, listActivity, exportCsv, loading }
+  return { list, create, update, stats, getById, remove, syncAutoreg, completeGitpeg, listActivity, exportCsv, loading }
 }
 
 // Inspections Hooks
@@ -556,6 +571,62 @@ export function useAutoreg() {
   return { registerProject, registerProjectAlias, listProjects, loading }
 }
 
+// ERPNext Hooks
+export function useErpnext() {
+  const { request, loading } = useRequest()
+
+  const gateCheck = useCallback(async (params: {
+    enterprise_id: string
+    project_id?: string
+    project_code?: string
+    stake: string
+    subitem: string
+    result: 'pass' | 'warn' | 'fail'
+  }) => {
+    const qs = new URLSearchParams({
+      enterprise_id: params.enterprise_id,
+      ...(params.project_id ? { project_id: params.project_id } : {}),
+      ...(params.project_code ? { project_code: params.project_code } : {}),
+      stake: params.stake,
+      subitem: params.subitem,
+      result: params.result,
+    }).toString()
+    return request(`/v1/erpnext/gate-check?${qs}`)
+  }, [request])
+
+  const getMeteringRequests = useCallback(async (params: {
+    enterprise_id: string
+    project_code?: string
+    stake?: string
+    subitem?: string
+    status?: string
+  }) => {
+    const qs = new URLSearchParams({
+      enterprise_id: params.enterprise_id,
+      ...(params.project_code ? { project_code: params.project_code } : {}),
+      ...(params.stake ? { stake: params.stake } : {}),
+      ...(params.subitem ? { subitem: params.subitem } : {}),
+      ...(params.status ? { status: params.status } : {}),
+    }).toString()
+    return request(`/v1/erpnext/metering-requests?${qs}`)
+  }, [request])
+
+  const getProjectBasics = useCallback(async (params: {
+    enterprise_id: string
+    project_code?: string
+    project_name?: string
+  }) => {
+    const qs = new URLSearchParams({
+      enterprise_id: params.enterprise_id,
+      ...(params.project_code ? { project_code: params.project_code } : {}),
+      ...(params.project_name ? { project_name: params.project_name } : {}),
+    }).toString()
+    return request(`/v1/erpnext/project-basics?${qs}`)
+  }, [request])
+
+  return { gateCheck, getMeteringRequests, getProjectBasics, loading }
+}
+
 // Settings Hooks
 export function useSettings() {
   const { request, loading } = useRequest()
@@ -580,11 +651,23 @@ export function useSettings() {
     webhookUrl?: string
     gitpegToken?: string
     gitpegEnabled?: boolean
+    gitpegRegistrarBaseUrl?: string
+    gitpegPartnerCode?: string
+    gitpegIndustryCode?: string
+    gitpegClientId?: string
+    gitpegClientSecret?: string
+    gitpegRegistrationMode?: string
+    gitpegReturnUrl?: string
+    gitpegWebhookUrl?: string
+    gitpegWebhookSecret?: string
+    gitpegModuleCandidates?: string[]
     erpnextSync?: boolean
     erpnextUrl?: string
     erpnextSiteName?: string
     erpnextApiKey?: string
     erpnextApiSecret?: string
+    erpnextUsername?: string
+    erpnextPassword?: string
     erpnextProjectDoctype?: string
     erpnextProjectLookupField?: string
     erpnextProjectLookupValue?: string
@@ -592,6 +675,11 @@ export function useSettings() {
     erpnextGitpegSiteUriField?: string
     erpnextGitpegStatusField?: string
     erpnextGitpegResultJsonField?: string
+    erpnextGitpegRegistrationIdField?: string
+    erpnextGitpegNodeUriField?: string
+    erpnextGitpegShellUriField?: string
+    erpnextGitpegProofHashField?: string
+    erpnextGitpegIndustryProfileIdField?: string
     wechatMiniapp?: boolean
     droneImport?: boolean
     permissionMatrix?: Array<{
@@ -625,6 +713,24 @@ export function useSettings() {
     })
   }, [request])
 
+  const testGitpegRegistrar = useCallback(async (body: {
+    baseUrl: string
+    partnerCode: string
+    industryCode: string
+    clientId?: string
+    clientSecret?: string
+    registrationMode?: string
+    returnUrl?: string
+    webhookUrl?: string
+    moduleCandidates?: string[]
+    timeoutMs?: number
+  }) => {
+    return request('/v1/settings/gitpeg/test', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    })
+  }, [request])
+
   const uploadTemplate = useCallback(async (enterprise_id: string, file: File) => {
     try {
       const form = new FormData()
@@ -651,5 +757,5 @@ export function useSettings() {
     }
   }, [showToast, token, logout])
 
-  return { getSettings, saveSettings, testErpnext, uploadTemplate, loading }
+  return { getSettings, saveSettings, testErpnext, testGitpegRegistrar, uploadTemplate, loading }
 }

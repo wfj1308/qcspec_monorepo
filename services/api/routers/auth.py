@@ -57,7 +57,11 @@ def _supabase_client_cached(url: str, key: str) -> Client:
 def get_supabase() -> Client:
     _ensure_no_proxy_for_supabase()
     url = str(os.getenv("SUPABASE_URL") or "").strip()
-    key = str(os.getenv("SUPABASE_SERVICE_KEY") or "").strip()
+    key = str(
+        os.getenv("SUPABASE_SERVICE_KEY")
+        or os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+        or ""
+    ).strip()
     if not url or not key:
         raise HTTPException(500, "Supabase not configured")
     return _supabase_client_cached(url, key)
@@ -190,7 +194,11 @@ def _token_secret() -> str:
     secret = str(os.getenv("AUTH_TOKEN_SECRET") or "").strip()
     if secret:
         return secret
-    fallback = str(os.getenv("SUPABASE_SERVICE_KEY") or "").strip()
+    fallback = str(
+        os.getenv("SUPABASE_SERVICE_KEY")
+        or os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+        or ""
+    ).strip()
     if fallback:
         return fallback
     raise HTTPException(500, "auth secret not configured")

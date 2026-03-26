@@ -27,6 +27,19 @@ const FILTER_OPTS: { value: string; label: string }[] = [
   { value: 'fail', label: '✗ 不合格' },
 ]
 
+const formatDateTimeWithSeconds = (input?: string): string => {
+  if (!input) return '-'
+  const dt = new Date(input)
+  if (Number.isNaN(dt.getTime())) return String(input)
+  const y = dt.getFullYear()
+  const m = String(dt.getMonth() + 1).padStart(2, '0')
+  const d = String(dt.getDate()).padStart(2, '0')
+  const hh = String(dt.getHours()).padStart(2, '0')
+  const mm = String(dt.getMinutes()).padStart(2, '0')
+  const ss = String(dt.getSeconds()).padStart(2, '0')
+  return `${y}/${m}/${d} ${hh}:${mm}:${ss}`
+}
+
 export default function InspectionList({ projectId, onDataChanged }: Props) {
   const { inspections, stats, removeInspection, photoLinksByInspection } = useInspectionStore()
   const { photos } = usePhotoStore()
@@ -69,7 +82,7 @@ export default function InspectionList({ projectId, onDataChanged }: Props) {
         idx + 1, i.location, i.type_name,
         i.value, i.unit, i.standard ?? '',
         RESULT_LABELS[i.result],
-        i.person ?? '', i.remark ?? '', i.inspected_at.slice(0, 16),
+        i.person ?? '', i.remark ?? '', formatDateTimeWithSeconds(i.inspected_at),
         i.proof_id ?? '',
       ])
     ]
@@ -274,7 +287,7 @@ function InspectionRow({
           <div style={{ fontSize: 12, color: '#6B7280', marginTop: 2 }}>
             📍 {insp.location}
             {insp.person && <span style={{ marginLeft: 8 }}>👤 {insp.person}</span>}
-            <span style={{ marginLeft: 8 }}>🕐 {new Date(insp.inspected_at).toLocaleString('zh-CN').slice(0, 16)}</span>
+            <span style={{ marginLeft: 8 }}>🕐 {formatDateTimeWithSeconds(insp.inspected_at)}</span>
           </div>
           {linkedPhotos.length > 0 && (
             <div style={{ marginTop: 6, display: 'flex', gap: 5, flexWrap: 'wrap' }}>
@@ -349,7 +362,7 @@ function InspectionRow({
             </div>
           )}
           <div style={{ fontSize: 12, color: '#9CA3AF', marginTop: 6 }}>
-            {new Date(insp.inspected_at).toLocaleString('zh-CN')}
+            {formatDateTimeWithSeconds(insp.inspected_at)}
           </div>
         </div>
       )}

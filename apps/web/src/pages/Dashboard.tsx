@@ -22,29 +22,31 @@ const FALLBACK_ACTIVITY_ITEMS: ActivityItem[] = [
   { dot: '#D97706', text: '系统生成了 3 月份质检汇总报告', time: '今天 09:00' },
   { dot: '#DC2626', text: 'K49+200 裂缝宽度超标，请尽快复检', time: '昨天 14:15' },
 ]
+const DEMO_ENTERPRISE_ID = '11111111-1111-4111-8111-111111111111'
 
 export default function Dashboard() {
-  const { enterprise } = useAuthStore()
+  const { enterprise, token } = useAuthStore()
   const { projects, setProjects } = useProjectStore()
   const { stats } = useInspectionStore()
   const { photos } = usePhotoStore()
   const { setActiveTab, showToast } = useUIStore()
   const { list: listProjects, listActivity, exportCsv } = useProjects()
   const { list: listInspections } = useInspections()
+  const isDemoSession = enterprise?.id === DEMO_ENTERPRISE_ID || String(token || '').startsWith('demo-token-')
 
   const [projStats, setProjStats] = useState<Record<string, { passRate: number; total: number }>>({})
   const [activityItems, setActivityItems] = useState<ActivityItem[]>(FALLBACK_ACTIVITY_ITEMS)
 
   useEffect(() => {
-    if (!enterprise?.id) return
+    if (!enterprise?.id || isDemoSession) return
     listProjects(enterprise.id).then((res: unknown) => {
       const r = res as { data?: Parameters<typeof setProjects>[0] } | null
       if (r?.data) setProjects(r.data)
     })
-  }, [enterprise?.id, listProjects, setProjects])
+  }, [enterprise?.id, isDemoSession, listProjects, setProjects])
 
   useEffect(() => {
-    if (!enterprise?.id) return
+    if (!enterprise?.id || isDemoSession) return
     listActivity(enterprise.id, 12).then((res: unknown) => {
       const r = res as { data?: Array<{ dot?: string; text?: string; created_at?: string }> } | null
       if (!r?.data?.length) return
@@ -56,9 +58,13 @@ export default function Dashboard() {
         }))
       )
     })
-  }, [enterprise?.id, listActivity])
+  }, [enterprise?.id, isDemoSession, listActivity])
 
   useEffect(() => {
+    if (isDemoSession) {
+      setProjStats({})
+      return
+    }
     let cancelled = false
     const load = async () => {
       const entries = await Promise.all(
@@ -75,7 +81,7 @@ export default function Dashboard() {
     }
     if (projects.length) load()
     return () => { cancelled = true }
-  }, [projects, listInspections])
+  }, [projects, isDemoSession, listInspections])
 
   const totalProjects = projects.length
   const activeProjects = projects.filter((p) => p.status === 'active').length

@@ -17,6 +17,8 @@ from postgrest.exceptions import APIError
 from pydantic import BaseModel
 from supabase import Client, create_client
 
+from .proof_utxo_engine import ProofUTXOEngine
+
 router = APIRouter()
 
 
@@ -27,7 +29,11 @@ def _supabase_client_cached(url: str, key: str) -> Client:
 
 def get_supabase() -> Client:
     url = str(os.getenv("SUPABASE_URL") or "").strip()
-    key = str(os.getenv("SUPABASE_SERVICE_KEY") or "").strip()
+    key = str(
+        os.getenv("SUPABASE_SERVICE_KEY")
+        or os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+        or ""
+    ).strip()
     if not url or not key:
         raise HTTPException(500, "Supabase not configured")
     return _supabase_client_cached(url, key)
@@ -58,6 +64,18 @@ def _gen_proof(v_uri: str, data: dict) -> str:
     )
     h = hashlib.sha256(payload.encode()).hexdigest()[:16].upper()
     return f"GP-PROOF-{h}"
+
+
+def _guess_owner_uri(project_uri: str) -> str:
+    root = str(project_uri or "").strip()
+    for marker in ("/highway/", "/bridge/", "/urban/", "/road/", "/tunnel/"):
+        idx = root.find(marker)
+        if idx > 0:
+            root = root[: idx + 1]
+            break
+    if not root.endswith("/"):
+        root += "/"
+    return f"{root}executor/system/"
 
 
 def _insert_report_compat(sb: Client, payload: dict) -> None:
@@ -195,6 +213,36 @@ def _generate_report_task(
             }
         ).execute()
 
+        try:
+            ProofUTXOEngine(sb).create(
+                proof_id=proof_id,
+                owner_uri=_guess_owner_uri(proj.get("v_uri")),
+                project_id=project_id,
+                project_uri=str(proj.get("v_uri") or report_uri),
+                proof_type="archive",
+                result="PASS",
+                state_data={
+                    "report_no": report_no,
+                    "report_uri": report_uri,
+                    "location": location,
+                    "total_count": total,
+                    "pass_count": passed,
+                    "warn_count": warned,
+                    "fail_count": failed,
+                    "pass_rate": rate,
+                    "inspection_ids": [r.get("id") for r in records if r.get("id")],
+                    "photo_ids": [p.get("id") for p in photos if p.get("id")],
+                },
+                signer_uri=_guess_owner_uri(proj.get("v_uri")),
+                signer_role="AI",
+                conditions=[],
+                parent_proof_id=None,
+                norm_uri=None,
+            )
+        except Exception:
+            # Keep report generation non-blocking if proof_utxo is unavailable.
+            pass
+
         print(f"[reports] generated: {report_no} {report_uri}")
     except Exception as exc:
         print(f"[reports] generate failed project_id={project_id}: {exc}")
@@ -228,7 +276,11 @@ async def generate_report(
         body.date_from,
         body.date_to,
         str(os.getenv("SUPABASE_URL") or ""),
-        str(os.getenv("SUPABASE_SERVICE_KEY") or ""),
+        str(
+            os.getenv("SUPABASE_SERVICE_KEY")
+            or os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+            or ""
+        ),
     )
     return {"accepted": True, "message": "报告生成中，请稍后查询"}
 
