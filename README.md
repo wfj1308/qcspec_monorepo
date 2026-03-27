@@ -84,6 +84,7 @@ GET  /v1/inspections/stats/{id}    统计
 
 ### 报告生成
 ```
+POST /v1/reports/export        DocPeg同步导出（按type路由模板）
 POST /v1/reports/generate      触发生成（异步）
 GET  /v1/reports/?project_id=  列表
 GET  /v1/reports/{id}          详情

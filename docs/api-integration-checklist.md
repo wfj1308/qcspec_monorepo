@@ -102,6 +102,7 @@
 
 ### 2.5 Reports
 
+- `POST /v1/reports/export`
 - `POST /v1/reports/generate`
 - `GET /v1/reports/?project_id=...`
 - `GET /v1/reports/{report_id}`
@@ -112,6 +113,20 @@
 {
   "project_id": "33333333-3333-4333-8333-333333333333",
   "enterprise_id": "11111111-1111-4111-8111-111111111111",
+  "location": "K50+200",
+  "date_from": "2026-03-01",
+  "date_to": "2026-03-31"
+}
+```
+
+DocPeg 导出请求示例：
+
+```json
+{
+  "project_id": "33333333-3333-4333-8333-333333333333",
+  "enterprise_id": "11111111-1111-4111-8111-111111111111",
+  "type": "monthly_summary",
+  "format": "pdf",
   "location": "K50+200",
   "date_from": "2026-03-01",
   "date_to": "2026-03-31"
