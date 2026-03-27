@@ -3,7 +3,7 @@
  * apps/web/src/components/inspection/InspectionForm.tsx
  */
 
-import React, { useState, useCallback } from 'react'
+import React, { useState, useCallback, useEffect } from 'react'
 import { INSPECTION_TYPES } from '@qcspec/types'
 import type { InspectResult } from '@qcspec/types'
 import { Button, Input, Select, Card, VPathDisplay } from '../ui'
@@ -49,6 +49,21 @@ const toLocalDateTimeSeconds = (date: Date = new Date()): string => {
   return local.toISOString().slice(0, 19)
 }
 
+const parseNumericList = (raw: string): number[] => {
+  return String(raw || '')
+    .split(/[\s,，、;；\n\t]+/)
+    .map((item) => Number(item.trim()))
+    .filter((num) => Number.isFinite(num))
+}
+
+const parseLimitValue = (raw: string): number | null => {
+  const match = String(raw || '').match(/[-+]?\d+(?:\.\d+)?/)
+  if (!match) return null
+  const val = Number(match[0])
+  if (!Number.isFinite(val)) return null
+  return Math.abs(val)
+}
+
 export default function InspectionForm({ projectId, enterpriseId, onSuccess }: Props) {
   const { submit, loading } = useInspections()
   const { gateCheck } = useErpnext()
@@ -68,9 +83,14 @@ export default function InspectionForm({ projectId, enterpriseId, onSuccess }: P
   const [inspectedAt, setInspectedAt] = useState(
     () => toLocalDateTimeSeconds()
   )
+  const [rebarDesign, setRebarDesign] = useState('')
+  const [rebarLimit, setRebarLimit] = useState('±10')
+  const [rebarValues, setRebarValues] = useState('')
+  const [judgeHint, setJudgeHint] = useState<{ text: string; color: string } | null>(null)
 
   // 选类型时自动填标准值和自动判定
   const typeConfig = type ? INSPECTION_TYPES[type] : null
+  const isRebarType = type === 'rebar_spacing'
   const linkedPhotos = photos.filter((p) => pendingLinkPhotoIds.includes(p.id))
 
   const autoJudge = useCallback((val: string) => {
@@ -87,17 +107,96 @@ export default function InspectionForm({ projectId, enterpriseId, onSuccess }: P
       else if (v < std)   r = 'warn'
     }
     setResult(r)
+    setJudgeHint(null)
   }, [typeConfig])
+
+  const autoJudgeRebar = useCallback(() => {
+    if (!isRebarType) return
+    const values = parseNumericList(rebarValues)
+    const design = Number(rebarDesign || typeConfig?.standard)
+    const limit = parseLimitValue(rebarLimit)
+    if (!values.length || !Number.isFinite(design) || limit == null) {
+      return
+    }
+    const lower = design - limit
+    const upper = design + limit
+    const outOfRange = values.some((num) => num < lower || num > upper)
+    const avg = values.reduce((sum, n) => sum + n, 0) / values.length
+    setValue(avg.toFixed(2))
+    setResult(outOfRange ? 'fail' : 'pass')
+    setJudgeHint({
+      text: outOfRange
+        ? `自动判定：不合格（允许区间 ${lower} ~ ${upper}）`
+        : `自动判定：合格（允许区间 ${lower} ~ ${upper}）`,
+      color: outOfRange ? '#DC2626' : '#059669',
+    })
+  }, [isRebarType, rebarValues, rebarDesign, rebarLimit, typeConfig?.standard])
+
+  useEffect(() => {
+    if (!isRebarType) {
+      setJudgeHint(null)
+      return
+    }
+    if (!rebarDesign && typeConfig?.standard != null) {
+      setRebarDesign(String(typeConfig.standard))
+    }
+    if (!rebarLimit) {
+      setRebarLimit('±10')
+    }
+  }, [isRebarType, rebarDesign, rebarLimit, typeConfig?.standard])
 
   const loadTemplate = (key: string) => {
     setType(key)
     setInspectedAt(toLocalDateTimeSeconds())
-    autoJudge(value)
+    if (key !== 'rebar_spacing') {
+      autoJudge(value)
+    }
   }
 
   const handleSubmit = async () => {
-    if (!type || !location || !value || !result) {
+    if (!type || !location || !value || (!result && !isRebarType)) {
       showToast('⚠️ 请填写检测类型、桩号、实测值并选择结果')
+      return
+    }
+    const parsedValue = parseFloat(value)
+    if (Number.isNaN(parsedValue)) {
+      showToast('⚠️ 实测值格式不正确')
+      return
+    }
+    let submitValue = parsedValue
+    let submitResult: InspectResult = (result || 'warn') as InspectResult
+    const rebarValuesList = parseNumericList(rebarValues)
+    const rebarDesignNumber = Number(rebarDesign || typeConfig?.standard)
+    if (isRebarType) {
+      if (!rebarValuesList.length) {
+        showToast('⚠️ 钢筋间距请至少录入一个实测值')
+        return
+      }
+      if (!Number.isFinite(rebarDesignNumber)) {
+        showToast('⚠️ 请输入有效设计值')
+        return
+      }
+      if (parseLimitValue(rebarLimit) == null) {
+        showToast('⚠️ 请输入有效允许偏差，例如 ±10')
+        return
+      }
+      const limit = parseLimitValue(rebarLimit) as number
+      const lower = rebarDesignNumber - limit
+      const upper = rebarDesignNumber + limit
+      const outOfRange = rebarValuesList.some((num) => num < lower || num > upper)
+      const avg = rebarValuesList.reduce((sum, n) => sum + n, 0) / rebarValuesList.length
+      submitValue = Number(avg.toFixed(4))
+      submitResult = outOfRange ? 'fail' : 'pass'
+      setValue(avg.toFixed(2))
+      setResult(submitResult)
+      setJudgeHint({
+        text: outOfRange
+          ? `自动判定：不合格（允许区间 ${lower} ~ ${upper}）`
+          : `自动判定：合格（允许区间 ${lower} ~ ${upper}）`,
+        color: outOfRange ? '#DC2626' : '#059669',
+      })
+    } else if (!result) {
+      showToast('⚠️ 请先选择合格判定')
       return
     }
     const subitemLabel = typeConfig?.label || type
@@ -107,7 +206,7 @@ export default function InspectionForm({ projectId, enterpriseId, onSuccess }: P
         project_id: projectId,
         stake: location.trim(),
         subitem: subitemLabel,
-        result: result as 'pass' | 'warn' | 'fail',
+        result: submitResult as 'pass' | 'warn' | 'fail',
       }) as {
         gate?: {
           enabled?: boolean
@@ -124,23 +223,32 @@ export default function InspectionForm({ projectId, enterpriseId, onSuccess }: P
 
       const gate = gateRes?.gate
       const count = Number(gateRes?.metering_lookup?.count || 0)
-      if (result === 'pass' && !gateRes) {
+      if (submitResult === 'pass' && !gateRes) {
         showToast('⛔ ERP 门禁检查失败，暂不允许以“合格”结果提交')
         return
       }
       if (gate?.enabled) {
         if (!gate.allow_submit) {
-          if (gate.reason === 'no_pending_metering_request') {
+          if (gate.reason === 'metering_lookup_failed') {
+            showToast('⚠️ ERP 计量查询失败，已按“先保存后通知”策略继续保存质检记录')
+            setGateStatus(`门禁降级：${gate.reason}（匹配计量 ${count} 条，保存后异步通知 ERP）`)
+          } else if (gate.reason === 'no_pending_metering_request') {
             showToast('⛔ 未匹配到待审批计量申请，当前“合格”结果不可提交放行')
+            setGateStatus(`门禁拦截：${gate.reason || 'unknown'}（匹配计量 ${count} 条）`)
+            return
           } else if (gate.reason === 'missing_erp_project_code_binding') {
             showToast('⛔ 当前项目未绑定 ERP 项目编码，请到项目注册/详情补齐 ERP 项目编码')
+            setGateStatus(`门禁拦截：${gate.reason || 'unknown'}（匹配计量 ${count} 条）`)
+            return
           } else {
             showToast(`⛔ ERP 门禁未通过：${gate.reason || 'unknown'}`)
+            setGateStatus(`门禁拦截：${gate.reason || 'unknown'}（匹配计量 ${count} 条）`)
+            return
           }
-          setGateStatus(`门禁拦截：${gate.reason || 'unknown'}（匹配计量 ${count} 条）`)
-          return
         }
-        if (gate.action === 'release') {
+        if (gate.reason === 'metering_lookup_failed') {
+          // Keep degradation hint above; do not override by generic action message.
+        } else if (gate.action === 'release') {
           setGateStatus(`门禁通过：匹配 ${count} 条待审批计量申请，提交后将通知 ERP 放行`)
         } else if (gate.action === 'block') {
           setGateStatus(`门禁判定：提交后将通知 ERP 拦截（原因：${gate.reason || 'inspection_not_passed'}）`)
@@ -157,18 +265,25 @@ export default function InspectionForm({ projectId, enterpriseId, onSuccess }: P
       location,
       type,
       type_name:   typeConfig?.label || type,
-      value:       parseFloat(value),
-      standard:    typeConfig?.standard,
+      value:       submitValue,
+      standard:    isRebarType ? rebarDesignNumber : typeConfig?.standard,
       unit:        typeConfig?.unit || '',
-      result,
+      result:      submitResult,
       person:      person || undefined,
       remark:      remark || undefined,
       inspected_at: inspectedAt ? new Date(inspectedAt).toISOString() : new Date().toISOString(),
       photo_ids: pendingLinkPhotoIds.length ? pendingLinkPhotoIds : undefined,
+      design: isRebarType ? rebarDesignNumber : undefined,
+      limit: isRebarType ? rebarLimit : undefined,
+      values: isRebarType ? rebarValuesList : undefined,
+      spec_uri: typeConfig?.normRef || undefined,
+      norm_uri: typeConfig?.normRef || undefined,
+      component_type: isRebarType ? 'main_beam' : undefined,
     }
     const res = await submit(body) as {
       inspection_id?: string
       proof_id?: string
+      result?: string
       erpnext_notify?: {
         success?: boolean
         gate?: {
@@ -185,10 +300,10 @@ export default function InspectionForm({ projectId, enterpriseId, onSuccess }: P
         v_uri:        `${currentProject?.v_uri || ''}inspection/${res.inspection_id}/`,
         location, type,
         type_name:    typeConfig?.label || type,
-        value:        parseFloat(value),
-        standard:     typeConfig?.standard,
+        value:        submitValue,
+        standard:     isRebarType ? rebarDesignNumber : typeConfig?.standard,
         unit:         typeConfig?.unit || '',
-        result,
+        result:       (res.result as InspectResult) || submitResult,
         person, remark,
         proof_id:     res.proof_id,
         proof_status: 'confirmed',
@@ -205,6 +320,13 @@ export default function InspectionForm({ projectId, enterpriseId, onSuccess }: P
       setRemark('')
       setResult('')
       setGateStatus('')
+      setJudgeHint(null)
+      if (isRebarType) {
+        setRebarValues('')
+        if (typeConfig?.standard != null) {
+          setRebarDesign(String(typeConfig.standard))
+        }
+      }
       setInspectedAt(toLocalDateTimeSeconds())
       const gateAction = res.erpnext_notify?.gate?.action
       if (gateAction === 'release') {
@@ -264,15 +386,23 @@ export default function InspectionForm({ projectId, enterpriseId, onSuccess }: P
           <Input
             label="实测值" required
             value={value} type="number"
-            onChange={v => { setValue(v); autoJudge(v) }}
+            onChange={v => {
+              setValue(v)
+              if (!isRebarType) autoJudge(v)
+            }}
             placeholder="0.00"
           />
           {typeConfig && (
             <div style={{ fontSize: 12, color: '#1A56DB', marginTop: 4 }}>
-              规范标准：{typeConfig.standard} {typeConfig.unit}
+              规范标准：{isRebarType ? (rebarDesign || typeConfig.standard) : typeConfig.standard} {typeConfig.unit}
               {typeConfig.normRef && (
                 <span style={{ color: '#9CA3AF', marginLeft: 6 }}>{typeConfig.normRef}</span>
               )}
+            </div>
+          )}
+          {judgeHint && (
+            <div style={{ fontSize: 12, color: judgeHint.color, marginTop: 4, fontWeight: 700 }}>
+              {judgeHint.text}
             </div>
           )}
         </div>
@@ -305,22 +435,85 @@ export default function InspectionForm({ projectId, enterpriseId, onSuccess }: P
         </div>
       </div>
 
+      {isRebarType && (
+        <div style={{
+          marginBottom: 12,
+          padding: 10,
+          borderRadius: 8,
+          border: '1px solid #DBEAFE',
+          background: '#F8FBFF',
+        }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: '#1E40AF', marginBottom: 8 }}>
+            钢筋间距活表参数（失焦自动判定）
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <Input
+              label="设计值"
+              value={rebarDesign}
+              type="number"
+              onChange={setRebarDesign}
+              onBlur={autoJudgeRebar}
+              placeholder="200"
+            />
+            <Input
+              label="允许偏差"
+              value={rebarLimit}
+              onChange={setRebarLimit}
+              onBlur={autoJudgeRebar}
+              placeholder="±10"
+            />
+          </div>
+          <div style={{ marginTop: 8 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: '#6B7280', marginBottom: 5, letterSpacing: '0.5px', textTransform: 'uppercase' }}>
+              实测值列表（逗号/空格/换行分隔，Blur 自动判定）
+            </div>
+            <textarea
+              value={rebarValues}
+              onChange={(e) => setRebarValues(e.target.value)}
+              onBlur={autoJudgeRebar}
+              placeholder="198, 203, 201, 196, 207, 202, 199, 204, 198, 200, 201"
+              rows={3}
+              style={{
+                width: '100%',
+                background: '#F0F4F8',
+                border: '1px solid #E2E8F0',
+                borderRadius: 8,
+                padding: '9px 12px',
+                fontSize: 13,
+                fontFamily: 'var(--sans)',
+                resize: 'vertical',
+                outline: 'none',
+              }}
+            />
+          </div>
+        </div>
+      )}
+
       {/* 合格判定 */}
       <div style={{ marginBottom: 12 }}>
         <div style={{ fontSize: 12, fontWeight: 700, color: '#6B7280', marginBottom: 8, letterSpacing: '0.5px', textTransform: 'uppercase' }}>
           合格判定 <span style={{ color: '#DC2626' }}>*</span>
         </div>
+        {isRebarType && (
+          <div style={{ fontSize: 12, color: '#1E40AF', marginBottom: 8 }}>
+            钢筋间距类型由活表参数自动判定，结果按钮只读。
+          </div>
+        )}
         <div style={{ display: 'flex', gap: 8 }}>
           {resultBtns.map(b => (
             <button
               key={b.key}
-              onClick={() => setResult(b.key)}
+              onClick={() => {
+                if (!isRebarType) setResult(b.key)
+              }}
+              disabled={isRebarType}
               style={{
                 flex: 1, padding: '10px 0', borderRadius: 8,
                 border: `1.5px solid ${result === b.key ? b.color : '#E2E8F0'}`,
                 background: result === b.key ? b.bg : '#F0F4F8',
                 color: result === b.key ? b.color : '#6B7280',
-                fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                fontSize: 13, fontWeight: 700, cursor: isRebarType ? 'not-allowed' : 'pointer',
+                opacity: isRebarType ? 0.75 : 1,
                 fontFamily: 'var(--sans)',
               }}
             >
@@ -404,7 +597,7 @@ export default function InspectionForm({ projectId, enterpriseId, onSuccess }: P
 
       <Button
         fullWidth onClick={handleSubmit}
-        disabled={loading || !type || !location || !value || !result}
+        disabled={loading || !type || !location || !value || (!result && !isRebarType)}
         icon="✅"
       >
         {loading ? '保存中...' : '保存质检记录'}

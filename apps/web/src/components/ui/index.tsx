@@ -196,12 +196,13 @@ interface InputProps {
   label?:       string
   value:        string | number
   onChange:     (v: string) => void
+  onBlur?:      () => void
   placeholder?: string
   type?:        string
   required?:    boolean
   hint?:        string
 }
-export function Input({ label, value, onChange, placeholder, type = 'text', required, hint }: InputProps) {
+export function Input({ label, value, onChange, onBlur, placeholder, type = 'text', required, hint }: InputProps) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
       {label && (
@@ -213,6 +214,7 @@ export function Input({ label, value, onChange, placeholder, type = 'text', requ
         type={type}
         value={value}
         onChange={e => onChange(e.target.value)}
+        onBlur={onBlur}
         placeholder={placeholder}
         style={{
           background: '#F0F4F8', border: '1px solid #E2E8F0',

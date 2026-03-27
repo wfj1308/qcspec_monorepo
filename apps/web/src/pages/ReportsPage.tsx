@@ -6,18 +6,28 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { Card, Button, EmptyState, ProgressBar, VPathDisplay, StatCard } from '../components/ui'
 import { useProjectStore, useInspectionStore, useAuthStore, useUIStore } from '../store'
-import { useReports, useProof } from '../hooks/useApi'
+import { useReports, useProof, useInspections } from '../hooks/useApi'
 import type { Report } from '@qcspec/types'
+
+const formatDateTimeSeconds = (input?: string | null): string => {
+  if (!input) return '-'
+  const date = new Date(input)
+  if (Number.isNaN(date.getTime())) return '-'
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${date.getFullYear()}/${pad(date.getMonth() + 1)}/${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`
+}
 
 export default function ReportsPage() {
   const { currentProject } = useProjectStore()
-  const { stats } = useInspectionStore()
+  const { stats: storeStats } = useInspectionStore()
   const { enterprise } = useAuthStore()
   const { showToast } = useUIStore()
-  const { generate, list, getById } = useReports()
+  const { generate, exportDocpeg, list, getById } = useReports()
   const { verify: verifyProof } = useProof()
+  const { list: listInspections } = useInspections()
 
   const [reports, setReports] = useState<Report[]>([])
+  const [allInspections, setAllInspections] = useState<Array<{ result?: string; location?: string; inspected_at?: string }>>([])
   const [reportDetails, setReportDetails] = useState<Record<string, Report>>({})
   const [generating, setGenerating] = useState(false)
   const [selectedReportId, setSelectedReportId] = useState<string | null>(null)
@@ -34,25 +44,88 @@ export default function ReportsPage() {
     setReports(res.data)
   }, [currentProject?.id, list])
 
+  const refreshInspections = useCallback(async () => {
+    if (!currentProject?.id) return
+    const pageSize = 200
+    const next: Array<{ result?: string; location?: string; inspected_at?: string }> = []
+    for (let offset = 0; offset < 2000; offset += pageSize) {
+      // eslint-disable-next-line no-await-in-loop
+      const payload = await listInspections(currentProject.id, {
+        limit: String(pageSize),
+        offset: String(offset),
+      }) as { data?: Array<{ result?: string; location?: string; inspected_at?: string }> } | null
+      const rows = payload?.data || []
+      next.push(...rows)
+      if (rows.length < pageSize) break
+    }
+    setAllInspections(next)
+  }, [currentProject?.id, listInspections])
+
   useEffect(() => {
     setSelectedReportId(null)
     setReportDetails({})
     refreshReports()
-  }, [currentProject?.id, refreshReports])
+    refreshInspections()
+  }, [currentProject?.id, refreshReports, refreshInspections])
+
+  const panelStats = useMemo(() => {
+    const locationFilter = location.trim()
+    const from = dateFrom ? new Date(`${dateFrom}T00:00:00`) : null
+    const to = dateTo ? new Date(`${dateTo}T23:59:59.999`) : null
+
+    const filtered = allInspections.filter((item) => {
+      if (locationFilter && String(item.location || '').trim() !== locationFilter) return false
+      if (from || to) {
+        const t = item.inspected_at ? new Date(item.inspected_at) : null
+        if (!t || Number.isNaN(t.getTime())) return false
+        if (from && t < from) return false
+        if (to && t > to) return false
+      }
+      return true
+    })
+
+    const total = filtered.length
+    const pass = filtered.filter((x) => x.result === 'pass').length
+    const warn = filtered.filter((x) => x.result === 'warn').length
+    const fail = filtered.filter((x) => x.result === 'fail').length
+    const pass_rate = total ? Math.round((pass / total) * 1000) / 10 : 0
+    return { total, pass, warn, fail, pass_rate }
+  }, [allInspections, dateFrom, dateTo, location])
 
   const handleGenerate = async () => {
     if (!currentProject || !enterprise) return
     setGenerating(true)
     const beforeCount = reports.length
-    const res = await generate({
+    const exportRes = await exportDocpeg({
+      project_id: currentProject.id,
+      enterprise_id: enterprise.id,
+      type: 'inspection',
+      format: 'docx',
+      location: location || undefined,
+      date_from: dateFrom || undefined,
+      date_to: dateTo || undefined,
+    }) as { file_url?: string; report_no?: string } | null
+
+    // Prefer synchronous export: immediate file URL + latest rendered template.
+    if (exportRes?.file_url) {
+      showToast(`导出成功：${exportRes.report_no || '报告已生成'}`)
+      window.open(exportRes.file_url, '_blank', 'noopener,noreferrer')
+      await refreshReports()
+      await refreshInspections()
+      setGenerating(false)
+      return
+    }
+
+    // Fallback: keep old async generation path when export is unavailable.
+    const generateRes = await generate({
       project_id: currentProject.id,
       enterprise_id: enterprise.id,
       location: location || undefined,
       date_from: dateFrom || undefined,
       date_to: dateTo || undefined,
     })
-    if (res) {
-      showToast('报告生成中，正在同步刷新列表...')
+    if (generateRes) {
+      showToast('导出暂不可用，已回退为异步生成，正在同步刷新列表...')
       let appeared = false
       // Poll up to ~15s to cover async worker latency.
       for (let i = 0; i < 6; i += 1) {
@@ -70,6 +143,7 @@ export default function ReportsPage() {
       if (!appeared) {
         showToast('报告任务已提交，后台仍在生成，请稍后点“刷新”')
       }
+      refreshInspections()
     }
     setGenerating(false)
   }
@@ -115,9 +189,9 @@ export default function ReportsPage() {
     <div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12, marginBottom: 16 }}>
         <StatCard icon="📊" value={reports.length} label="历史报告" color="#EFF6FF" />
-        <StatCard icon="✅" value={stats.pass} label="合格记录" color="#ECFDF5" />
-        <StatCard icon="❌" value={stats.fail} label="不合格项" color={stats.fail ? '#FEF2F2' : '#F8FAFF'} />
-        <StatCard icon="📈" value={`${stats.pass_rate}%`} label="综合合格率" color={stats.pass_rate >= 90 ? '#ECFDF5' : '#FEF2F2'} />
+        <StatCard icon="✅" value={panelStats.pass} label="合格记录" color="#ECFDF5" />
+        <StatCard icon="❌" value={panelStats.fail} label="不合格项" color={panelStats.fail ? '#FEF2F2' : '#F8FAFF'} />
+        <StatCard icon="📈" value={`${panelStats.pass_rate}%`} label="综合合格率" color={panelStats.pass_rate >= 90 ? '#ECFDF5' : '#FEF2F2'} />
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '360px 1fr', gap: 16, alignItems: 'start' }}>
@@ -175,24 +249,24 @@ export default function ReportsPage() {
                   <div style={{ fontSize: 12, fontWeight: 700, color: '#0F172A', marginBottom: 8 }}>将写入报告的统计</div>
                   <div style={{ display: 'flex', gap: 16, marginBottom: 8 }}>
                     {[
-                      { label: '总计', value: stats.total, color: '#1A56DB' },
-                      { label: '合格', value: stats.pass, color: '#059669' },
-                      { label: '观察', value: stats.warn, color: '#D97706' },
-                      { label: '不合格', value: stats.fail, color: '#DC2626' },
+                      { label: '总计', value: panelStats.total, color: '#1A56DB' },
+                      { label: '合格', value: panelStats.pass, color: '#059669' },
+                      { label: '观察', value: panelStats.warn, color: '#D97706' },
+                      { label: '不合格', value: panelStats.fail, color: '#DC2626' },
                     ].map((s) => (
                       <div key={s.label} style={{ fontSize: 12, color: '#6B7280' }}>
                         <span style={{ color: s.color, fontWeight: 900, fontSize: 16 }}>{s.value}</span> {s.label}
                       </div>
                     ))}
                   </div>
-                  <ProgressBar value={stats.pass_rate} color={passRateColor(stats.pass_rate)} height={6} />
-                  <div style={{ fontSize: 12, color: '#6B7280', marginTop: 4 }}>合格率 {stats.pass_rate}%</div>
+                  <ProgressBar value={panelStats.pass_rate} color={passRateColor(panelStats.pass_rate)} height={6} />
+                  <div style={{ fontSize: 12, color: '#6B7280', marginTop: 4 }}>合格率 {panelStats.pass_rate}%</div>
                 </div>
 
-                <Button fullWidth icon="🧾" onClick={handleGenerate} disabled={generating || stats.total === 0}>
+                <Button fullWidth icon="🧾" onClick={handleGenerate} disabled={generating || panelStats.total === 0}>
                   {generating ? '生成中...' : '生成质检报告'}
                 </Button>
-                {stats.total === 0 && (
+                {panelStats.total === 0 && (
                   <div style={{ fontSize: 12, color: '#9CA3AF', textAlign: 'center', marginTop: 8 }}>请先录入质检数据</div>
                 )}
               </>
@@ -206,7 +280,10 @@ export default function ReportsPage() {
               历史报告 <span style={{ fontSize: 13, color: '#6B7280', fontWeight: 400 }}>共 {reports.length} 份</span>
             </div>
             <button
-              onClick={refreshReports}
+              onClick={async () => {
+                await refreshReports()
+                await refreshInspections()
+              }}
               style={{ background: 'none', border: 'none', color: '#6B7280', cursor: 'pointer', fontSize: 13 }}
             >
               刷新
@@ -254,7 +331,7 @@ function ReportCard({
   const passRateColor = report.pass_rate != null
     ? (report.pass_rate >= 90 ? '#059669' : report.pass_rate >= 70 ? '#D97706' : '#DC2626')
     : '#6B7280'
-  const generatedAt = report.generated_at ? new Date(report.generated_at).toLocaleString('zh-CN').slice(0, 16) : '-'
+  const generatedAt = formatDateTimeSeconds(report.generated_at)
 
   return (
     <div

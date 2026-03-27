@@ -33,21 +33,21 @@ export interface InspectionTypeConfig {
 }
 
 export const INSPECTION_TYPES: Record<string, InspectionTypeConfig> = {
-  flatness:       { key:'flatness',       label:'路面平整度',   unit:'m/km', standard:2.0,  better:'less',   category:'路面', normRef:'v://standard/JTG-F80/4.2' },
-  crack:          { key:'crack',          label:'裂缝宽度',     unit:'mm',   standard:0.2,  better:'less',   category:'路面', normRef:'v://standard/JTG-F80/4.3' },
+  flatness:       { key:'flatness',       label:'路面平整度',   unit:'m/km', standard:2.0,  better:'less',   category:'路面', normRef:'v://norm/JTG_F80/4.2#flatness_max' },
+  crack:          { key:'crack',          label:'裂缝宽度',     unit:'mm',   standard:0.2,  better:'less',   category:'路面', normRef:'v://norm/JTG_F80/4.3#crack_width_max' },
   rut:            { key:'rut',            label:'车辙深度',     unit:'mm',   standard:20,   better:'less',   category:'路面' },
   slope:          { key:'slope',          label:'横坡坡度',     unit:'%',    standard:2.0,  better:'approx', category:'路面' },
   settlement:     { key:'settlement',     label:'路基沉降',     unit:'mm',   standard:30,   better:'less',   category:'结构' },
   bearing:        { key:'bearing',        label:'路基承载力',   unit:'MPa',  standard:30,   better:'more',   category:'结构' },
-  compaction:     { key:'compaction',     label:'压实度',       unit:'%',    standard:96,   better:'more',   category:'结构', normRef:'v://standard/JTG-F80/3.1' },
-  bridge_crack:   { key:'bridge_crack',   label:'桥梁裂缝',     unit:'mm',   standard:0.2,  better:'less',   category:'桥梁', normRef:'v://standard/JTG-F80/6.1' },
+  compaction:     { key:'compaction',     label:'压实度',       unit:'%',    standard:96,   better:'more',   category:'结构', normRef:'v://norm/JTG_F80/3.1#compaction_min' },
+  bridge_crack:   { key:'bridge_crack',   label:'桥梁裂缝',     unit:'mm',   standard:0.2,  better:'less',   category:'桥梁', normRef:'v://norm/JTG_F80/6.1#bridge_crack_max' },
   bridge_deflect: { key:'bridge_deflect', label:'挠度',         unit:'mm',   standard:5.0,  better:'less',   category:'桥梁' },
   bridge_erosion: { key:'bridge_erosion', label:'混凝土碳化',   unit:'mm',   standard:10,   better:'less',   category:'桥梁' },
   // 市政
   pipe_pressure:  { key:'pipe_pressure',  label:'管道压力',     unit:'MPa',  standard:0.6,  better:'more',   category:'市政' },
   // 房建
-  concrete_str:   { key:'concrete_str',   label:'混凝土强度',   unit:'MPa',  standard:30,   better:'more',   category:'房建', normRef:'v://standard/GB50204/7.1' },
-  rebar_spacing:  { key:'rebar_spacing',  label:'钢筋间距',     unit:'mm',   standard:200,  better:'approx', category:'房建', normRef:'v://standard/GB50204/5.3' },
+  concrete_str:   { key:'concrete_str',   label:'混凝土强度',   unit:'MPa',  standard:30,   better:'more',   category:'房建', normRef:'v://norm/GB50204/7.1#concrete_strength_min' },
+  rebar_spacing:  { key:'rebar_spacing',  label:'钢筋间距',     unit:'mm',   standard:200,  better:'approx', category:'房建', normRef:'v://norm/GB50204/5.3.3#spacing_tolerance' },
 }
 
 // ── 核心业务对象 ──
@@ -140,6 +140,9 @@ export interface Inspection {
   standard?:     number
   unit:          string
   result:        InspectResult
+  design?:       number
+  limit?:        string
+  values?:       number[]
   person?:       string
   remark?:       string
   proof_id?:     string
@@ -206,6 +209,9 @@ export interface ProjectStats {
 // ── 报告生成参数 ──
 export interface ReportGenerateParams {
   project_id: string
+  enterprise_id?: string
+  type?: 'inspection' | 'lab' | 'monthly_summary' | 'final_archive'
+  format?: 'docx' | 'pdf'
   location?:  string
   date_from?: string
   date_to?:   string
