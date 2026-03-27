@@ -4,6 +4,7 @@ services/api/main.py
 """
 
 from contextlib import asynccontextmanager
+import asyncio
 from pathlib import Path
 import os
 
@@ -18,14 +19,26 @@ API_ENV = Path(__file__).resolve().parent / ".env"
 load_dotenv(ROOT_ENV, override=False)
 load_dotenv(API_ENV, override=False)
 
-from routers import auth, autoreg, erpnext, inspections, photos, projects, proof, reports, settings, team
+from routers import auth, autoreg, erpnext, inspections, photos, projects, proof, reports, settings, team, verify
+from workers.gitpeg_anchor_worker import GitPegAnchorWorker
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     print("QCSpec API starting")
     print(f"Supabase: {os.getenv('SUPABASE_URL', 'not configured')[:40]}")
+    anchor_worker = GitPegAnchorWorker()
+    worker_task = None
+    if anchor_worker.enabled:
+        worker_task = asyncio.create_task(anchor_worker.run_forever())
     yield
+    if worker_task is not None:
+        await anchor_worker.shutdown()
+        worker_task.cancel()
+        try:
+            await worker_task
+        except BaseException:
+            pass
     print("QCSpec API stopped")
 
 
@@ -73,6 +86,25 @@ app.include_router(
     prefix="/v1/reports",
     tags=["reports"],
     dependencies=[Depends(auth.require_auth)],
+)
+# Backward-compatible API alias for DocPeg export integrations.
+app.include_router(
+    reports.router,
+    prefix="/api/reports",
+    tags=["reports-api"],
+    dependencies=[Depends(auth.require_auth)],
+)
+# Public no-auth verify endpoint for QR scan pages.
+app.include_router(
+    verify.public_router,
+    prefix="/api/verify",
+    tags=["verify-public"],
+)
+# New explicit versioned public verify endpoint.
+app.include_router(
+    verify.public_router,
+    prefix="/api/v1/verify",
+    tags=["verify-public-v1"],
 )
 app.include_router(
     proof.router,

@@ -164,15 +164,22 @@ async def verify_proof(
             utxo = None
         if not utxo:
             return {"valid": False, "proof": None, "message": "Proof not found."}
+        anchor = str(utxo.get("gitpeg_anchor") or "").strip()
+        anchor_status = "anchored" if anchor and anchor != "待锚定" else "pending"
         return {
             "valid": True,
             "proof_id": proof_id,
+            "proof_hash": utxo.get("proof_hash"),
             "v_uri": (utxo.get("state_data") or {}).get("v_uri") or utxo.get("project_uri"),
+            "project_uri": utxo.get("project_uri"),
+            "segment_uri": utxo.get("segment_uri"),
             "object_type": utxo.get("proof_type"),
             "action": "consume" if utxo.get("spent") else "create",
             "summary": f"{utxo.get('proof_type')}:{utxo.get('result')}",
             "created_at": utxo.get("created_at"),
             "chain_length": int(utxo.get("depth") or 0) + 1,
+            "gitpeg_anchor": anchor or None,
+            "anchor_status": anchor_status,
             "message": "Proof verified via proof_utxo.",
         }
 
@@ -189,9 +196,25 @@ async def verify_proof(
     except Exception:
         chain_count = 0
 
+    utxo_extra = {}
+    try:
+        utxo = ProofUTXOEngine(sb).get_by_id(proof_id)
+    except Exception:
+        utxo = None
+    if isinstance(utxo, dict):
+        anchor = str(utxo.get("gitpeg_anchor") or "").strip()
+        utxo_extra = {
+            "project_uri": utxo.get("project_uri"),
+            "segment_uri": utxo.get("segment_uri"),
+            "proof_hash": utxo.get("proof_hash"),
+            "gitpeg_anchor": anchor or None,
+            "anchor_status": "anchored" if anchor and anchor != "待锚定" else "pending",
+        }
+
     return {
         "valid": hash_valid,
         "proof_id": proof_id,
+        "proof_hash": proof.get("proof_hash"),
         "v_uri": proof.get("v_uri"),
         "object_type": proof.get("object_type"),
         "action": proof.get("action"),
@@ -199,6 +222,7 @@ async def verify_proof(
         "created_at": proof.get("created_at"),
         "chain_length": chain_count,
         "message": "Proof verified." if hash_valid else "Proof hash mismatch.",
+        **utxo_extra,
     }
 
 
