@@ -6,6 +6,7 @@ python-multipart==0.0.9
 python-dotenv==1.0.1
 pydantic==2.7.0
 httpx==0.25.2
+bcrypt==4.2.1
 docxtpl==0.16.8
 python-docx==1.1.0
 Pillow==10.3.0

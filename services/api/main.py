@@ -19,8 +19,20 @@ API_ENV = Path(__file__).resolve().parent / ".env"
 load_dotenv(ROOT_ENV, override=False)
 load_dotenv(API_ENV, override=False)
 
-from routers import auth, autoreg, erpnext, inspections, photos, projects, proof, reports, settings, team, verify
-from workers.gitpeg_anchor_worker import GitPegAnchorWorker
+from services.api.routers import (
+    auth,
+    autoreg,
+    erpnext,
+    inspections,
+    photos,
+    projects,
+    proof,
+    reports,
+    settings,
+    team,
+    verify,
+)
+from services.api.workers.gitpeg_anchor_worker import GitPegAnchorWorker
 
 
 @asynccontextmanager
@@ -92,6 +104,12 @@ app.include_router(
     reports.router,
     prefix="/api/reports",
     tags=["reports-api"],
+    dependencies=[Depends(auth.require_auth)],
+)
+app.include_router(
+    verify.router,
+    prefix="/v1/verify",
+    tags=["verify"],
     dependencies=[Depends(auth.require_auth)],
 )
 # Public no-auth verify endpoint for QR scan pages.
