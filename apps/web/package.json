@@ -5,7 +5,9 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "npm run lint",
+    "lint": "tsc --noEmit"
   },
   "dependencies": {
     "@qcspec/proof": "file:../../packages/proof",
