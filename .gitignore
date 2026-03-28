@@ -12,6 +12,7 @@ coverage/
 run-*.log
 .codex-*.log
 tmp-*
+tmp_app_decls.txt
 
 .DS_Store
 Thumbs.db
