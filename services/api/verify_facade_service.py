@@ -159,6 +159,9 @@ def build_public_verify_detail(
             "signed_by": latest_enriched.get("executor_name") or "-",
             "signed_role": latest_enriched.get("executor_role") or "AI",
             "signed_at": latest_enriched.get("signed_at") or "-",
+            "spatiotemporal_anchor_hash": latest_enriched.get("spatiotemporal_anchor_hash") or "",
+            "geo_location": latest_enriched.get("geo_location") or {},
+            "server_timestamp_proof": latest_enriched.get("server_timestamp_proof") or {},
         },
         "exec": {
             "test_type": latest_enriched.get("test_name") or "检测项",

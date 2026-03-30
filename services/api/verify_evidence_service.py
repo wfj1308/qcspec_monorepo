@@ -44,6 +44,34 @@ def _extract_media_type(raw: dict[str, Any]) -> str:
     return "file"
 
 
+def _as_dict(value: Any) -> dict[str, Any]:
+    if isinstance(value, dict):
+        return value
+    return {}
+
+
+def _extract_geo_location(raw: dict[str, Any]) -> dict[str, Any]:
+    src = _as_dict(raw.get("geo_location")) if isinstance(raw, dict) else {}
+    if src:
+        return src
+    lat = _to_text(raw.get("lat") if isinstance(raw, dict) else "").strip()
+    lng = _to_text(raw.get("lng") if isinstance(raw, dict) else "").strip()
+    if lat and lng:
+        return {"lat": lat, "lng": lng}
+    return {}
+
+
+def _extract_server_timestamp_proof(raw: dict[str, Any]) -> dict[str, Any]:
+    src = _as_dict(raw.get("server_timestamp_proof")) if isinstance(raw, dict) else {}
+    if src:
+        return src
+    for key in ("timestamp_proof", "ntp_proof"):
+        x = _as_dict(raw.get(key) if isinstance(raw, dict) else {})
+        if x:
+            return x
+    return {}
+
+
 def build_evidence_items(
     *,
     sb: Client,
@@ -94,6 +122,9 @@ def build_evidence_items(
                     "size": item.get("size") or item.get("file_size"),
                     "time": display_time(item.get("taken_at") or item.get("created_at") or ""),
                     "source": "proof_state",
+                    "geo_location": _extract_geo_location(item),
+                    "server_timestamp_proof": _extract_server_timestamp_proof(item),
+                    "spatiotemporal_anchor_hash": _to_text(item.get("spatiotemporal_anchor_hash") or "").strip(),
                 }
             )
 
@@ -130,6 +161,9 @@ def build_evidence_items(
                     "size": photo.get("file_size"),
                     "time": display_time(photo.get("taken_at") or photo.get("created_at")),
                     "source": "photos_table",
+                    "geo_location": _extract_geo_location(photo),
+                    "server_timestamp_proof": _extract_server_timestamp_proof(photo),
+                    "spatiotemporal_anchor_hash": _to_text(photo.get("spatiotemporal_anchor_hash") or "").strip(),
                 }
             )
 

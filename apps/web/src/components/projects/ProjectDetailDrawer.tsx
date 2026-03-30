@@ -1,5 +1,7 @@
+﻿
 import React from 'react'
 import { Card } from '../ui'
+import SovereignWorkbenchPanel from './SovereignWorkbenchPanel'
 
 interface ProjectDetailDrawerProps {
   open: boolean
@@ -20,6 +22,136 @@ interface ProjectDetailDrawerProps {
   onDetailDraftChange: (next: any) => void
   normalizeKmInterval: (value: unknown, fallback?: number) => number
   toggleInspectionType: (key: any, current: any[], setter: (next: any[]) => void) => void
+  boqRealtime?: {
+    summary?: {
+      boq_item_count?: number
+      design_total?: number
+      settled_total?: number
+      progress_percent?: number
+    }
+    items?: Array<{
+      boq_item_uri?: string
+      item_no?: string
+      item_name?: string
+      unit?: string
+      design_quantity?: number
+      settled_quantity?: number
+      progress_percent?: number
+      latest_settlement_proof_id?: string
+    }>
+  } | null
+  boqRealtimeLoading?: boolean
+  boqAudit?: {
+    summary?: {
+      item_count?: number
+      baseline_total?: number
+      variation_total?: number
+      settled_total?: number
+      deviation_total?: number
+      illegal_attempt_count?: number
+    }
+    items?: Array<{
+      subitem_code?: string
+      boq_item_uri?: string
+      item_name?: string
+      unit?: string
+      baseline_quantity?: number
+      variation_quantity?: number
+      settled_quantity?: number
+      deviation_quantity?: number
+      illegal_attempt_count?: number
+      status?: string
+    }>
+    illegal_attempts?: Array<{
+      subitem_code?: string
+      proof_id?: string
+      reason?: string
+      action?: string
+      created_at?: string
+    }>
+  } | null
+  boqAuditLoading?: boolean
+  boqProofPreview?: {
+    boq_item_uri?: string
+    chain_count?: number
+    context?: {
+      chain_root_hash?: string
+      timeline_rows?: Array<{
+        step?: number
+        label?: string
+        result?: string
+        time?: string
+        proof_id?: string
+      }>
+    }
+  } | null
+  boqProofLoadingUri?: string
+  boqSovereignPreview?: {
+    subitem_code?: string
+    root_utxo_id?: string
+    boq_item_uri?: string
+    totals?: {
+      proof_count?: number
+      document_count?: number
+      variation_count?: number
+      settlement_count?: number
+      fail_count?: number
+    }
+    timeline?: Array<{
+      proof_id?: string
+      proof_type?: string
+      result?: string
+      created_at?: string
+      trip_action?: string
+      depth?: number
+    }>
+    documents?: Array<{
+      proof_id?: string
+      file_name?: string
+      doc_type?: string
+      storage_url?: string
+      source_utxo_id?: string
+    }>
+  } | null
+  boqSovereignLoadingCode?: string
+  onOpenBoqProofChain?: (boqItemUri: string) => void
+  onOpenBoqSovereignHistory?: (subitemCode: string) => void
+}
+
+const btn: React.CSSProperties = {
+  border: '1px solid #E2E8F0',
+  background: '#fff',
+  borderRadius: 6,
+  padding: '4px 10px',
+  cursor: 'pointer',
+}
+
+function asArray<T = any>(value: unknown): T[] {
+  return Array.isArray(value) ? (value as T[]) : []
+}
+
+function statCard(label: string, value: string | number, tone: 'default' | 'ok' | 'warn' = 'default') {
+  const fg = tone === 'ok' ? '#047857' : tone === 'warn' ? '#991B1B' : '#0F172A'
+  const bg = tone === 'ok' ? '#ECFDF5' : tone === 'warn' ? '#FEF2F2' : '#F8FAFC'
+  const bd = tone === 'ok' ? '#86EFAC' : tone === 'warn' ? '#FECACA' : '#E2E8F0'
+  return (
+    <div style={{ border: `1px solid ${bd}`, background: bg, borderRadius: 8, padding: 8 }}>
+      <div style={{ fontSize: 12, color: '#64748B' }}>{label}</div>
+      <div style={{ fontSize: 18, fontWeight: 800, color: fg }}>{value}</div>
+    </div>
+  )
+}
+
+function clamp(num: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, num))
+}
+
+function computeRiskScore(row: { deviation_quantity?: number; illegal_attempt_count?: number }) {
+  const deviation = Math.abs(Number(row.deviation_quantity || 0))
+  const illegal = Number(row.illegal_attempt_count || 0)
+  const score = clamp(Math.round(100 - deviation * 5 - illegal * 12), 0, 100)
+  const tone = score >= 80 ? 'ok' : score >= 60 ? 'warn' : 'bad'
+  return { score, tone }
 }
 
 export default function ProjectDetailDrawer({
@@ -41,21 +173,30 @@ export default function ProjectDetailDrawer({
   onDetailDraftChange,
   normalizeKmInterval,
   toggleInspectionType,
+  boqRealtime,
+  boqRealtimeLoading,
+  boqAudit,
+  boqAuditLoading,
+  boqProofPreview,
+  boqProofLoadingUri,
+  boqSovereignPreview,
+  boqSovereignLoadingCode,
+  onOpenBoqProofChain,
+  onOpenBoqSovereignHistory,
 }: ProjectDetailDrawerProps) {
   if (!open || !detailProject) return null
 
+  const draftInspection = asArray<string>(detailDraft?.inspectionTypes)
+
   return (
-    <div
-      style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.35)', zIndex: 998 }}
-      onClick={onClose}
-    >
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.35)', zIndex: 998 }} onClick={onClose}>
       <div
         style={{
           position: 'absolute',
           top: 0,
           right: 0,
-          width: 480,
-          maxWidth: '92vw',
+          width: 'min(96vw, 1500px)',
+          maxWidth: '96vw',
           height: '100%',
           background: '#fff',
           borderLeft: '1px solid #E2E8F0',
@@ -67,236 +208,163 @@ export default function ProjectDetailDrawer({
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
           <div style={{ fontSize: 16, fontWeight: 800, color: '#0F172A' }}>项目详情</div>
           <div style={{ display: 'flex', gap: 8 }}>
-            {!detailEdit && (
-              <button
-                onClick={onStartEdit}
-                style={{
-                  border: '1px solid #BFDBFE',
-                  background: '#EFF6FF',
-                  borderRadius: 6,
-                  padding: '4px 10px',
-                  cursor: 'pointer',
-                  color: '#1A56DB',
-                }}
-              >
-                编辑
-              </button>
-            )}
+            {!detailEdit && <button onClick={onStartEdit} style={{ ...btn, border: '1px solid #BFDBFE', background: '#EFF6FF', color: '#1A56DB' }}>编辑</button>}
             {detailEdit && (
               <>
-                <button
-                  onClick={onSave}
-                  style={{
-                    border: '1px solid #86EFAC',
-                    background: '#ECFDF5',
-                    borderRadius: 6,
-                    padding: '4px 10px',
-                    cursor: 'pointer',
-                    color: '#059669',
-                  }}
-                >
-                  保存
-                </button>
-                <button
-                  onClick={onCancelEdit}
-                  style={{
-                    border: '1px solid #E2E8F0',
-                    background: '#fff',
-                    borderRadius: 6,
-                    padding: '4px 10px',
-                    cursor: 'pointer',
-                  }}
-                >
-                  取消
-                </button>
+                <button onClick={onSave} style={{ ...btn, border: '1px solid #86EFAC', background: '#ECFDF5', color: '#059669' }}>保存</button>
+                <button onClick={onCancelEdit} style={btn}>取消</button>
               </>
             )}
-            <button
-              onClick={onClose}
-              style={{
-                border: '1px solid #E2E8F0',
-                background: '#fff',
-                borderRadius: 6,
-                padding: '4px 10px',
-                cursor: 'pointer',
-              }}
-            >
-              关闭
-            </button>
+            <button onClick={onClose} style={btn}>关闭</button>
           </div>
         </div>
 
         {!detailEdit && (
-          <div style={{ display: 'grid', gridTemplateColumns: '110px 1fr', rowGap: 8, fontSize: 13, marginBottom: 14 }}>
-            <span style={{ color: '#64748B' }}>项目名称</span><strong>{detailProject.name}</strong>
-            <span style={{ color: '#64748B' }}>项目类型</span><span>{typeLabel[detailProject.type] || detailProject.type}</span>
-            <span style={{ color: '#64748B' }}>业主单位</span><span>{detailProject.owner_unit}</span>
-            <span style={{ color: '#64748B' }}>施工单位</span><span>{detailProject.contractor || '-'}</span>
-            <span style={{ color: '#64748B' }}>监理单位</span><span>{detailProject.supervisor || '-'}</span>
-            <span style={{ color: '#64748B' }}>合同编号</span><span>{detailProject.contract_no || '-'}</span>
-            <span style={{ color: '#64748B' }}>ERP 项目编码</span><span>{detailProject.erp_project_code || '-'}</span>
-            <span style={{ color: '#64748B' }}>ERP 项目名称</span><span>{detailProject.erp_project_name || '-'}</span>
-            <span style={{ color: '#64748B' }}>工期</span><span>{detailProject.start_date || '-'} ~ {detailProject.end_date || '-'}</span>
-            <span style={{ color: '#64748B' }}>v:// URI</span><code style={{ color: '#1A56DB', wordBreak: 'break-all' }}>{detailProject.v_uri}</code>
-            <span style={{ color: '#64748B' }}>零号台帐</span>
-            <span>
-              {`${(Array.isArray(detailProject.zero_personnel) ? detailProject.zero_personnel.filter((row: any) => String(row?.name || '').trim()).length : 0)}名人员 · ${(Array.isArray(detailProject.zero_equipment) ? detailProject.zero_equipment.filter((row: any) => String(row?.name || '').trim()).length : 0)}台仪器 · 等待秩签审批`}
-            </span>
-            <span style={{ color: '#64748B' }}>秩签状态</span>
-            <span>{detailProject.zero_sign_status || 'pending'}</span>
-            <span style={{ color: '#64748B' }}>质检台帐</span>
-            <span>{detailProject.qc_ledger_unlocked ? '已解锁' : '待解锁（监理秩签后）'}</span>
-          </div>
+          <Card title="项目基础" icon="📌" style={{ marginBottom: 10 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr', rowGap: 8, fontSize: 13 }}>
+              <span style={{ color: '#64748B' }}>项目名称</span><strong>{detailProject.name}</strong>
+              <span style={{ color: '#64748B' }}>项目类型</span><span>{typeLabel[detailProject.type] || detailProject.type}</span>
+              <span style={{ color: '#64748B' }}>业主单位</span><span>{detailProject.owner_unit || '-'}</span>
+              <span style={{ color: '#64748B' }}>施工单位</span><span>{detailProject.contractor || '-'}</span>
+              <span style={{ color: '#64748B' }}>监理单位</span><span>{detailProject.supervisor || '-'}</span>
+              <span style={{ color: '#64748B' }}>合同编号</span><span>{detailProject.contract_no || '-'}</span>
+              <span style={{ color: '#64748B' }}>工期</span><span>{detailProject.start_date || '-'} ~ {detailProject.end_date || '-'}</span>
+              <span style={{ color: '#64748B' }}>v:// URI</span><code style={{ color: '#1A56DB', wordBreak: 'break-all' }}>{detailProject.v_uri}</code>
+            </div>
+          </Card>
         )}
 
         {detailEdit && detailProjectDraft && (
-          <div style={{ display: 'grid', gridTemplateColumns: '110px 1fr', rowGap: 8, fontSize: 13, marginBottom: 14 }}>
-            <span style={{ color: '#64748B' }}>项目名称</span>
-            <input value={detailProjectDraft.name} onChange={(e) => onDetailProjectDraftChange({ ...detailProjectDraft, name: e.target.value })} style={{ padding: 8, border: '1px solid #E2E8F0', borderRadius: 6 }} />
-            <span style={{ color: '#64748B' }}>项目类型</span>
-            <select value={detailProjectDraft.type} onChange={(e) => onDetailProjectDraftChange({ ...detailProjectDraft, type: e.target.value })} style={{ padding: 8, border: '1px solid #E2E8F0', borderRadius: 6 }}>
-              {projectTypeOptions.map((opt) => (
-                <option key={`detail-${opt.value}`} value={opt.value}>{opt.label}</option>
-              ))}
-            </select>
-            <span style={{ color: '#64748B' }}>业主单位</span>
-            <input value={detailProjectDraft.owner_unit} onChange={(e) => onDetailProjectDraftChange({ ...detailProjectDraft, owner_unit: e.target.value })} style={{ padding: 8, border: '1px solid #E2E8F0', borderRadius: 6 }} />
-            <span style={{ color: '#64748B' }}>施工单位</span>
-            <input value={detailProjectDraft.contractor} onChange={(e) => onDetailProjectDraftChange({ ...detailProjectDraft, contractor: e.target.value })} style={{ padding: 8, border: '1px solid #E2E8F0', borderRadius: 6 }} />
-            <span style={{ color: '#64748B' }}>监理单位</span>
-            <input value={detailProjectDraft.supervisor} onChange={(e) => onDetailProjectDraftChange({ ...detailProjectDraft, supervisor: e.target.value })} style={{ padding: 8, border: '1px solid #E2E8F0', borderRadius: 6 }} />
-            <span style={{ color: '#64748B' }}>合同编号</span>
-            <input value={detailProjectDraft.contract_no} onChange={(e) => onDetailProjectDraftChange({ ...detailProjectDraft, contract_no: e.target.value })} style={{ padding: 8, border: '1px solid #E2E8F0', borderRadius: 6 }} />
-            <span style={{ color: '#64748B' }}>开工日期</span>
-            <input type="date" value={detailProjectDraft.start_date} onChange={(e) => onDetailProjectDraftChange({ ...detailProjectDraft, start_date: e.target.value })} style={{ padding: 8, border: '1px solid #E2E8F0', borderRadius: 6 }} />
-            <span style={{ color: '#64748B' }}>完工日期</span>
-            <input type="date" value={detailProjectDraft.end_date} onChange={(e) => onDetailProjectDraftChange({ ...detailProjectDraft, end_date: e.target.value })} style={{ padding: 8, border: '1px solid #E2E8F0', borderRadius: 6 }} />
-            <span style={{ color: '#64748B' }}>v:// URI</span><code style={{ color: '#1A56DB', wordBreak: 'break-all' }}>{detailProject.v_uri}</code>
-          </div>
+          <Card title="编辑项目" icon="🛠" style={{ marginBottom: 10 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr', rowGap: 8, fontSize: 13 }}>
+              <span style={{ color: '#64748B' }}>项目名称</span>
+              <input value={detailProjectDraft.name || ''} onChange={(e) => onDetailProjectDraftChange({ ...detailProjectDraft, name: e.target.value })} style={{ border: '1px solid #E2E8F0', borderRadius: 6, padding: 8 }} />
+              <span style={{ color: '#64748B' }}>项目类型</span>
+              <select value={detailProjectDraft.type || ''} onChange={(e) => onDetailProjectDraftChange({ ...detailProjectDraft, type: e.target.value })} style={{ border: '1px solid #E2E8F0', borderRadius: 6, padding: 8 }}>
+                {projectTypeOptions.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+              </select>
+              <span style={{ color: '#64748B' }}>业主单位</span>
+              <input value={detailProjectDraft.owner_unit || ''} onChange={(e) => onDetailProjectDraftChange({ ...detailProjectDraft, owner_unit: e.target.value })} style={{ border: '1px solid #E2E8F0', borderRadius: 6, padding: 8 }} />
+              <span style={{ color: '#64748B' }}>施工单位</span>
+              <input value={detailProjectDraft.contractor || ''} onChange={(e) => onDetailProjectDraftChange({ ...detailProjectDraft, contractor: e.target.value })} style={{ border: '1px solid #E2E8F0', borderRadius: 6, padding: 8 }} />
+            </div>
+          </Card>
         )}
 
-        <Card title="范围模型" icon="🧭" style={{ marginBottom: 10 }}>
-          {!detailMeta && <div style={{ color: '#94A3B8', fontSize: 12 }}>该项目暂无扩展注册信息（老数据）。</div>}
-          {detailMeta && !detailEdit && (
-            <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr', rowGap: 8, fontSize: 13 }}>
-              <span style={{ color: '#64748B' }}>分段方式</span><span>{detailMeta.segType}</span>
-              <span style={{ color: '#64748B' }}>桩号范围</span><span>{detailMeta.segStart || '-'} ~ {detailMeta.segEnd || '-'}</span>
-              <span style={{ color: '#64748B' }}>分段间隔</span><span>{detailMeta.kmInterval} km</span>
-              <span style={{ color: '#64748B' }}>主要检测类型</span>
-              <span>
-                {(detailMeta.inspectionTypes || []).length
-                  ? (detailMeta.inspectionTypes || []).map((key: string) => inspectionTypeLabel[key] || key).join(' / ')
-                  : '-'}
-              </span>
-              <span style={{ color: '#64748B' }}>权限模板</span><span>{detailMeta.permTemplate}</span>
-              <span style={{ color: '#64748B' }}>初始成员</span><span>{detailMeta.memberCount} 人</span>
-            </div>
-          )}
-          {detailEdit && detailDraft && (
-            <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr', rowGap: 8, fontSize: 13 }}>
+        {detailEdit && detailDraft && (
+          <Card title="范围参数" icon="🧱" style={{ marginBottom: 10 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr', rowGap: 8, fontSize: 13 }}>
               <span style={{ color: '#64748B' }}>分段方式</span>
-              <select value={detailDraft.segType} onChange={(e) => onDetailDraftChange({ ...detailDraft, segType: e.target.value })} style={{ padding: 8, border: '1px solid #E2E8F0', borderRadius: 6 }}>
-                <option value="km">km</option><option value="contract">contract</option><option value="structure">structure</option>
+              <select value={detailDraft.segType || 'km'} onChange={(e) => onDetailDraftChange({ ...detailDraft, segType: e.target.value })} style={{ border: '1px solid #E2E8F0', borderRadius: 6, padding: 8 }}>
+                <option value="km">按里程</option>
+                <option value="contract">按合同段</option>
+                <option value="structure">按结构物</option>
               </select>
-              <span style={{ color: '#64748B' }}>桩号起点</span>
-              <input value={detailDraft.segStart} onChange={(e) => onDetailDraftChange({ ...detailDraft, segStart: e.target.value })} style={{ padding: 8, border: '1px solid #E2E8F0', borderRadius: 6 }} />
-              <span style={{ color: '#64748B' }}>桩号终点</span>
-              <input value={detailDraft.segEnd} onChange={(e) => onDetailDraftChange({ ...detailDraft, segEnd: e.target.value })} style={{ padding: 8, border: '1px solid #E2E8F0', borderRadius: 6 }} />
-              <span style={{ color: '#64748B' }}>分段间隔(km)</span>
-              <input
-                type="number"
-                min={1}
-                value={detailDraft.kmInterval}
-                onChange={(e) => onDetailDraftChange({ ...detailDraft, kmInterval: normalizeKmInterval(e.target.value, detailDraft.kmInterval) })}
-                style={{ padding: 8, border: '1px solid #E2E8F0', borderRadius: 6 }}
-              />
-              <span style={{ color: '#64748B' }}>主要检测类型</span>
+              <span style={{ color: '#64748B' }}>里程间隔</span>
+              <input type="number" min={1} value={detailDraft.kmInterval || 1} onChange={(e) => onDetailDraftChange({ ...detailDraft, kmInterval: normalizeKmInterval(e.target.value, detailDraft.kmInterval) })} style={{ border: '1px solid #E2E8F0', borderRadius: 6, padding: 8 }} />
+              <span style={{ color: '#64748B' }}>检验类型</span>
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                 {inspectionTypeOptions.map((opt) => {
-                  const checked = detailDraft.inspectionTypes.includes(opt.key)
+                  const checked = draftInspection.includes(opt.key)
                   return (
-                    <label
-                      key={`detail-${opt.key}`}
-                      style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: 5,
-                        padding: '4px 8px',
-                        border: `1px solid ${checked ? '#1A56DB' : '#E2E8F0'}`,
-                        borderRadius: 999,
-                        background: checked ? '#EFF6FF' : '#fff',
-                        color: checked ? '#1A56DB' : '#475569',
-                        fontSize: 12,
-                        cursor: 'pointer',
-                        userSelect: 'none',
-                      }}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        onChange={() => toggleInspectionType(opt.key, detailDraft.inspectionTypes, (next) => onDetailDraftChange({ ...detailDraft, inspectionTypes: next }))}
-                      />
-                      {opt.label}
+                    <label key={opt.key} style={{ border: `1px solid ${checked ? '#1A56DB' : '#E2E8F0'}`, borderRadius: 999, padding: '4px 8px', display: 'inline-flex', alignItems: 'center', gap: 6, background: checked ? '#EFF6FF' : '#fff' }}>
+                      <input type="checkbox" checked={checked} onChange={() => toggleInspectionType(opt.key, draftInspection, (next) => onDetailDraftChange({ ...detailDraft, inspectionTypes: next }))} />
+                      {inspectionTypeLabel[opt.key] || opt.label}
                     </label>
                   )
                 })}
               </div>
-              <span style={{ color: '#64748B' }}>权限模板</span>
-              <select value={detailDraft.permTemplate} onChange={(e) => onDetailDraftChange({ ...detailDraft, permTemplate: e.target.value })} style={{ padding: 8, border: '1px solid #E2E8F0', borderRadius: 6 }}>
-                <option value="standard">standard</option><option value="strict">strict</option><option value="open">open</option><option value="custom">custom</option>
-              </select>
             </div>
-          )}
-        </Card>
-
-        {detailMeta && !detailEdit && detailMeta.contractSegs.length > 0 && (
-          <Card title="合同段明细" icon="📦" style={{ marginBottom: 10 }}>
-            {detailMeta.contractSegs.map((seg: any, idx: number) => (
-              <div key={`${seg.name}-${idx}`} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, padding: '8px 0', borderBottom: '1px solid #F1F5F9', fontSize: 13 }}>
-                <strong>{seg.name || `合同段 ${idx + 1}`}</strong>
-                <span style={{ color: '#475569' }}>{seg.range || '-'}</span>
-              </div>
-            ))}
-          </Card>
-        )}
-        {detailEdit && detailDraft && (
-          <Card title="合同段明细" icon="📦" style={{ marginBottom: 10 }}>
-            {detailDraft.contractSegs.map((seg: any, idx: number) => (
-              <div key={`${seg.name}-${idx}`} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: 8, padding: '8px 0', borderBottom: '1px solid #F1F5F9', fontSize: 13 }}>
-                <input value={seg.name} onChange={(e) => onDetailDraftChange({ ...detailDraft, contractSegs: detailDraft.contractSegs.map((x: any, i: number) => i === idx ? { ...x, name: e.target.value } : x) })} style={{ padding: 8, border: '1px solid #E2E8F0', borderRadius: 6 }} />
-                <input value={seg.range} onChange={(e) => onDetailDraftChange({ ...detailDraft, contractSegs: detailDraft.contractSegs.map((x: any, i: number) => i === idx ? { ...x, range: e.target.value } : x) })} style={{ padding: 8, border: '1px solid #E2E8F0', borderRadius: 6 }} />
-                <button onClick={() => onDetailDraftChange({ ...detailDraft, contractSegs: detailDraft.contractSegs.filter((_: any, i: number) => i !== idx) })} style={{ padding: '4px 8px', border: '1px solid #FECACA', borderRadius: 6, background: '#FEF2F2', color: '#DC2626', cursor: 'pointer' }}>删</button>
-              </div>
-            ))}
-            <button onClick={() => onDetailDraftChange({ ...detailDraft, contractSegs: [...detailDraft.contractSegs, { name: '', range: '' }] })} style={{ marginTop: 8, padding: '6px 10px', border: '1px solid #E2E8F0', borderRadius: 6, background: '#fff', cursor: 'pointer' }}>+ 添加合同段</button>
           </Card>
         )}
 
-        {detailMeta && !detailEdit && detailMeta.structures.length > 0 && (
-          <Card title="结构物明细" icon="🏛️" style={{ marginBottom: 10 }}>
-            {detailMeta.structures.map((st: any, idx: number) => (
-              <div key={`${st.name}-${idx}`} style={{ display: 'grid', gridTemplateColumns: '90px 1fr 100px', gap: 8, padding: '8px 0', borderBottom: '1px solid #F1F5F9', fontSize: 13 }}>
-                <span style={{ color: '#1A56DB', fontWeight: 700 }}>{st.kind || '-'}</span>
-                <strong>{st.name || `结构物 ${idx + 1}`}</strong>
-                <span style={{ color: '#64748B' }}>{st.code || '-'}</span>
-              </div>
-            ))}
+        {!detailEdit && (
+          <Card title="BOQ 实时进度" icon="📊" style={{ marginBottom: 10 }}>
+            {boqRealtimeLoading ? (
+              <div style={{ fontSize: 12, color: '#64748B' }}>加载 BOQ 实时进度中...</div>
+            ) : (
+              <>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,minmax(0,1fr))', gap: 8, marginBottom: 8 }}>
+                  {statCard('细目数', Number(boqRealtime?.summary?.boq_item_count || 0))}
+                  {statCard('设计总量', Number(boqRealtime?.summary?.design_total || 0).toLocaleString())}
+                  {statCard('已结算量', Number(boqRealtime?.summary?.settled_total || 0).toLocaleString())}
+                  {statCard('进度', `${Number(boqRealtime?.summary?.progress_percent || 0).toFixed(2)}%`, 'ok')}
+                </div>
+                <div style={{ display: 'grid', gap: 8, maxHeight: 240, overflowY: 'auto' }}>
+                  {(boqRealtime?.items || []).slice(0, 40).map((item, idx) => {
+                    const uri = String(item?.boq_item_uri || '')
+                    const code = String(item?.item_no || '')
+                    const loadingChain = boqProofLoadingUri === uri
+                    const loadingSovereign = boqSovereignLoadingCode === code
+                    const pct = Math.max(0, Math.min(100, Number(item?.progress_percent || 0)))
+                    return (
+                      <div key={`${uri || code}-${idx}`} style={{ border: '1px solid #E2E8F0', borderRadius: 8, padding: 8 }}>
+                        <div style={{ fontSize: 12, fontWeight: 700 }}>{code} {item?.item_name || ''}</div>
+                        <div style={{ fontSize: 12, color: '#64748B', marginTop: 2 }}>设计 {Number(item?.design_quantity || 0).toLocaleString()} / 已结算 {Number(item?.settled_quantity || 0).toLocaleString()} {item?.unit || ''}</div>
+                        <div style={{ width: '100%', height: 8, marginTop: 6, borderRadius: 999, overflow: 'hidden', border: '1px solid #DBEAFE', background: '#F8FAFC' }}><div style={{ width: `${pct}%`, height: 8, background: pct >= 100 ? '#16A34A' : '#2563EB' }} /></div>
+                        <div style={{ marginTop: 6, display: 'flex', gap: 6 }}>
+                          <button type="button" onClick={() => uri && onOpenBoqProofChain?.(uri)} disabled={!uri || loadingChain} style={{ ...btn, border: '1px solid #BFDBFE', background: '#EFF6FF', color: '#1D4ED8' }}>{loadingChain ? '加载链路...' : 'Proof 链'}</button>
+                          <button type="button" onClick={() => code && onOpenBoqSovereignHistory?.(code)} disabled={!code || loadingSovereign} style={{ ...btn, border: '1px solid #C7D2FE', background: '#EEF2FF', color: '#3730A3' }}>{loadingSovereign ? '加载穿透...' : '主权穿透'}</button>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </>
+            )}
           </Card>
         )}
-        {detailEdit && detailDraft && (
-          <Card title="结构物明细" icon="🏛️" style={{ marginBottom: 10 }}>
-            {detailDraft.structures.map((st: any, idx: number) => (
-              <div key={`${st.name}-${idx}`} style={{ display: 'grid', gridTemplateColumns: '90px 1fr 100px auto', gap: 8, padding: '8px 0', borderBottom: '1px solid #F1F5F9', fontSize: 13 }}>
-                <select value={st.kind} onChange={(e) => onDetailDraftChange({ ...detailDraft, structures: detailDraft.structures.map((x: any, i: number) => i === idx ? { ...x, kind: e.target.value } : x) })} style={{ padding: 8, border: '1px solid #E2E8F0', borderRadius: 6 }}>
-                  <option>桥梁</option><option>隧道</option><option>涵洞</option>
-                </select>
-                <input value={st.name} onChange={(e) => onDetailDraftChange({ ...detailDraft, structures: detailDraft.structures.map((x: any, i: number) => i === idx ? { ...x, name: e.target.value } : x) })} style={{ padding: 8, border: '1px solid #E2E8F0', borderRadius: 6 }} />
-                <input value={st.code} onChange={(e) => onDetailDraftChange({ ...detailDraft, structures: detailDraft.structures.map((x: any, i: number) => i === idx ? { ...x, code: e.target.value } : x) })} style={{ padding: 8, border: '1px solid #E2E8F0', borderRadius: 6 }} />
-                <button onClick={() => onDetailDraftChange({ ...detailDraft, structures: detailDraft.structures.filter((_: any, i: number) => i !== idx) })} style={{ padding: '4px 8px', border: '1px solid #FECACA', borderRadius: 6, background: '#FEF2F2', color: '#DC2626', cursor: 'pointer' }}>删</button>
-              </div>
-            ))}
-            <button onClick={() => onDetailDraftChange({ ...detailDraft, structures: [...detailDraft.structures, { kind: '桥梁', name: '', code: '' }] })} style={{ marginTop: 8, padding: '6px 10px', border: '1px solid #E2E8F0', borderRadius: 6, background: '#fff', cursor: 'pointer' }}>+ 添加结构物</button>
+
+        {!detailEdit && (
+          <Card title="BOQ 主权对账" icon="🧮" style={{ marginBottom: 10 }}>
+            {boqAuditLoading ? (
+              <div style={{ fontSize: 12, color: '#64748B' }}>计算对账中...</div>
+            ) : (
+              <>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5,minmax(0,1fr))', gap: 8, marginBottom: 8 }}>
+                  {statCard('细目数', Number(boqAudit?.summary?.item_count || 0))}
+                  {statCard('批复总量', Number(boqAudit?.summary?.baseline_total || 0).toLocaleString())}
+                  {statCard('变更总量', Number(boqAudit?.summary?.variation_total || 0).toLocaleString())}
+                  {statCard('已结算', Number(boqAudit?.summary?.settled_total || 0).toLocaleString())}
+                  {statCard('非法尝试', Number(boqAudit?.summary?.illegal_attempt_count || 0), 'warn')}
+                </div>
+                <div style={{ display: 'grid', gap: 6, maxHeight: 200, overflowY: 'auto' }}>
+                  {(boqAudit?.items || []).slice(0, 40).map((row, idx) => {
+                    const risk = computeRiskScore(row || {})
+                    const color = risk.tone === 'ok' ? '#16A34A' : risk.tone === 'warn' ? '#F59E0B' : '#DC2626'
+                    const bg = risk.tone === 'ok' ? '#ECFDF3' : risk.tone === 'warn' ? '#FFFBEB' : '#FEF2F2'
+                    return (
+                      <div key={`${row.subitem_code || 'row'}-${idx}`} style={{ border: '1px solid #E2E8F0', borderRadius: 8, padding: 8 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <div style={{ fontSize: 12, fontWeight: 700 }}>{row.subitem_code || '-'} {row.item_name || ''}</div>
+                          <div style={{ fontSize: 11, color, background: bg, borderRadius: 999, padding: '2px 8px', border: `1px solid ${color}` }}>风险分值 {risk.score}</div>
+                        </div>
+                        <div style={{ fontSize: 12, color: '#64748B', marginTop: 2 }}>批复 {Number(row.baseline_quantity || 0).toLocaleString()} + 变更 {Number(row.variation_quantity || 0).toLocaleString()} - 结算 {Number(row.settled_quantity || 0).toLocaleString()} = 偏差 {Number(row.deviation_quantity || 0).toLocaleString()}</div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </>
+            )}
           </Card>
+        )}
+
+        {!detailEdit && boqSovereignPreview?.subitem_code && (
+          <Card title="细目主权概览" icon="🧬" style={{ marginBottom: 10 }}>
+            <div style={{ fontSize: 12, color: '#475569' }}>细目: {boqSovereignPreview.subitem_code} | 根 UTXO: {boqSovereignPreview.root_utxo_id || '-'}</div>
+            <div style={{ fontSize: 12, color: '#64748B', marginTop: 4 }}>证明 {Number(boqSovereignPreview?.totals?.proof_count || 0)} | 文档 {Number(boqSovereignPreview?.totals?.document_count || 0)} | 变更 {Number(boqSovereignPreview?.totals?.variation_count || 0)} | 结算 {Number(boqSovereignPreview?.totals?.settlement_count || 0)}</div>
+          </Card>
+        )}
+
+        {!detailEdit && boqProofPreview?.boq_item_uri && (
+          <Card title="Proof 链预览" icon="🧾" style={{ marginBottom: 10 }}>
+            <div style={{ fontSize: 12, color: '#475569', wordBreak: 'break-all' }}>URI: {boqProofPreview.boq_item_uri}</div>
+            <div style={{ fontSize: 12, color: '#64748B', marginTop: 4 }}>节点数: {Number(boqProofPreview.chain_count || 0)} | 根哈希: {boqProofPreview.context?.chain_root_hash || '-'}</div>
+          </Card>
+        )}
+
+        {!detailEdit && (
+          <SovereignWorkbenchPanel project={detailProject} />
         )}
       </div>
     </div>

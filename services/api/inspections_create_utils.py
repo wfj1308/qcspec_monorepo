@@ -8,6 +8,7 @@ from datetime import datetime
 from typing import Any
 
 from fastapi import HTTPException
+from services.api.normpeg_engine import resolve_normpeg_eval as normpeg_resolve_eval
 from services.api.specir_engine import (
     derive_spec_uri as specir_derive_spec_uri,
     evaluate_measurements as specir_evaluate_measurements,
@@ -71,13 +72,79 @@ def compute_spec_eval_pack(
         if spec_rule.get("tolerance") is not None
         else _parse_limit_value(body.limit)
     )
-    eval_result = specir_evaluate_measurements(
+
+    normpeg_eval = normpeg_resolve_eval(
+        spec_uri=spec_uri,
+        context={
+            "context": body.component_type or body.structure_type,
+            "component_type": body.component_type,
+            "structure_type": body.structure_type,
+            "stake": body.location,
+        },
         values=values_for_eval,
-        operator=rule_operator,
-        threshold=rule_threshold,
-        tolerance=rule_tolerance,
-        fallback_result="PENDING",
+        design_value=(body.design if body.design is not None else body.standard),
+        sb=sb,
     )
+    normpeg_threshold = normpeg_eval.get("threshold") if isinstance(normpeg_eval.get("threshold"), dict) else {}
+    normpeg_found = bool(normpeg_eval.get("matched")) and bool(normpeg_threshold.get("found"))
+    eval_source = "specir_dynamic"
+
+    if normpeg_found:
+        raw_threshold = normpeg_threshold.get("threshold")
+        operator = str(normpeg_threshold.get("operator") or "").strip().lower()
+        if isinstance(raw_threshold, (list, tuple)) and len(raw_threshold) >= 2:
+            lo = float(raw_threshold[0])
+            hi = float(raw_threshold[1])
+            lower = min(lo, hi)
+            upper = max(lo, hi)
+            rule_operator = "+/-"
+            rule_threshold = round((lower + upper) / 2.0, 6)
+            rule_tolerance = round((upper - lower) / 2.0, 6)
+        else:
+            bound = float(raw_threshold) if raw_threshold is not None else None
+            if operator in {"<=", ">=", "=", "<", ">"}:
+                rule_operator = operator
+            elif operator in {"lt", "max"}:
+                rule_operator = "<="
+            elif operator in {"gt", "min"}:
+                rule_operator = ">="
+            else:
+                rule_operator = rule_operator or "<="
+            rule_threshold = bound
+            rule_tolerance = None
+
+        eval_result = {
+            "result": str(normpeg_eval.get("result") or "PENDING"),
+            "deviation_percent": normpeg_eval.get("deviation_percent"),
+            "representative_value": (
+                round(sum(values_for_eval) / len(values_for_eval), 4)
+                if values_for_eval
+                else None
+            ),
+        }
+        spec_rule = {
+            **spec_rule,
+            "effective_spec_uri": str(normpeg_threshold.get("effective_spec_uri") or spec_rule.get("effective_spec_uri") or spec_uri),
+            "version": str(normpeg_threshold.get("version") or spec_rule.get("version") or ""),
+            "excerpt": str(normpeg_threshold.get("spec_excerpt") or spec_rule.get("excerpt") or ""),
+            "unit": str(normpeg_threshold.get("unit") or spec_rule.get("unit") or body.unit or ""),
+            "operator": rule_operator,
+            "threshold": rule_threshold,
+            "tolerance": rule_tolerance,
+            "source": "normpeg",
+            "context_matched": bool(normpeg_threshold.get("context_matched")),
+            "context_key": str(normpeg_threshold.get("context_key") or ""),
+        }
+        eval_source = "normpeg_dynamic"
+    else:
+        eval_result = specir_evaluate_measurements(
+            values=values_for_eval,
+            operator=rule_operator,
+            threshold=rule_threshold,
+            tolerance=rule_tolerance,
+            fallback_result="PENDING",
+        )
+
     spec_auto_result = str(eval_result.get("result") or "").upper()
     auto_result = _evaluate_design_limit_result(
         design=body.design,
@@ -86,7 +153,7 @@ def compute_spec_eval_pack(
     )
     if spec_auto_result in {"PASS", "FAIL"}:
         final_result = spec_auto_result.lower()
-        result_source = "specir_dynamic"
+        result_source = eval_source
     elif auto_result in {"pass", "fail"}:
         final_result = auto_result
         result_source = "auto_design_limit"
@@ -118,6 +185,9 @@ def compute_spec_eval_pack(
         "operator": rule_operator or "",
         "threshold": rule_threshold,
         "tolerance": rule_tolerance,
+        "source": str(spec_rule.get("source") or "specir"),
+        "context_matched": bool(spec_rule.get("context_matched")),
+        "context_key": str(spec_rule.get("context_key") or ""),
     }
     rule_threshold_text = specir_threshold_text(
         rule_operator,

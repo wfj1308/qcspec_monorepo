@@ -1,0 +1,159 @@
+{
+  "run_id": "20260328114042",
+  "project_uri": "v://cn/zhongbei/highway/task-validation-20260328114042/",
+  "boq_item_uri": "v://project/boq/401-1",
+  "checks": {
+    "settlement_accepts_signatures_field": true,
+    "transfer_asset_ok": true,
+    "transfer_output_proof_id": "GP-PROOF-3D229014A9A842E8",
+    "lineage_has_norm_refs": 2,
+    "lineage_has_qc_conclusions": 14,
+    "lineage_has_evidence_hashes": 0,
+    "docfinal_auto_transfer_present": true,
+    "docfinal_full_lineage_present": true,
+    "docfinal_zip_size": 75121
+  },
+  "settlement_proof": "GP-PROOF-B5ED1ED89B144DF3",
+  "transfer": {
+    "ok": true,
+    "item_id": "v://project/boq/401-1",
+    "input_proof_id": "GP-PROOF-B5ED1ED89B144DF3",
+    "output_proof_id": "GP-PROOF-3D229014A9A842E8",
+    "balance_before": 1.0,
+    "amount": 0.1,
+    "balance_after": 0.9,
+    "transfer_hash": "2a7e3e6bb71db37a442b0a506e768051e7548bcb2adf1f0f2e617e69ea5807dd",
+    "tx": {
+      "tx_id": "TX-20260328-6EE77C",
+      "tx_type": "consume",
+      "input_proofs": [
+        "GP-PROOF-B5ED1ED89B144DF3"
+      ],
+      "output_proofs": [
+        "GP-PROOF-3D229014A9A842E8"
+      ],
+      "trigger_action": "DocPeg.transfer_asset",
+      "trigger_data": {
+        "item_id": "v://project/boq/401-1",
+        "input_proof_id": "GP-PROOF-B5ED1ED89B144DF3",
+        "amount": 0.1,
+        "docpeg_proof_id": "GP-PROOF-B5ED1ED89B144DF3",
+        "docpeg_hash": "744b4a81456be3fd60460785a22ce9c1b24183b5efe67d923ad6b8fca9d72bf1"
+      },
+      "executor_uri": "v://cn/zhongbei/highway/task-validation-20260328114042/executor/system/",
+      "ordosign_hash": "d540b61bdfe9923ea2522f22",
+      "status": "success",
+      "error_msg": null,
+      "created_at": "2026-03-28T11:41:03.754877+00:00"
+    }
+  },
+  "lineage_preview": {
+    "norm_refs": [
+      "v://norm/GB50204/5.3.2#diameter_tolerance",
+      "v://norm/GB50204@2015/5.3.2#diameter_tolerance"
+    ],
+    "qc_conclusions_head": [
+      {
+        "proof_id": "GP-BOQ-62607D707856E96D7B",
+        "stage": "INITIAL",
+        "action": "",
+        "result": "PENDING",
+        "qc_conclusion": "PENDING",
+        "deviation_percent": null,
+        "spec_uri": "",
+        "spec_snapshot": "",
+        "created_at": "2026-03-28T11:12:41.042531+00:00"
+      },
+      {
+        "proof_id": "GP-BOQ-71406ED3127C2C5E25",
+        "stage": "INITIAL",
+        "action": "",
+        "result": "PENDING",
+        "qc_conclusion": "PENDING",
+        "deviation_percent": null,
+        "spec_uri": "",
+        "spec_snapshot": "",
+        "created_at": "2026-03-28T11:14:01.864539+00:00"
+      },
+      {
+        "proof_id": "GP-PROOF-9B740B57CEEA46C2",
+        "stage": "ENTRY",
+        "action": "quality.check",
+        "result": "PASS",
+        "qc_conclusion": "PASS",
+        "deviation_percent": 0.0,
+        "spec_uri": "v://norm/GB50204@2015/5.3.2#diameter_tolerance",
+        "spec_snapshot": "GB50204 5.3.2: rebar diameter deviation shall be controlled by component class.",
+        "created_at": "2026-03-28T11:14:08.668552+00:00"
+      },
+      {
+        "proof_id": "GP-PROOF-E83C38152CD14335",
+        "stage": "INSTALLATION",
+        "action": "measure.record",
+        "result": "PASS",
+        "qc_conclusion": "PASS",
+        "deviation_percent": 0.0,
+        "spec_uri": "v://norm/GB50204@2015/5.3.2#diameter_tolerance",
+        "spec_snapshot": "GB50204 5.3.2: rebar diameter deviation shall be controlled by component class.",
+        "created_at": "2026-03-28T11:14:12.669844+00:00"
+      }
+    ],
+    "consensus_signatures": [
+      {
+        "did": "did:coordos:contractor:001",
+        "role": "contractor",
+        "signed_at": "2026-03-28T11:14:18.655704+00:00",
+        "signature_hash": "39baccb42770aabc047a0a1edcf86452de9072b6f2ecc4a026bc9cefd5e60139"
+      },
+      {
+        "did": "did:coordos:supervisor:001",
+        "role": "supervisor",
+        "signed_at": "2026-03-28T11:14:18.655704+00:00",
+        "signature_hash": "3bff7067fc04e4343278d0732d742e42fce5203d461ed1e250d7ad20b10a5948"
+      },
+      {
+        "did": "did:coordos:owner:001",
+        "role": "owner",
+        "signed_at": "2026-03-28T11:14:18.655704+00:00",
+        "signature_hash": "79e4e39e44a31c25675d4b712fa30e06e912b379f46e2b25c753d602a74f306a"
+      },
+      {
+        "did": "did:coordos:contractor:001",
+        "role": "contractor",
+        "signed_at": "2026-03-28T11:16:28.295588+00:00",
+        "signature_hash": "72a361dde0cd61d4a444615487cc22ad6fcc68763b87ac7972b6b1e85fac3039"
+      },
+      {
+        "did": "did:coordos:supervisor:001",
+        "role": "supervisor",
+        "signed_at": "2026-03-28T11:16:28.295588+00:00",
+        "signature_hash": "beb6cf304e86622de58dbc2f5b6ab2d4ce1168c82f3cefdb5d64631f268ce39f"
+      },
+      {
+        "did": "did:coordos:owner:001",
+        "role": "owner",
+        "signed_at": "2026-03-28T11:16:28.295588+00:00",
+        "signature_hash": "af35ccf78f1bf425d4cab960fb71b3cb1de71513d3ee567f47dc58836d603d2f"
+      },
+      {
+        "did": "did:coordos:contractor:001",
+        "role": "contractor",
+        "signed_at": "2026-03-28T11:40:56.755995+00:00",
+        "signature_hash": "0733135f7b27c65a5359e89c58beefd7313ae84667a2fbaa6e4d06928ff1f738"
+      },
+      {
+        "did": "did:coordos:supervisor:001",
+        "role": "supervisor",
+        "signed_at": "2026-03-28T11:40:56.755995+00:00",
+        "signature_hash": "e2df0d9e7cde188616eac0cb342c1e94c7a5995d66bf08a7deabee8e5e0e9c6c"
+      },
+      {
+        "did": "did:coordos:owner:001",
+        "role": "owner",
+        "signed_at": "2026-03-28T11:40:56.755995+00:00",
+        "signature_hash": "258281e7df2de2bd762f74637f52a6dea4416d9b0ef3444e5e005aa072d04b98"
+      }
+    ],
+    "total_proof_hash": "d13bb9af7aec4a800fbc549f96853515dbe10e4ff5939b2f3533764e28b27d1d"
+  }
+}

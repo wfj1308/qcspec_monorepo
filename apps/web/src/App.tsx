@@ -9,6 +9,10 @@ import ReportsPage from './pages/ReportsPage'
 import AppShellLayout from './components/layout/AppShellLayout'
 import AuthEntry from './components/auth/AuthEntry'
 import ProofPanel from './components/proof/ProofPanel'
+import PaymentAuditPanel from './components/proof/PaymentAuditPanel'
+import SpatialGovernancePanel from './components/proof/SpatialGovernancePanel'
+import RwaOmEvolutionPanel from './components/proof/RwaOmEvolutionPanel'
+import DocumentGovernancePanel from './components/proof/DocumentGovernancePanel'
 import ProjectDetailDrawer from './components/projects/ProjectDetailDrawer'
 import ProjectsPanel from './components/projects/ProjectsPanel'
 import RegisterPanelFrame from './components/register/RegisterPanelFrame'
@@ -253,7 +257,29 @@ export default function App() {
   const [permissionMatrix, setPermissionMatrix] = useState<PermissionRow[]>(() => normalizePermissionMatrix())
   const [permissionTemplate, setPermissionTemplate] = useState<PermTemplate>(() => detectPermissionTemplate(normalizePermissionMatrix()))
   const [projectMeta, setProjectMeta] = useState<Record<string, ProjectRegisterMeta>>({})
-  const { listProofs, verify: verifyProof, stats: proofStatsApi, nodeTree: proofNodeTreeApi } = useProof()
+  const {
+    listProofs,
+    verify: verifyProof,
+    stats: proofStatsApi,
+    nodeTree: proofNodeTreeApi,
+    boqRealtimeStatus: boqRealtimeStatusApi,
+    boqItemSovereignHistory: boqItemSovereignHistoryApi,
+    boqReconciliation: boqReconciliationApi,
+    docFinalContext: docFinalContextApi,
+    generatePaymentCertificate: generatePaymentCertificateApi,
+    frequencyDashboard: frequencyDashboardApi,
+    generateRailPactInstruction: generateRailPactInstructionApi,
+    paymentAuditTrace: paymentAuditTraceApi,
+    finalizeDocFinal: finalizeDocFinalApi,
+    bindSpatialUtxo: bindSpatialUtxoApi,
+    spatialDashboard: spatialDashboardApi,
+    predictiveQualityAnalysis: predictiveQualityAnalysisApi,
+    exportFinanceProof: exportFinanceProofApi,
+    convertRwaAsset: convertRwaAssetApi,
+    exportOmHandoverBundle: exportOmHandoverBundleApi,
+    registerOmEvent: registerOmEventApi,
+    generateNormEvolutionReport: generateNormEvolutionReportApi,
+  } = useProof()
   const [proofRows, setProofRows] = useState<Array<{
     proof_id: string
     summary?: string
@@ -285,6 +311,34 @@ export default function App() {
   }>>([])
   const [proofLoading, setProofLoading] = useState(false)
   const [proofVerifying, setProofVerifying] = useState<string | null>(null)
+  const [paymentGenerating, setPaymentGenerating] = useState(false)
+  const [paymentResult, setPaymentResult] = useState<any | null>(null)
+  const [railpactSubmitting, setRailpactSubmitting] = useState(false)
+  const [railpactResult, setRailpactResult] = useState<any | null>(null)
+  const [auditLoading, setAuditLoading] = useState(false)
+  const [auditResult, setAuditResult] = useState<any | null>(null)
+  const [frequencyLoading, setFrequencyLoading] = useState(false)
+  const [frequencyResult, setFrequencyResult] = useState<any | null>(null)
+  const [deliveryFinalizing, setDeliveryFinalizing] = useState(false)
+  const [spatialLoading, setSpatialLoading] = useState(false)
+  const [spatialDashboard, setSpatialDashboard] = useState<any | null>(null)
+  const [aiRunning, setAiRunning] = useState(false)
+  const [aiResult, setAiResult] = useState<any | null>(null)
+  const [financeExporting, setFinanceExporting] = useState(false)
+  const [rwaConverting, setRwaConverting] = useState(false)
+  const [omExporting, setOmExporting] = useState(false)
+  const [omEventSubmitting, setOmEventSubmitting] = useState(false)
+  const [normEvolutionRunning, setNormEvolutionRunning] = useState(false)
+  const [normEvolutionResult, setNormEvolutionResult] = useState<any | null>(null)
+  const [lastOmRootProofId, setLastOmRootProofId] = useState('')
+  const [boqRealtimeByProjectId, setBoqRealtimeByProjectId] = useState<Record<string, any>>({})
+  const [boqRealtimeLoadingProjectId, setBoqRealtimeLoadingProjectId] = useState<string | null>(null)
+  const [boqAuditByProjectId, setBoqAuditByProjectId] = useState<Record<string, any>>({})
+  const [boqAuditLoadingProjectId, setBoqAuditLoadingProjectId] = useState<string | null>(null)
+  const [boqProofPreview, setBoqProofPreview] = useState<any | null>(null)
+  const [boqProofLoadingUri, setBoqProofLoadingUri] = useState<string | null>(null)
+  const [boqSovereignPreview, setBoqSovereignPreview] = useState<any | null>(null)
+  const [boqSovereignLoadingCode, setBoqSovereignLoadingCode] = useState<string | null>(null)
   const [gitpegCallbackHandled, setGitpegCallbackHandled] = useState(false)
   const isDemoEnterprise = enterprise?.id === DEMO_ENTERPRISE.id
   const canUseEnterpriseApi = !!enterprise?.id && !isDemoEnterprise
@@ -439,6 +493,110 @@ export default function App() {
     return true
   })
 
+  useEffect(() => {
+    if (!projectDetailOpen || !detailProject?.id || !detailProject?.v_uri) return
+    if (boqRealtimeByProjectId[detailProject.id]) return
+
+    let cancelled = false
+    const load = async () => {
+      setBoqRealtimeLoadingProjectId(detailProject.id)
+      try {
+        const payload = await boqRealtimeStatusApi(detailProject.v_uri) as { ok?: boolean } | null
+        if (cancelled) return
+        if (payload?.ok) {
+          setBoqRealtimeByProjectId((prev) => ({ ...prev, [detailProject.id]: payload }))
+        }
+      } catch {
+        if (!cancelled) showToast('BOQ 实时进度加载失败')
+      } finally {
+        if (!cancelled) {
+          setBoqRealtimeLoadingProjectId((current) => (current === detailProject.id ? null : current))
+        }
+      }
+    }
+    load()
+    return () => {
+      cancelled = true
+    }
+  }, [projectDetailOpen, detailProject?.id, detailProject?.v_uri, boqRealtimeByProjectId, boqRealtimeStatusApi])
+
+  useEffect(() => {
+    if (!projectDetailOpen || !detailProject?.id || !detailProject?.v_uri) return
+    if (boqAuditByProjectId[detailProject.id]) return
+
+    let cancelled = false
+    const load = async () => {
+      setBoqAuditLoadingProjectId(detailProject.id)
+      try {
+        const payload = await boqReconciliationApi({
+          project_uri: detailProject.v_uri,
+          limit_items: 1000,
+        }) as { ok?: boolean } | null
+        if (cancelled) return
+        if (payload?.ok) {
+          setBoqAuditByProjectId((prev) => ({ ...prev, [detailProject.id]: payload }))
+        }
+      } catch {
+        if (!cancelled) showToast('BOQ 主权审计对账加载失败')
+      } finally {
+        if (!cancelled) {
+          setBoqAuditLoadingProjectId((current) => (current === detailProject.id ? null : current))
+        }
+      }
+    }
+    load()
+    return () => {
+      cancelled = true
+    }
+  }, [projectDetailOpen, detailProject?.id, detailProject?.v_uri, boqAuditByProjectId, boqReconciliationApi])
+
+  useEffect(() => {
+    if (!projectDetailOpen) {
+      setBoqProofPreview(null)
+      setBoqProofLoadingUri(null)
+      setBoqSovereignPreview(null)
+      setBoqSovereignLoadingCode(null)
+    }
+  }, [projectDetailOpen])
+
+  const handleOpenBoqProofChain = async (boqItemUri: string) => {
+    if (!boqItemUri) return
+    setBoqProofLoadingUri(boqItemUri)
+    try {
+      const payload = await docFinalContextApi(boqItemUri) as { ok?: boolean } | null
+      if (payload?.ok) {
+        setBoqProofPreview(payload)
+      } else {
+        showToast('未获取到该细目的 Proof 链上下文')
+      }
+    } catch {
+      showToast('未获取到该细目的 Proof 链上下文')
+    } finally {
+      setBoqProofLoadingUri(null)
+    }
+  }
+
+  const handleOpenBoqSovereignHistory = async (subitemCode: string) => {
+    if (!detailProject?.v_uri || !subitemCode) return
+    setBoqSovereignLoadingCode(subitemCode)
+    try {
+      const payload = await boqItemSovereignHistoryApi({
+        project_uri: detailProject.v_uri,
+        subitem_code: subitemCode,
+        max_rows: 50000,
+      }) as { ok?: boolean } | null
+      if (payload?.ok) {
+        setBoqSovereignPreview(payload)
+      } else {
+        showToast('未获取到该细目的主权历史')
+      }
+    } catch {
+      showToast('未获取到该细目的主权历史')
+    } finally {
+      setBoqSovereignLoadingCode(null)
+    }
+  }
+
   useGitpegCallbackSync({
     gitpegCallbackHandled,
     setGitpegCallbackHandled,
@@ -491,6 +649,49 @@ export default function App() {
   }, [activeTab, proj?.id, proj?.v_uri, listProofs, proofStatsApi, proofNodeTreeApi])
 
   useEffect(() => {
+    setPaymentResult(null)
+    setRailpactResult(null)
+    setAuditResult(null)
+    setFrequencyResult(null)
+    setSpatialDashboard(null)
+    setAiResult(null)
+    setNormEvolutionResult(null)
+    setLastOmRootProofId('')
+  }, [proj?.id])
+
+  useEffect(() => {
+    if (activeTab !== 'proof' || !proj?.v_uri) return
+    let cancelled = false
+    setFrequencyLoading(true)
+    frequencyDashboardApi(proj.v_uri, 200).then((res) => {
+      if (cancelled) return
+      const payload = res as { ok?: boolean } | null
+      if (payload?.ok) {
+        setFrequencyResult(payload)
+      }
+    }).finally(() => {
+      if (!cancelled) setFrequencyLoading(false)
+    })
+    return () => { cancelled = true }
+  }, [activeTab, proj?.v_uri, frequencyDashboardApi])
+
+  useEffect(() => {
+    if (activeTab !== 'proof' || !proj?.v_uri) return
+    let cancelled = false
+    setSpatialLoading(true)
+    spatialDashboardApi(proj.v_uri).then((res) => {
+      if (cancelled) return
+      const payload = res as { ok?: boolean } | null
+      if (payload?.ok) {
+        setSpatialDashboard(payload)
+      }
+    }).finally(() => {
+      if (!cancelled) setSpatialLoading(false)
+    })
+    return () => { cancelled = true }
+  }, [activeTab, proj?.v_uri, spatialDashboardApi])
+
+  useEffect(() => {
     if (!canUseEnterpriseApi || (activeTab !== 'projects' && activeTab !== 'settings')) return
     listAutoregProjectsApi(20).then((res) => {
       const payload = res as {
@@ -531,6 +732,295 @@ export default function App() {
       showToast('Proof 校验失败或不存在')
     }
     setProofVerifying(null)
+  }
+
+  const handleGeneratePaymentCertificate = async (period: string) => {
+    if (!proj?.v_uri) return
+    setPaymentGenerating(true)
+    const payload = await generatePaymentCertificateApi({
+      project_uri: proj.v_uri,
+      period,
+      project_name: proj.name,
+      create_proof: true,
+      enforce_dual_pass: true,
+      executor_uri: 'v://executor/system/',
+    }) as { ok?: boolean } | null
+    if (payload?.ok) {
+      setPaymentResult(payload)
+      setAuditResult(null)
+      showToast(`支付证书已生成：${String((payload as any).payment_id || '-')}`)
+    } else {
+      showToast('支付证书生成失败')
+    }
+    setPaymentGenerating(false)
+  }
+
+  const handleOpenAuditTrace = async (paymentId: string) => {
+    if (!paymentId) return
+    setAuditLoading(true)
+    const payload = await paymentAuditTraceApi(paymentId) as { ok?: boolean } | null
+    if (payload?.ok) {
+      setAuditResult(payload)
+      showToast(`审计穿透完成：节点 ${(payload as any).nodes?.length || 0}`)
+    } else {
+      showToast('审计穿透失败')
+    }
+    setAuditLoading(false)
+  }
+
+  const handleGenerateRailPactInstruction = async (paymentId: string) => {
+    if (!paymentId) return
+    setRailpactSubmitting(true)
+    const payload = await generateRailPactInstructionApi({
+      payment_id: paymentId,
+      executor_uri: 'v://executor/owner/system/',
+      auto_submit: false,
+    }) as { ok?: boolean; instruction_id?: string } | null
+    if (payload?.ok) {
+      setRailpactResult(payload)
+      showToast(`RailPact 指令已生成：${String(payload.instruction_id || '-')}`)
+    } else {
+      showToast('RailPact 支付指令生成失败')
+    }
+    setRailpactSubmitting(false)
+  }
+
+  const handleOpenVerifyNode = (proofId: string) => {
+    if (!proofId) return
+    const base = (window.location?.origin || '').replace(/\/$/, '')
+    window.open(`${base}/v/${encodeURIComponent(proofId)}?trace=true`, '_blank', 'noopener,noreferrer')
+  }
+
+  const handleFinalizeDelivery = async () => {
+    if (!proj?.v_uri) return
+    setDeliveryFinalizing(true)
+    const pack = await finalizeDocFinalApi({
+      project_uri: proj.v_uri,
+      project_name: proj.name,
+      include_unsettled: false,
+      run_anchor_rounds: 1,
+    }) as {
+      blob: Blob
+      filename?: string
+      finalGitpegAnchor?: string
+      rootHash?: string
+    } | null
+    if (pack?.blob) {
+      const href = URL.createObjectURL(pack.blob)
+      const a = document.createElement('a')
+      a.href = href
+      a.download = pack.filename || 'MASTER-DSP.qcdsp'
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(href)
+      showToast(`竣工包交付完成，RootHash: ${pack.rootHash || '-'}，FinalAnchor: ${pack.finalGitpegAnchor || 'pending'}`)
+    } else {
+      showToast('竣工包交付失败')
+    }
+    setDeliveryFinalizing(false)
+  }
+
+  const refreshSpatialDashboard = async () => {
+    if (!proj?.v_uri) return
+    setSpatialLoading(true)
+    const payload = await spatialDashboardApi(proj.v_uri) as { ok?: boolean } | null
+    if (payload?.ok) {
+      setSpatialDashboard(payload)
+    } else {
+      showToast('空间孪生看板刷新失败')
+    }
+    setSpatialLoading(false)
+  }
+
+  const handleBindSpatial = async (payload: {
+    utxo_id: string
+    project_uri: string
+    bim_id?: string
+    label?: string
+    coordinate?: Record<string, unknown>
+  }) => {
+    if (!payload.utxo_id) return
+    const res = await bindSpatialUtxoApi(payload) as { ok?: boolean } | null
+    if (res?.ok) {
+      showToast('空间指纹绑定成功')
+      await refreshSpatialDashboard()
+    } else {
+      showToast('空间指纹绑定失败')
+    }
+  }
+
+  const handleRunPredictive = async (payload: {
+    nearThresholdRatio: number
+    minSamples: number
+    applyDynamicGate: boolean
+    defaultCriticalThreshold: number
+  }) => {
+    if (!proj?.v_uri) return
+    setAiRunning(true)
+    const res = await predictiveQualityAnalysisApi({
+      project_uri: proj.v_uri,
+      near_threshold_ratio: payload.nearThresholdRatio,
+      min_samples: payload.minSamples,
+      apply_dynamic_gate: payload.applyDynamicGate,
+      default_critical_threshold: payload.defaultCriticalThreshold,
+    }) as { ok?: boolean } | null
+    if (res?.ok) {
+      setAiResult(res)
+      showToast(`AI 治理分析完成，预警 ${Number((res as any).warning_count || 0)} 条`)
+      await refreshSpatialDashboard()
+    } else {
+      showToast('AI 治理分析失败')
+    }
+    setAiRunning(false)
+  }
+
+  const handleExportFinanceProof = async (payload: {
+    paymentId: string
+    bankCode: string
+    runAnchorRounds: number
+  }) => {
+    if (!payload.paymentId) return
+    setFinanceExporting(true)
+    const pack = await exportFinanceProofApi({
+      payment_id: payload.paymentId,
+      bank_code: payload.bankCode,
+      run_anchor_rounds: payload.runAnchorRounds,
+    }) as {
+      blob: Blob
+      filename?: string
+      proofId?: string
+      gitpegAnchor?: string
+    } | null
+    if (pack?.blob) {
+      const href = URL.createObjectURL(pack.blob)
+      const a = document.createElement('a')
+      a.href = href
+      a.download = pack.filename || 'FINANCE-PROOF.qcfp'
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(href)
+      showToast(`金融凭证导出完成，Proof: ${pack.proofId || '-'}，Anchor: ${pack.gitpegAnchor || 'pending'}`)
+    } else {
+      showToast('金融凭证导出失败')
+    }
+    setFinanceExporting(false)
+  }
+
+  const handleConvertRwaAsset = async (payload: {
+    boqGroupId: string
+    bankCode: string
+    runAnchorRounds: number
+  }) => {
+    if (!proj?.v_uri || !payload.boqGroupId) return
+    setRwaConverting(true)
+    const pack = await convertRwaAssetApi({
+      project_uri: proj.v_uri,
+      boq_group_id: payload.boqGroupId,
+      project_name: proj.name,
+      bank_code: payload.bankCode,
+      run_anchor_rounds: payload.runAnchorRounds,
+    }) as {
+      blob: Blob
+      filename?: string
+      proofId?: string
+      gitpegAnchor?: string
+    } | null
+    if (pack?.blob) {
+      const href = URL.createObjectURL(pack.blob)
+      const a = document.createElement('a')
+      a.href = href
+      a.download = pack.filename || 'RWA-ASSET.qcrwa'
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(href)
+      showToast(`RWA 资产转换完成，Proof: ${pack.proofId || '-'}，Anchor: ${pack.gitpegAnchor || 'pending'}`)
+    } else {
+      showToast('RWA 资产转换失败')
+    }
+    setRwaConverting(false)
+  }
+
+  const handleExportOmBundle = async (payload: {
+    omOwnerUri: string
+    runAnchorRounds: number
+  }) => {
+    if (!proj?.v_uri) return
+    setOmExporting(true)
+    const pack = await exportOmHandoverBundleApi({
+      project_uri: proj.v_uri,
+      project_name: proj.name,
+      om_owner_uri: payload.omOwnerUri,
+      run_anchor_rounds: payload.runAnchorRounds,
+    }) as {
+      blob: Blob
+      filename?: string
+      omRootProofId?: string
+      omGitpegAnchor?: string
+      omRootUri?: string
+    } | null
+    if (pack?.blob) {
+      const href = URL.createObjectURL(pack.blob)
+      const a = document.createElement('a')
+      a.href = href
+      a.download = pack.filename || 'OM-HANDOVER.zip'
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(href)
+      if (pack.omRootProofId) {
+        setLastOmRootProofId(pack.omRootProofId)
+      }
+      showToast(`运维移交包导出完成，OM Root: ${pack.omRootUri || '-'}，Anchor: ${pack.omGitpegAnchor || 'pending'}`)
+    } else {
+      showToast('运维移交包导出失败')
+    }
+    setOmExporting(false)
+  }
+
+  const handleRegisterOmEvent = async (payload: {
+    omRootProofId: string
+    title: string
+    eventType: string
+  }) => {
+    if (!payload.omRootProofId || !payload.title) return
+    setOmEventSubmitting(true)
+    const res = await registerOmEventApi({
+      om_root_proof_id: payload.omRootProofId,
+      title: payload.title,
+      event_type: payload.eventType,
+      executor_uri: 'v://operator/om/default',
+    }) as { ok?: boolean; event_proof_id?: string } | null
+    if (res?.ok) {
+      showToast(`运维事件挂载完成：${String(res.event_proof_id || '-')}`)
+    } else {
+      showToast('运维事件挂载失败')
+    }
+    setOmEventSubmitting(false)
+  }
+
+  const handleGenerateNormEvolution = async (payload: {
+    minSamples: number
+    nearThresholdRatio: number
+    anonymize: boolean
+  }) => {
+    setNormEvolutionRunning(true)
+    const res = await generateNormEvolutionReportApi({
+      project_uris: proj?.v_uri ? [proj.v_uri] : [],
+      min_samples: payload.minSamples,
+      near_threshold_ratio: payload.nearThresholdRatio,
+      anonymize: payload.anonymize,
+      create_proof: true,
+    }) as { ok?: boolean } | null
+    if (res?.ok) {
+      setNormEvolutionResult(res)
+      showToast(`规范演进报告生成完成，发现 ${Number((res as any).report?.finding_count || 0)} 条`)
+    } else {
+      showToast('规范演进报告生成失败')
+    }
+    setNormEvolutionRunning(false)
   }
 
   useEffect(() => {
@@ -941,15 +1431,63 @@ export default function App() {
         {activeTab === 'reports' && <ReportsPage />}
 
         {activeTab === 'proof' && (
-          <ProofPanel
-            projectUri={proj.v_uri}
-            proofStats={proofStats}
-            proofNodeRows={proofNodeRows}
-            proofLoading={proofLoading}
-            proofRows={proofRows}
-            proofVerifying={proofVerifying}
-            onVerifyProof={handleVerifyProof}
-          />
+          <>
+            <ProofPanel
+              projectUri={proj.v_uri}
+              proofStats={proofStats}
+              proofNodeRows={proofNodeRows}
+              proofLoading={proofLoading}
+              proofRows={proofRows}
+              proofVerifying={proofVerifying}
+              onVerifyProof={handleVerifyProof}
+            />
+            <PaymentAuditPanel
+              projectUri={proj.v_uri}
+              paymentGenerating={paymentGenerating}
+              paymentResult={paymentResult}
+              railpactSubmitting={railpactSubmitting}
+              railpactResult={railpactResult}
+              auditLoading={auditLoading}
+              auditResult={auditResult}
+              frequencyLoading={frequencyLoading}
+              frequencyResult={frequencyResult}
+              deliveryFinalizing={deliveryFinalizing}
+              onGeneratePaymentCertificate={handleGeneratePaymentCertificate}
+              onGenerateRailPactInstruction={handleGenerateRailPactInstruction}
+              onOpenAuditTrace={handleOpenAuditTrace}
+              onFinalizeDelivery={handleFinalizeDelivery}
+              onOpenVerifyNode={handleOpenVerifyNode}
+            />
+            <SpatialGovernancePanel
+              projectUri={proj.v_uri}
+              spatialLoading={spatialLoading}
+              spatialDashboard={spatialDashboard}
+              aiRunning={aiRunning}
+              aiResult={aiResult}
+              financeExporting={financeExporting}
+              defaultPaymentId={String(paymentResult?.payment_id || '')}
+              onRefreshSpatial={refreshSpatialDashboard}
+              onBindSpatial={handleBindSpatial}
+              onRunPredictive={handleRunPredictive}
+              onExportFinanceProof={handleExportFinanceProof}
+              onOpenVerifyNode={handleOpenVerifyNode}
+            />
+            <RwaOmEvolutionPanel
+              projectUri={proj.v_uri}
+              rwaConverting={rwaConverting}
+              omExporting={omExporting}
+              omEventSubmitting={omEventSubmitting}
+              normRunning={normEvolutionRunning}
+              normResult={normEvolutionResult}
+              lastPaymentId={String(paymentResult?.payment_id || '')}
+              lastOmRootProofId={lastOmRootProofId}
+              onConvertRwa={handleConvertRwaAsset}
+              onExportOmBundle={handleExportOmBundle}
+              onRegisterOmEvent={handleRegisterOmEvent}
+              onGenerateNormEvolution={handleGenerateNormEvolution}
+            />
+            <DocumentGovernancePanel projectUri={proj.v_uri} />
+          </>
         )}
 
           {activeTab === 'projects' && (
@@ -1176,6 +1714,16 @@ export default function App() {
             onDetailDraftChange={setDetailDraft}
             normalizeKmInterval={normalizeKmInterval}
             toggleInspectionType={toggleInspectionType}
+            boqRealtime={detailProject ? boqRealtimeByProjectId[detailProject.id] || null : null}
+            boqRealtimeLoading={boqRealtimeLoadingProjectId === detailProject?.id}
+            boqAudit={detailProject ? boqAuditByProjectId[detailProject.id] || null : null}
+            boqAuditLoading={boqAuditLoadingProjectId === detailProject?.id}
+            boqProofPreview={boqProofPreview}
+            boqProofLoadingUri={boqProofLoadingUri || undefined}
+            boqSovereignPreview={boqSovereignPreview}
+            boqSovereignLoadingCode={boqSovereignLoadingCode || undefined}
+            onOpenBoqProofChain={handleOpenBoqProofChain}
+            onOpenBoqSovereignHistory={handleOpenBoqSovereignHistory}
           />
       </AppShellLayout>
 

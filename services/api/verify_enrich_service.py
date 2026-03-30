@@ -206,6 +206,9 @@ def build_enriched_row(
         "test_name": test_name,
         "stake": stake,
         "component_type": component_type or "-",
+        "geo_location": sd.get("geo_location") if isinstance(sd.get("geo_location"), dict) else {},
+        "server_timestamp_proof": sd.get("server_timestamp_proof") if isinstance(sd.get("server_timestamp_proof"), dict) else {},
+        "spatiotemporal_anchor_hash": to_text(sd.get("spatiotemporal_anchor_hash") or "", ""),
         "meta": {
             "spec_snapshot": spec_snapshot,
             "spec_uri": to_text(meta.get("spec_uri") or effective_spec_uri or spec_uri, ""),

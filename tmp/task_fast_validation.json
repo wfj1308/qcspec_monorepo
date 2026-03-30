@@ -1,0 +1,16 @@
+{
+  "run_id": "20260328115051",
+  "project_uri": "v://cn/zhongbei/highway/task-fast-20260328115051/",
+  "checks": {
+    "signatures_field_ok": true,
+    "transfer_ok": true,
+    "lineage_chain_depth": 5,
+    "lineage_norm_refs": 2,
+    "lineage_qc_count": 5,
+    "lineage_total_hash": true
+  },
+  "ids": {
+    "settlement": "GP-PROOF-F89AF62A53C346EC",
+    "transfer": "GP-PROOF-124A605DB87943A4"
+  }
+}

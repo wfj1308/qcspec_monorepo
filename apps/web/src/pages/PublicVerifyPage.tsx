@@ -182,6 +182,22 @@ type VerifyPayload = {
     depth?: number
     rows?: AuditItem[]
   }
+  lineage_depth?: 'item' | 'unit' | 'project'
+  lineage_merkle?: {
+    mode?: 'item' | 'unit' | 'project'
+    project_uri?: string
+    requested_proof_id?: string
+    requested_item_uri?: string
+    resolved_unit_code?: string
+    unit_root_hash?: string
+    project_root_hash?: string
+    global_project_fingerprint?: string
+    item_index?: number
+    unit_index?: number
+    leaf_count?: number
+    item_merkle_path?: Array<{ depth?: number; position?: string; sibling_hash?: string }>
+    unit_merkle_path?: Array<{ depth?: number; position?: string; sibling_hash?: string }>
+  }
 }
 
 type EvidenceItem = {
@@ -197,6 +213,15 @@ type EvidenceItem = {
   source?: string
   hash_matched?: boolean
   hash_match_text?: string
+  geo_location?: {
+    lat?: number | string
+    lng?: number | string
+  }
+  server_timestamp_proof?: {
+    timestamp_fingerprint?: string
+    ntp_server?: string
+  }
+  spatiotemporal_anchor_hash?: string
 }
 
 type HashState = {
@@ -357,12 +382,13 @@ function requestPathProofId(): string {
   return decodeURIComponent(raw).trim()
 }
 
-async function requestVerifyPayload(apiBases: string[], proofId: string): Promise<VerifyPayload> {
+async function requestVerifyPayload(apiBases: string[], proofId: string, lineageDepth: 'item' | 'unit' | 'project'): Promise<VerifyPayload> {
   const encoded = encodeURIComponent(proofId)
+  const depthQuery = `lineage_depth=${encodeURIComponent(lineageDepth)}`
 
   let lastError = '请求失败'
   for (const base of apiBases) {
-    const candidates = [`${base}/api/v1/verify/${encoded}`, `${base}/api/verify/${encoded}`]
+    const candidates = [`${base}/api/v1/verify/${encoded}?${depthQuery}`, `${base}/api/verify/${encoded}?${depthQuery}`]
     for (const url of candidates) {
       try {
         const res = await fetch(url, { method: 'GET' })
@@ -418,6 +444,12 @@ export default function PublicVerifyPage() {
   const [specModal, setSpecModal] = useState<{ title: string; uri: string; excerpt: string; source?: string } | null>(null)
   const [showRectify, setShowRectify] = useState(false)
   const [downloadingDsp, setDownloadingDsp] = useState(false)
+  const [lineageDepth, setLineageDepth] = useState<'item' | 'unit' | 'project'>(() => {
+    const qs = new URLSearchParams(window.location.search)
+    const raw = String(qs.get('lineage_depth') || 'item').toLowerCase()
+    if (raw === 'unit' || raw === 'project') return raw
+    return 'item'
+  })
 
   const proofId = useMemo(() => requestPathProofId(), [])
   const traceMode = useMemo(() => {
@@ -443,7 +475,7 @@ export default function PublicVerifyPage() {
       try {
         setLoading(true)
         setError('')
-        const body = await requestVerifyPayload(apiBases, proofId)
+        const body = await requestVerifyPayload(apiBases, proofId, lineageDepth)
         if (!active) return
         setPayload(body)
       } catch (e) {
@@ -458,7 +490,7 @@ export default function PublicVerifyPage() {
     return () => {
       active = false
     }
-  }, [apiBases, proofId])
+  }, [apiBases, proofId, lineageDepth])
 
   useEffect(() => {
     let active = true
@@ -613,6 +645,7 @@ export default function PublicVerifyPage() {
   const hashDisplay = expectedHash ? (expectedHash.startsWith('sha256:') ? expectedHash : `sha256: ${expectedHash}`) : '-'
   const vpath = String(sovereignty.v_uri || context.project_uri || summary.project_uri || '-').replace(/^v:\/\//, '')
   const gitpegStatus = sovereignty.gitpeg_status || {}
+  const lineageMerkle = payload?.lineage_merkle || {}
   const gitpegMessage = String(gitpegStatus.message || '')
   const anchorRef = String(gitpegStatus.anchor_ref || sovereignty.gitpeg_anchor || '-')
 
@@ -626,6 +659,17 @@ export default function PublicVerifyPage() {
       window.alert(msg)
     } finally {
       setDownloadingDsp(false)
+    }
+  }
+
+  const handleLineageDepthChange = (next: 'item' | 'unit' | 'project') => {
+    setLineageDepth(next)
+    try {
+      const url = new URL(window.location.href)
+      url.searchParams.set('lineage_depth', next)
+      window.history.replaceState({}, '', url.toString())
+    } catch {
+      // no-op
     }
   }
 
@@ -730,6 +774,10 @@ export default function PublicVerifyPage() {
                   const isVideo = mediaType === 'video'
                   const hashOk = ev.hash_matched === true
                   const url = String(ev.url || '')
+                  const lat = ev.geo_location?.lat
+                  const lng = ev.geo_location?.lng
+                  const geoText = (lat !== undefined && lng !== undefined) ? `${lat}, ${lng}` : '-'
+                  const ntpFingerprint = ev.server_timestamp_proof?.timestamp_fingerprint || ev.spatiotemporal_anchor_hash || '-'
                   return (
                     <div className="evidence-item" key={`${ev.id || ev.proof_id || ev.file_name || 'evidence'}-${idx}`}>
                       <div className="evidence-preview">
@@ -745,6 +793,8 @@ export default function PublicVerifyPage() {
                       <div className="evidence-meta">
                         <span>{formatTimestamp(ev.time)}</span>
                         <span>{ev.proof_id || '-'}</span>
+                        <span>GPS: {geoText}</span>
+                        <span>NTP: {ntpFingerprint}</span>
                       </div>
                     </div>
                   )
@@ -955,9 +1005,28 @@ export default function PublicVerifyPage() {
         <div className="info-card">
           <div className="ic-header"><span className="ic-icon">🔐</span><span className="ic-title">GitPeg 链上锚定</span></div>
           <div className="ic-body">
+            <div className="ic-row">
+              <span className="ic-key">血缘穿透深度</span>
+              <span className="ic-val">
+                <select
+                  className="lineage-depth-select"
+                  value={lineageDepth}
+                  onChange={(e) => handleLineageDepthChange((e.target.value as 'item' | 'unit' | 'project'))}
+                >
+                  <option value="item">Item 级</option>
+                  <option value="unit">Unit 级</option>
+                  <option value="project">Project 级</option>
+                </select>
+              </span>
+            </div>
             <div className="ic-row"><span className="ic-key">锚定状态</span><span className={`ic-val ${gitpegStatus.anchored ? 'green' : ''}`}>{gitpegMessage || '已在本地存证，等待全局锚定'}</span></div>
             <div className="ic-row"><span className="ic-key">锚定引用</span><span className="ic-val blue">{anchorRef}</span></div>
             <div className="ic-row"><span className="ic-key">Merkle 根</span><span className="ic-val">{gitpegStatus.merkle_root || '-'}</span></div>
+            <div className="ic-row"><span className="ic-key">Unit 根哈希</span><span className="ic-val">{lineageMerkle.unit_root_hash || '-'}</span></div>
+            <div className="ic-row"><span className="ic-key">Project 根哈希</span><span className="ic-val">{lineageMerkle.project_root_hash || lineageMerkle.global_project_fingerprint || '-'}</span></div>
+            <div className="ic-row"><span className="ic-key">Unit 编码</span><span className="ic-val">{lineageMerkle.resolved_unit_code || '-'}</span></div>
+            <div className="ic-row"><span className="ic-key">叶子索引</span><span className="ic-val">{typeof lineageMerkle.item_index === 'number' ? lineageMerkle.item_index : '-'}</span></div>
+            <div className="ic-row"><span className="ic-key">Unit 内叶子数</span><span className="ic-val">{lineageMerkle.leaf_count ?? '-'}</span></div>
             <div className="ic-row"><span className="ic-key">三维锚定</span><span className="ic-val">{context.project_uri || '-'} | {context.segment_uri || '-'} | {context.executor_uri || '-'}</span></div>
             <div className="ic-row"><span className="ic-key">源头要求</span><span className="ic-val">{context.contract_uri || '-'} | {context.design_uri || '-'}</span></div>
             <div className="ic-row"><span className="ic-key">重算 Hash</span><span className="ic-val">{hashState.computed || payload.hash_verification?.recomputed_hash || '-'}</span></div>

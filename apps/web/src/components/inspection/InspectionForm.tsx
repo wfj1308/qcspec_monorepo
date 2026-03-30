@@ -3,7 +3,7 @@
  * apps/web/src/components/inspection/InspectionForm.tsx
  */
 
-import React, { useState, useCallback, useEffect } from 'react'
+import React, { useState, useCallback, useEffect, useRef } from 'react'
 import { INSPECTION_TYPES } from '@qcspec/types'
 import type { InspectResult } from '@qcspec/types'
 import { Button, Input, Select, Card, VPathDisplay } from '../ui'
@@ -49,10 +49,17 @@ const toLocalDateTimeSeconds = (date: Date = new Date()): string => {
   return local.toISOString().slice(0, 19)
 }
 
+const normalizeFullWidthDigits = (raw: string): string => {
+  return raw.replace(/[０-９]/g, (ch) => String.fromCharCode(ch.charCodeAt(0) - 0xFEE0))
+}
+
 const parseNumericList = (raw: string): number[] => {
-  return String(raw || '')
-    .split(/[\s,，、;；\n\t]+/)
-    .map((item) => Number(item.trim()))
+  const text = normalizeFullWidthDigits(String(raw || ''))
+    .replace(/[，、；]/g, ',')
+    .replace(/[－–—]/g, '-')
+  const matched = text.match(/[-+]?\d+(?:\.\d+)?/g) || []
+  return matched
+    .map((item) => Number(item))
     .filter((num) => Number.isFinite(num))
 }
 
@@ -86,6 +93,7 @@ export default function InspectionForm({ projectId, enterpriseId, onSuccess }: P
   const [rebarDesign, setRebarDesign] = useState('')
   const [rebarLimit, setRebarLimit] = useState('±10')
   const [rebarValues, setRebarValues] = useState('')
+  const rebarValuesRef = useRef<HTMLTextAreaElement | null>(null)
   const [judgeHint, setJudgeHint] = useState<{ text: string; color: string } | null>(null)
 
   // 选类型时自动填标准值和自动判定
@@ -165,11 +173,27 @@ export default function InspectionForm({ projectId, enterpriseId, onSuccess }: P
     }
     let submitValue = parsedValue
     let submitResult: InspectResult = (result || 'warn') as InspectResult
-    const rebarValuesList = parseNumericList(rebarValues)
+    const rebarValuesRaw = String(rebarValues || rebarValuesRef.current?.value || '')
+    if (!rebarValues && rebarValuesRaw) {
+      setRebarValues(rebarValuesRaw)
+    }
+    const parsedRebarValuesList = parseNumericList(rebarValuesRaw)
+    const rebarValuesList = parsedRebarValuesList.length > 0
+      ? parsedRebarValuesList
+      : (Number.isFinite(parsedValue) ? [parsedValue] : [])
     const rebarDesignNumber = Number(rebarDesign || typeConfig?.standard)
     if (isRebarType) {
       if (!rebarValuesList.length) {
         showToast('⚠️ 钢筋间距请至少录入一个实测值')
+        return
+      }
+      if (!parsedRebarValuesList.length && Number.isFinite(parsedValue)) {
+        const normalized = String(parsedValue)
+        setRebarValues(normalized)
+        if (rebarValuesRef.current) rebarValuesRef.current.value = normalized
+      }
+      if (rebarValuesList.length === 1 && rebarValuesList[0] === 0) {
+        showToast('⚠️ 实测值解析异常（当前仅识别到 0），请检查分隔符或重新粘贴数据')
         return
       }
       if (!Number.isFinite(rebarDesignNumber)) {
@@ -468,6 +492,7 @@ export default function InspectionForm({ projectId, enterpriseId, onSuccess }: P
               实测值列表（逗号/空格/换行分隔，Blur 自动判定）
             </div>
             <textarea
+              ref={rebarValuesRef}
               value={rebarValues}
               onChange={(e) => setRebarValues(e.target.value)}
               onBlur={autoJudgeRebar}

@@ -15,6 +15,7 @@ from services.api.dependencies import get_supabase
 from services.api.verify_public_flow_service import (
     download_dsp_package_flow,
     get_public_verify_detail_flow,
+    resolve_normpeg_threshold_public_flow,
     resolve_spec_rule_public_flow,
     run_mock_anchor_once_flow,
 )
@@ -65,6 +66,23 @@ async def resolve_spec_rule_public(
     )
 
 
+@public_router.get("/spec/threshold")
+async def resolve_normpeg_threshold_public(
+    spec_uri: str,
+    context: str = "",
+    value: float | None = None,
+    design: float | None = None,
+    sb: Client = Depends(get_supabase),
+):
+    return await resolve_normpeg_threshold_public_flow(
+        spec_uri=spec_uri,
+        context=context,
+        value=value,
+        design=design,
+        sb=sb,
+    )
+
+
 @router.post("/anchor/mock-run")
 async def run_mock_anchor_once(
     x_internal_key: str | None = Header(default=None, alias="X-QCSPEC-Internal-Key"),
@@ -91,10 +109,12 @@ async def run_mock_anchor_once(
 @public_router.get("/{proof_id}")
 async def get_public_verify_detail(
     proof_id: str,
+    lineage_depth: str = "item",
     sb: Client = Depends(get_supabase),
 ):
     return await get_public_verify_detail_flow(
         proof_id=proof_id,
+        lineage_depth=lineage_depth,
         sb=sb,
         verify_base_url=_verify_base_url(),
     )

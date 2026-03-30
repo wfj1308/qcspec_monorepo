@@ -131,6 +131,11 @@ app.include_router(
     dependencies=[Depends(auth.require_auth)],
 )
 app.include_router(
+    proof.public_router,
+    prefix="/v1/proof",
+    tags=["proof-public"],
+)
+app.include_router(
     team.router,
     prefix="/v1/team",
     tags=["team"],

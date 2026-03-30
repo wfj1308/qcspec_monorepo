@@ -1,0 +1,47 @@
+{
+  "run_id": "20260328103021",
+  "xlsx_path": "C:\\Users\\xm_91\\Desktop\\400章(1).xlsx",
+  "target_item_no": "401-1",
+  "target_item_name": "跨铁路交叉协调费（专项暂估价）",
+  "checks": {
+    "boq_parse_items": 92,
+    "genesis_has_hierarchy": true,
+    "genesis_has_genesis_proof": true,
+    "quality_auto_normpeg_result": "PASS",
+    "quality_has_spec_snapshot": true,
+    "quality_has_norm_eval": true,
+    "settlement_created": true,
+    "settlement_has_artifact_uri": true,
+    "provenance_total_hash": true,
+    "provenance_gate_clear": true,
+    "docfinal_zip_has_required_files": true,
+    "docfinal_has_v_uri_refs": true,
+    "docfinal_has_chain_root_hash": true,
+    "gate_lock_blocks_on_fail": true,
+    "gate_lock_message": "QCGate locked: fail_without_variation; uncompensated=GP-PROOF-B014C8E9B74F4365",
+    "variation_unlocks_settlement": true,
+    "variation_path_gate_clear": true
+  },
+  "ids": {
+    "seed_pass": "GP-BOQ-A56909592B75BCAA6D",
+    "quality_pass": "GP-PROOF-3AA81B75854E4F51",
+    "measure_pass": "GP-PROOF-DA43B7732E9145E5",
+    "settlement_pass": "GP-PROOF-5330888B3E2C44E6",
+    "seed_fail": "GP-BOQ-F746CC0A31FAB53F7E",
+    "measure_fail": "GP-PROOF-B014C8E9B74F4365",
+    "variation": "GP-PROOF-68D27CCEC580468B",
+    "settlement_after_variation": "GP-PROOF-5B99F0B899A24185"
+  },
+  "boq_item_uri": "v://project/boq/validation-20260328103021-pass/401-1",
+  "docfinal_zip_files": [
+    "evidence/manifest.json",
+    "fingerprint.json",
+    "proof_chain.json",
+    "provenance_chain.json",
+    "report.docx",
+    "report.pdf",
+    "signature.json"
+  ],
+  "pass_total_proof_hash": "9e83be6d1d9385906a3cdeaac87f30ab0a95284b8984664da1ced86e762740df",
+  "unlock_total_proof_hash": "5fae5a452dd44a273e11df0d51d522deb67617959a1c739b2d27642e66484132"
+}

@@ -16,6 +16,7 @@ from fastapi.responses import StreamingResponse
 from supabase import Client
 
 from services.api.archive_service import create_dsp_package
+from services.api.normpeg_engine import NormPegEngine
 from services.api.specir_engine import (
     normalize_spec_uri as specir_normalize_spec_uri,
     resolve_spec_rule as specir_resolve_spec_rule,
@@ -31,6 +32,7 @@ from services.api.verify_facade_service import (
     build_chain_fingerprints,
     build_public_verify_detail,
 )
+from services.api.unit_merkle_service import build_unit_merkle_snapshot
 from services.api.verify_enrich_service import build_enriched_row as svc_build_enriched_row
 from services.api.verify_evidence_service import build_evidence_items as svc_build_evidence_items
 from services.api.verify_view_service import (
@@ -276,6 +278,40 @@ async def resolve_spec_rule_public_flow(
     }
 
 
+async def resolve_normpeg_threshold_public_flow(
+    *,
+    spec_uri: str,
+    context: str = "",
+    value: float | None = None,
+    design: float | None = None,
+    sb: Client,
+) -> dict[str, Any]:
+    engine = NormPegEngine.from_sources(sb=sb)
+    threshold = engine.get_threshold(
+        spec_uri,
+        {
+            "context": context,
+            "component_type": context,
+        },
+    )
+
+    payload: dict[str, Any] = {
+        "ok": bool(threshold.get("found")),
+        "input_spec_uri": spec_uri,
+        "context": context,
+        "threshold": threshold,
+    }
+    if value is not None:
+        evaluated = engine.evaluate(
+            spec_uri=spec_uri,
+            context={"context": context, "component_type": context},
+            values=[float(value)],
+            design_value=design,
+        )
+        payload["evaluation"] = evaluated
+    return payload
+
+
 async def run_mock_anchor_once_flow() -> dict[str, Any]:
     worker = GitPegAnchorWorker()
     result = worker.anchor_once()
@@ -285,11 +321,15 @@ async def run_mock_anchor_once_flow() -> dict[str, Any]:
 async def get_public_verify_detail_flow(
     *,
     proof_id: str,
+    lineage_depth: str,
     sb: Client,
     verify_base_url: str,
 ) -> dict[str, Any]:
     engine = ProofUTXOEngine(sb)
-    return build_public_verify_detail(
+    depth = _to_text(lineage_depth or "item").strip().lower()
+    if depth not in {"item", "unit", "project"}:
+        depth = "item"
+    detail = build_public_verify_detail(
         proof_id=proof_id,
         sb=sb,
         engine=engine,
@@ -312,6 +352,35 @@ async def get_public_verify_detail_flow(
         build_audit_rows=_build_audit_rows,
         collect_evidence=_collect_evidence,
     )
+    context = detail.get("context") if isinstance(detail.get("context"), dict) else {}
+    project_uri = _to_text(context.get("project_uri") or "").strip()
+    merkle_snapshot: dict[str, Any] = {}
+    if project_uri:
+        try:
+            merkle_snapshot = build_unit_merkle_snapshot(
+                sb=sb,
+                project_uri=project_uri,
+                proof_id=proof_id,
+            )
+        except Exception:
+            merkle_snapshot = {}
+    detail["lineage_depth"] = depth
+    detail["lineage_merkle"] = {
+        "mode": depth,
+        "project_uri": project_uri,
+        "requested_proof_id": _to_text(proof_id).strip(),
+        "requested_item_uri": _to_text(merkle_snapshot.get("requested_item_uri") or "").strip(),
+        "resolved_unit_code": _to_text(merkle_snapshot.get("resolved_unit_code") or "").strip(),
+        "unit_root_hash": _to_text(merkle_snapshot.get("unit_root_hash") or "").strip(),
+        "project_root_hash": _to_text(merkle_snapshot.get("project_root_hash") or "").strip(),
+        "global_project_fingerprint": _to_text(merkle_snapshot.get("global_project_fingerprint") or "").strip(),
+        "item_index": merkle_snapshot.get("item_index"),
+        "unit_index": merkle_snapshot.get("unit_index"),
+        "leaf_count": merkle_snapshot.get("leaf_count"),
+        "item_merkle_path": merkle_snapshot.get("item_merkle_path") if isinstance(merkle_snapshot.get("item_merkle_path"), list) else [],
+        "unit_merkle_path": merkle_snapshot.get("unit_merkle_path") if isinstance(merkle_snapshot.get("unit_merkle_path"), list) else [],
+    }
+    return detail
 
 
 async def download_dsp_package_flow(
@@ -327,6 +396,7 @@ async def download_dsp_package_flow(
     engine = ProofUTXOEngine(sb)
     detail = await get_public_verify_detail_flow(
         proof_id=normalized_proof_id,
+        lineage_depth="item",
         sb=sb,
         verify_base_url=verify_base_url,
     )

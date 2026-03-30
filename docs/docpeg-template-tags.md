@@ -38,6 +38,33 @@
 {% endfor %}
 ```
 
+## Hierarchy Summary Loop (11.docx)
+
+```jinja2
+{% for h in hierarchy_summary_rows %}
+{{ h.depth }} | {{ h.code }} | {{ h.node_type }} | {{ h.item_name }} | {{ h.settled_quantity }} / {{ h.design_quantity }} | {{ h.progress_percent }}%
+{% endfor %}
+```
+
+- `{{ hierarchy_root_hash }}`
+- `{{ hierarchy_filtered_root_hash }}`
+- `{{ hierarchy_filter.anchor_code }}`
+- `{{ hierarchy_filter.direction }}`
+- `{{ hierarchy_filter.level }}`
+- `{{ hierarchy_filter.filtered_row_count }}`
+- `{{ chapter_progress.chapter_code }}`
+- `{{ chapter_progress.progress_percent }}`
+- `{{ chapter_progress.settled_quantity }}`
+- `{{ chapter_progress.design_quantity }}`
+
+## Gate Binding Fields (12.docx)
+
+- `{{ linked_gate_id }}`
+- `{{ linked_spec_uri }}`
+- `{{ gate_template_lock }}`
+- `{{ qc_gate_status }}`
+- `{{ qc_gate_result_hash }}`
+
 ## Inspection Template Fixed Items
 
 - `{{ items.main_rebar.* }}`

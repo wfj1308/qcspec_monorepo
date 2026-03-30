@@ -14,7 +14,11 @@ PROOF_TYPES = {
     "photo",
     "approval",
     "payment",
+    "payment_instruction",
     "archive",
+    "remediation",
+    "node",
+    "document",
     "ordosign",
     "zero_ledger",
 }

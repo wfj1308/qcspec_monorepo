@@ -122,6 +122,45 @@ def _spec_snapshot_bundle(verify_detail: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _collect_spatiotemporal_anchors(evidence_items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    anchors: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for item in evidence_items:
+        if not isinstance(item, dict):
+            continue
+        anchor_hash = _to_text(item.get("spatiotemporal_anchor_hash") or "").strip()
+        geo = item.get("geo_location") if isinstance(item.get("geo_location"), dict) else {}
+        ts = item.get("server_timestamp_proof") if isinstance(item.get("server_timestamp_proof"), dict) else {}
+        if not anchor_hash and not geo and not ts:
+            continue
+        key = anchor_hash or hashlib.sha256(
+            json.dumps(
+                {
+                    "proof_id": _to_text(item.get("proof_id") or ""),
+                    "geo": geo,
+                    "ts": ts,
+                },
+                ensure_ascii=False,
+                sort_keys=True,
+                default=str,
+            ).encode("utf-8")
+        ).hexdigest()
+        if key in seen:
+            continue
+        seen.add(key)
+        anchors.append(
+            {
+                "proof_id": _to_text(item.get("proof_id") or "").strip(),
+                "evidence_id": _to_text(item.get("id") or "").strip(),
+                "spatiotemporal_anchor_hash": anchor_hash,
+                "geo_location": geo,
+                "server_timestamp_proof": ts,
+                "captured_at": _to_text(item.get("time") or "").strip(),
+            }
+        )
+    return anchors
+
+
 def _fetch_binary(url: str, timeout: float = 10.0) -> bytes | None:
     target = _to_text(url).strip()
     if not target or not (target.startswith("http://") or target.startswith("https://")):
@@ -190,6 +229,16 @@ def create_dsp_package(
             }
         )
         evidence_files.append((f"evidence/{file_name}", blob))
+    spatiotemporal_anchors = _collect_spatiotemporal_anchors(evidence)
+    spatiotemporal_anchor_payload = {
+        "generated_at": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"),
+        "proof_id": _to_text(verify_detail.get("proof_id") or proof_id),
+        "anchor_count": len(spatiotemporal_anchors),
+        "anchors": spatiotemporal_anchors,
+    }
+    spatiotemporal_anchor_payload["anchors_hash"] = hashlib.sha256(
+        json.dumps(spatiotemporal_anchor_payload, ensure_ascii=False, sort_keys=True, default=str).encode("utf-8")
+    ).hexdigest()
 
     result_cn = _result_cn_from_summary(summary)
     signed_by = _signer_from_payload(sovereignty, person)
@@ -258,6 +307,7 @@ def create_dsp_package(
             "count": evidence_count,
             "items": evidence_manifest,
         },
+        "spatiotemporal_anchor": spatiotemporal_anchor_payload,
     }
     dsp_json["package_hash"] = hashlib.sha256(
         json.dumps(dsp_json, ensure_ascii=False, sort_keys=True, default=str).encode("utf-8")
@@ -283,6 +333,10 @@ def create_dsp_package(
         zf.writestr(
             "evidence/manifest.json",
             json.dumps(evidence_manifest, ensure_ascii=False, sort_keys=True, indent=2, default=str),
+        )
+        zf.writestr(
+            "spatiotemporal_anchor.json",
+            json.dumps(spatiotemporal_anchor_payload, ensure_ascii=False, sort_keys=True, indent=2, default=str),
         )
         for path, blob in evidence_files:
             zf.writestr(path, blob)

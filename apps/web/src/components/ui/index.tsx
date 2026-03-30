@@ -83,15 +83,18 @@ interface CardProps {
   style?:     React.CSSProperties
   className?: string
 }
-export function Card({ children, title, icon, style }: CardProps) {
+export function Card({ children, title, icon, style, className }: CardProps) {
   return (
-    <div style={{
+    <div
+      className={className}
+      style={{
       background: '#fff',
       border: '1px solid var(--border)',
       borderRadius: 14, padding: 20,
       marginBottom: 14,
       ...style,
-    }}>
+      }}
+    >
       {title && (
         <div style={{
           fontSize: 14, fontWeight: 700, color: 'var(--ink)',

@@ -1,0 +1,67 @@
+{
+  "run_id": "20260328111615",
+  "project_uri": "v://cn/zhongbei/highway/consensus-validation-20260328111615/",
+  "xlsx_path": "C:\\Users\\xm_91\\Desktop\\400章(1).xlsx",
+  "created_items": 2,
+  "checks": {
+    "missing_signature_blocked": true,
+    "missing_signature_message": "consensus_signatures_incomplete; missing=supervisor,owner; invalid=-",
+    "gate_blocked_on_fail_without_variation": true,
+    "gate_block_message": "QCGate locked: fail_without_variation; uncompensated=GP-PROOF-DBED77C11E454014",
+    "settlement_with_consensus_ok": true,
+    "variation_unlock_settlement_ok": true,
+    "boq_realtime_item_count": 2,
+    "boq_realtime_progress": 0.02,
+    "docfinal_export_has_root_hash": true,
+    "docfinal_export_has_birth_certificate": true,
+    "docfinal_export_filename": "MASTER-DSP-8271f01a1f2f98d2.qcdsp",
+    "encrypted_blob_bytes": 184701
+  },
+  "ids": {
+    "seed_pass": "GP-BOQ-B60597AC4183D7063B",
+    "quality_pass": "GP-PROOF-277A8E8A2A5147DD",
+    "measure_pass": "GP-PROOF-31FE20276E994187",
+    "settlement_pass": "GP-PROOF-36D0E1749EBD44D0",
+    "seed_gate": "GP-BOQ-2432911395B05E6013",
+    "quality_gate": "GP-PROOF-728699E8533E4A40",
+    "measure_gate_fail": "GP-PROOF-DBED77C11E454014",
+    "variation_gate": "GP-PROOF-ACE7F6B165B64681",
+    "settlement_after_variation": "GP-PROOF-28EEE6ECD0A14879",
+    "docfinal_birth_proof": "GP-DOCFINAL-8271F01A1F2F98D2"
+  },
+  "boq_summary": {
+    "boq_item_count": 2,
+    "design_total": 131468.0,
+    "settled_total": 20.5,
+    "progress_percent": 0.02
+  },
+  "boq_items": [
+    {
+      "item_no": "401-1",
+      "design_quantity": 1.0,
+      "settled_quantity": 12.5,
+      "progress_percent": 100.0,
+      "sign_ready": false,
+      "sign_block_reason": "no_installation_candidate",
+      "latest_settlement_proof_id": "GP-PROOF-36D0E1749EBD44D0"
+    },
+    {
+      "item_no": "403-1-1",
+      "design_quantity": 131467.0,
+      "settled_quantity": 8.0,
+      "progress_percent": 0.01,
+      "sign_ready": false,
+      "sign_block_reason": "no_installation_candidate",
+      "latest_settlement_proof_id": "GP-PROOF-28EEE6ECD0A14879"
+    }
+  ],
+  "docfinal_birth_certificate": {
+    "proof_id": "GP-DOCFINAL-8271F01A1F2F98D2",
+    "proof_hash": "bc8a6995114e6aac3c23eec7f8018553c33d71559a2a5c39bb31e6dd132b51d6",
+    "gitpeg_anchor": "",
+    "project_uri": "v://cn/zhongbei/highway/consensus-validation-20260328111615/",
+    "root_hash": "8271f01a1f2f98d27c9825343d4f9c0d98d5e8dbdc79731a76a191733dd74ade",
+    "artifact_uri": "v://cn/zhongbei/highway/consensus-validation-20260328111615/docfinal/master/8271f01a1f2f98d2"
+  },
+  "docfinal_root_hash": "8271f01a1f2f98d27c9825343d4f9c0d98d5e8dbdc79731a76a191733dd74ade"
+}
