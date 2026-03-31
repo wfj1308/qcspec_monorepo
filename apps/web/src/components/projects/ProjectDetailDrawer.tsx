@@ -1,7 +1,7 @@
 ﻿
 import React from 'react'
 import { Card } from '../ui'
-import SovereignWorkbenchPanel from './SovereignWorkbenchPanel'
+import SovereignProjectWorkspace from './SovereignProjectWorkspace'
 
 interface ProjectDetailDrawerProps {
   open: boolean
@@ -364,7 +364,7 @@ export default function ProjectDetailDrawer({
         )}
 
         {!detailEdit && (
-          <SovereignWorkbenchPanel project={detailProject} />
+          <SovereignProjectWorkspace project={detailProject} />
         )}
       </div>
     </div>

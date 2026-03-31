@@ -32,6 +32,7 @@ from services.api.docpeg_proof_chain_service import (
     render_rebar_inspection_docx,
     render_rebar_inspection_pdf,
 )
+from services.api.evidence_center_service import get_all_evidence_for_item
 from services.api.did_gate_service import (
     resolve_required_credential,
     verify_credential,
@@ -49,6 +50,8 @@ from services.api.specdict_gate_service import (
     resolve_dynamic_threshold,
 )
 from services.api.sovereign_credit_service import calculate_sovereign_credit
+from services.api.did_reputation_service import build_did_reputation_summary
+from services.api.phygital_sealing_service import build_sealing_trip
 from services.api.verify_service import get_project_name_by_id
 
 
@@ -57,6 +60,11 @@ VALID_TRIPROLE_ACTIONS = {
     "measure.record",
     "variation.record",
     "settlement.confirm",
+    "dispute.resolve",
+    "scan.entry",
+    "meshpeg.verify",
+    "formula.price",
+    "gateway.sync",
 }
 
 CONSENSUS_REQUIRED_ROLES = ("contractor", "supervisor", "owner")
@@ -901,6 +909,156 @@ def _normalize_signer_metadata(raw: Any) -> dict[str, Any]:
     return normalized
 
 
+def _extract_consensus_values(raw: Any, payload: dict[str, Any]) -> list[dict[str, Any]]:
+    values: list[dict[str, Any]] = []
+
+    def _push(item: dict[str, Any], source: str) -> None:
+        if not isinstance(item, dict):
+            return
+        role = _normalize_role(item.get("role") or item.get("signer_role"))
+        did = _to_text(item.get("did") or item.get("signer_did") or "").strip()
+        for key in ("measured_value", "value", "quantity", "amount", "measured", "reported_value"):
+            val = _to_float(item.get(key))
+            if val is not None:
+                values.append(
+                    {
+                        "role": role,
+                        "did": did,
+                        "value": float(val),
+                        "source": source,
+                        "field": key,
+                    }
+                )
+                return
+
+    consensus_values = payload.get("consensus_values")
+    if isinstance(consensus_values, list):
+        for item in consensus_values:
+            if isinstance(item, dict):
+                _push(item, "payload.consensus_values")
+
+    if isinstance(raw, list):
+        for item in raw:
+            if isinstance(item, dict):
+                _push(item, "signer_metadata")
+    elif isinstance(raw, dict):
+        signers = raw.get("signers")
+        if isinstance(signers, list):
+            for item in signers:
+                if isinstance(item, dict):
+                    _push(item, "signer_metadata.signers")
+        else:
+            _push(raw, "signer_metadata")
+
+    return values
+
+
+def detect_consensus_deviation(
+    *,
+    signer_metadata_raw: Any,
+    payload: dict[str, Any],
+    input_sd: dict[str, Any],
+) -> dict[str, Any]:
+    values = _extract_consensus_values(signer_metadata_raw, payload)
+    if len(values) < 2:
+        return {"ok": True, "conflict": False, "reason": "insufficient_values", "values": values}
+
+    raw_allowed = (
+        payload.get("allowed_deviation")
+        or payload.get("tolerance")
+        or payload.get("deviation_limit")
+        or _as_dict(input_sd.get("norm_evaluation")).get("tolerance")
+    )
+    allowed_abs = _to_float(raw_allowed)
+    allowed_pct = _to_float(
+        payload.get("allowed_deviation_percent")
+        or payload.get("deviation_percent")
+        or payload.get("tolerance_percent")
+    )
+
+    series = [v.get("value") for v in values if isinstance(v.get("value"), (int, float))]
+    if not series:
+        return {"ok": True, "conflict": False, "reason": "no_numeric_values", "values": values}
+
+    min_v = min(series)
+    max_v = max(series)
+    diff = max_v - min_v
+    avg = (max_v + min_v) / 2 if (max_v + min_v) != 0 else max_v
+    pct = (diff / avg * 100.0) if avg else 0.0
+
+    conflict = False
+    if allowed_abs is not None and diff > float(allowed_abs):
+        conflict = True
+    if allowed_pct is not None and pct > float(allowed_pct):
+        conflict = True
+
+    if allowed_abs is None and allowed_pct is None:
+        # Default: allow small numeric jitter up to 0.5% if no threshold is configured.
+        conflict = pct > 0.5 if avg else diff > 0
+
+    return {
+        "ok": True,
+        "conflict": conflict,
+        "min_value": min_v,
+        "max_value": max_v,
+        "deviation": diff,
+        "deviation_percent": round(pct, 4),
+        "allowed_deviation": allowed_abs,
+        "allowed_deviation_percent": allowed_pct,
+        "values": values,
+    }
+
+
+def _create_consensus_dispute(
+    *,
+    sb: Any,
+    input_row: dict[str, Any],
+    project_uri: str,
+    boq_item_uri: str,
+    executor_uri: str,
+    conflict: dict[str, Any],
+    consensus_signatures: list[dict[str, Any]],
+    signer_metadata: dict[str, Any],
+) -> dict[str, Any]:
+    engine = ProofUTXOEngine(sb)
+    input_id = _to_text(input_row.get("proof_id") or "").strip()
+    now_iso = _utc_iso()
+    state_data = {
+        "doc_type": "consensus_dispute",
+        "status": "DISPUTE",
+        "lifecycle_stage": "DISPUTE",
+        "trip_action": "consensus.dispute",
+        "boq_item_uri": boq_item_uri,
+        "project_uri": project_uri,
+        "source_proof_id": input_id,
+        "conflict": conflict,
+        "consensus_signatures": consensus_signatures,
+        "signer_metadata": signer_metadata,
+        "locked": True,
+        "created_at": now_iso,
+    }
+    proof_id = f"GP-DSPT-{_sha256_json(state_data)[:16].upper()}"
+    try:
+        row = engine.create(
+            proof_id=proof_id,
+            owner_uri=_to_text(executor_uri).strip() or "v://executor/system/",
+            project_uri=project_uri,
+            project_id=_to_text(input_row.get("project_id") or "").strip() or None,
+            segment_uri=boq_item_uri,
+            proof_type="dispute",
+            result="FAIL",
+            state_data=state_data,
+            conditions=[],
+            parent_proof_id=input_id or None,
+            norm_uri="v://norm/CoordOS/Consensus/1.0#dispute",
+            signer_uri=_to_text(executor_uri).strip() or "v://executor/system/",
+            signer_role="ARBITER",
+        )
+        return {"ok": True, "proof_id": _to_text(row.get("proof_id") or proof_id).strip()}
+    except Exception as exc:
+        return {"ok": False, "error": f"{exc.__class__.__name__}: {exc}"}
+
+
 def verify_biometric_status(
     *,
     signer_metadata: dict[str, Any] | list[dict[str, Any]] | None,
@@ -1060,6 +1218,13 @@ def _item_no_from_boq_uri(boq_item_uri: str) -> str:
     return uri.split("/")[-1]
 
 
+def _smu_id_from_item_no(item_no: str) -> str:
+    token = _to_text(item_no).strip().rstrip("/").split("/")[-1]
+    if "-" in token:
+        return token.split("-")[0]
+    return token or "misc"
+
+
 def _resolve_subitem_gate_binding(
     *,
     sb: Any,
@@ -1135,7 +1300,9 @@ def _extract_settled_quantity(row: dict[str, Any], *, fallback_design: float | N
 
 def _effective_design_quantity(genesis_row: dict[str, Any], bucket: list[dict[str, Any]]) -> float:
     gsd = _as_dict(genesis_row.get("state_data"))
-    base_design = _to_float(gsd.get("approved_quantity"))
+    base_design = _to_float(gsd.get("contract_quantity"))
+    if base_design is None:
+        base_design = _to_float(gsd.get("approved_quantity"))
     if base_design is None:
         base_design = _to_float(gsd.get("design_quantity"))
     if base_design is None:
@@ -1447,6 +1614,299 @@ def get_full_lineage(utxo_id: str, sb: Any, *, max_depth: int = 256) -> dict[str
         "consensus_signatures": signatures,
         "spatiotemporal_anchors": spatiotemporal_anchors,
     }
+
+
+def _resolve_contract_quantity_from_row(row: dict[str, Any]) -> float:
+    sd = _as_dict(row.get("state_data"))
+    ledger = _as_dict(sd.get("ledger"))
+    for candidate in (
+        sd.get("contract_quantity"),
+        sd.get("approved_quantity"),
+        sd.get("design_quantity"),
+        _as_dict(sd.get("genesis_proof")).get("contract_quantity"),
+        _as_dict(sd.get("genesis_proof")).get("initial_quantity"),
+        ledger.get("initial_balance"),
+    ):
+        num = _to_float(candidate)
+        if num is not None:
+            return float(num)
+    return 0.0
+
+
+def _variation_delta_from_row(row: dict[str, Any]) -> float:
+    sd = _as_dict(row.get("state_data"))
+    variation = _as_dict(sd.get("variation"))
+    delta_utxo = _as_dict(sd.get("delta_utxo"))
+    ledger = _as_dict(sd.get("ledger"))
+    for candidate in (
+        variation.get("delta_amount"),
+        variation.get("delta_quantity"),
+        variation.get("change_amount"),
+        delta_utxo.get("delta_amount"),
+        ledger.get("last_delta_amount"),
+    ):
+        num = _to_float(candidate)
+        if num is not None:
+            return float(num)
+    return 0.0
+
+
+def _variation_reference_from_row(row: dict[str, Any]) -> dict[str, Any]:
+    sd = _as_dict(row.get("state_data"))
+    variation = _as_dict(sd.get("variation"))
+    meta = _as_dict(variation.get("metadata"))
+
+    def _pick(*keys: str) -> str:
+        for key in keys:
+            text = _to_text(variation.get(key) or meta.get(key) or sd.get(key) or "").strip()
+            if text:
+                return text
+        return ""
+
+    ref_no = _pick(
+        "design_change_no",
+        "change_order_no",
+        "change_no",
+        "variation_order_no",
+        "document_no",
+        "reference_no",
+    )
+    ref_date = _pick(
+        "design_change_date",
+        "change_date",
+        "approved_at",
+        "verified_at",
+    ) or _to_text(row.get("created_at") or "").strip()
+    reason = _pick("reason", "description", "change_reason")
+    return {
+        "reference_no": ref_no,
+        "reference_date": ref_date,
+        "reason": reason,
+    }
+
+
+def _format_qty(value: float) -> str:
+    text = f"{float(value):.4f}"
+    if "." in text:
+        text = text.rstrip("0").rstrip(".")
+    return text
+
+
+def trace_asset_origin(
+    *,
+    sb: Any,
+    utxo_id: str = "",
+    boq_item_uri: str = "",
+    project_uri: str = "",
+    max_depth: int = 512,
+) -> dict[str, Any]:
+    """
+    Trace quantity origin:
+    contract(genesis) -> variation deltas -> measured(settlement)
+    """
+    normalized_utxo = _to_text(utxo_id).strip()
+    normalized_boq = _to_text(boq_item_uri).strip()
+    normalized_project = _to_text(project_uri).strip()
+    if not normalized_utxo and not normalized_boq:
+        raise HTTPException(400, "utxo_id or boq_item_uri is required")
+
+    engine = ProofUTXOEngine(sb)
+    latest: dict[str, Any] | None = None
+    if normalized_utxo:
+        latest = engine.get_by_id(normalized_utxo)
+    if latest and not normalized_boq:
+        normalized_boq = _resolve_boq_item_uri(latest)
+    if not latest and normalized_boq:
+        latest = _resolve_latest_boq_row(sb=sb, boq_item_uri=normalized_boq, project_uri=normalized_project)
+    if not latest:
+        raise HTTPException(404, "asset origin trace target not found")
+    if not normalized_boq:
+        normalized_boq = _resolve_boq_item_uri(latest)
+    if not normalized_boq:
+        raise HTTPException(404, "boq_item_uri cannot be resolved for lineage trace")
+
+    chain_rows = get_proof_chain(normalized_boq, sb, max_depth=max_depth)
+    if normalized_project:
+        scoped = [x for x in chain_rows if _to_text((x or {}).get("project_uri") or "").strip() == normalized_project]
+        if scoped:
+            chain_rows = scoped
+    if not chain_rows and normalized_utxo:
+        chain_rows = engine.get_chain(normalized_utxo, max_depth=max_depth)
+    if not chain_rows:
+        raise HTTPException(404, "proof chain not found for asset origin trace")
+    chain_rows.sort(key=lambda row: _to_text((row or {}).get("created_at") or ""))
+
+    genesis = next(
+        (
+            row
+            for row in chain_rows
+            if _to_text((row or {}).get("proof_type") or "").strip().lower() == "zero_ledger"
+            or _to_text(_as_dict((row or {}).get("state_data")).get("lifecycle_stage") or "").strip().upper() == "INITIAL"
+        ),
+        chain_rows[0],
+    )
+    genesis_id = _to_text(genesis.get("proof_id") or "").strip()
+    contract_qty = _resolve_contract_quantity_from_row(genesis)
+    if contract_qty <= 1e-12:
+        scoped_project_for_baseline = _to_text(latest.get("project_uri") or normalized_project).strip()
+        if scoped_project_for_baseline:
+            try:
+                status = get_boq_realtime_status(
+                    sb=sb,
+                    project_uri=scoped_project_for_baseline,
+                    limit=10000,
+                )
+                matched = next(
+                    (
+                        _as_dict(x)
+                        for x in _as_list(status.get("items"))
+                        if _to_text(_as_dict(x).get("boq_item_uri") or "").strip() == normalized_boq
+                    ),
+                    {},
+                )
+                contract_qty = (
+                    _to_float(matched.get("contract_quantity"))
+                    or _to_float(matched.get("approved_quantity"))
+                    or _to_float(matched.get("design_quantity"))
+                    or contract_qty
+                )
+                contract_qty = float(contract_qty or 0.0)
+            except Exception:
+                contract_qty = float(contract_qty or 0.0)
+
+    variation_sources: list[dict[str, Any]] = []
+    total_variation_delta = 0.0
+    for row in chain_rows:
+        if not isinstance(row, dict):
+            continue
+        sd = _as_dict(row.get("state_data"))
+        stage = _to_text(sd.get("lifecycle_stage") or sd.get("status") or "").strip().upper()
+        action = _to_text(sd.get("trip_action") or "").strip().lower()
+        if stage != "VARIATION" and action not in {"variation.record", "variation.delta.apply"}:
+            continue
+        delta = _variation_delta_from_row(row)
+        if abs(delta) <= 1e-12:
+            continue
+        total_variation_delta += float(delta)
+        ref = _variation_reference_from_row(row)
+        variation_sources.append(
+            {
+                "proof_id": _to_text(row.get("proof_id") or "").strip(),
+                "delta_quantity": round(float(delta), 6),
+                "reference_no": _to_text(ref.get("reference_no") or "").strip(),
+                "reference_date": _to_text(ref.get("reference_date") or "").strip(),
+                "reason": _to_text(ref.get("reason") or "").strip(),
+                "verified": _to_text(row.get("result") or "").strip().upper() == "PASS",
+                "created_at": _to_text(row.get("created_at") or "").strip(),
+            }
+        )
+    variation_sources.sort(key=lambda x: _to_text(x.get("created_at") or ""))
+
+    settlement_rows = [
+        row
+        for row in chain_rows
+        if _to_text(_as_dict((row or {}).get("state_data")).get("lifecycle_stage") or "").strip().upper() == "SETTLEMENT"
+        and _to_text((row or {}).get("result") or "").strip().upper() == "PASS"
+    ]
+    measured_qty = 0.0
+    if settlement_rows:
+        for row in settlement_rows:
+            measured_qty += _extract_settled_quantity(row, fallback_design=None)
+    if measured_qty <= 1e-12:
+        measured_qty = _extract_settled_quantity(chain_rows[-1], fallback_design=contract_qty)
+    if measured_qty <= 1e-12:
+        scoped_project_for_settled = _to_text(latest.get("project_uri") or normalized_project).strip()
+        if scoped_project_for_settled:
+            try:
+                status = get_boq_realtime_status(
+                    sb=sb,
+                    project_uri=scoped_project_for_settled,
+                    limit=10000,
+                )
+                matched = next(
+                    (
+                        _as_dict(x)
+                        for x in _as_list(status.get("items"))
+                        if _to_text(_as_dict(x).get("boq_item_uri") or "").strip() == normalized_boq
+                    ),
+                    {},
+                )
+                measured_qty = float(_to_float(matched.get("settled_quantity")) or measured_qty)
+            except Exception:
+                pass
+
+    delta_vs_contract = float(measured_qty - contract_qty)
+    unexplained_delta = float(delta_vs_contract - total_variation_delta)
+
+    item_no = _item_no_from_boq_uri(normalized_boq)
+    smu_id = _smu_id_from_item_no(item_no)
+    scoped_project = _to_text(latest.get("project_uri") or normalized_project).strip()
+    lineage_base = scoped_project.rstrip("/") if scoped_project.startswith("v://") else "v://lineage"
+    lineage_path: list[dict[str, Any]] = []
+    for idx, row in enumerate(chain_rows, start=1):
+        sd = _as_dict(row.get("state_data"))
+        stage = _to_text(sd.get("lifecycle_stage") or sd.get("status") or "").strip().upper()
+        proof_id = _to_text(row.get("proof_id") or "").strip()
+        lineage_path.append(
+            {
+                "index": idx,
+                "proof_id": proof_id,
+                "proof_hash": _to_text(row.get("proof_hash") or "").strip(),
+                "stage": stage or _to_text(row.get("proof_type") or "").strip().upper(),
+                "action": _to_text(sd.get("trip_action") or "").strip().lower(),
+                "result": _to_text(row.get("result") or "").strip().upper(),
+                "created_at": _to_text(row.get("created_at") or "").strip(),
+                "lineage_uri": f"{lineage_base}/lineage/{_safe_path_token(item_no or 'item', fallback='item')}/{idx:03d}",
+            }
+        )
+
+    highlighted = None
+    if variation_sources:
+        highlighted = max(variation_sources, key=lambda x: abs(float(x.get("delta_quantity") or 0.0)))
+
+    statement = (
+        f"本表实测量为 {_format_qty(measured_qty)}，合同量 {_format_qty(contract_qty)}，差异 {_format_qty(delta_vs_contract)}。"
+    )
+    if highlighted:
+        ref_no = _to_text(highlighted.get("reference_no") or "设计变更单").strip()
+        ref_date = _to_text(highlighted.get("reference_date") or "").strip()
+        ver = "已验真" if bool(highlighted.get("verified")) else "待复核"
+        statement += (
+            f" 其中 {_format_qty(float(highlighted.get('delta_quantity') or 0.0))} "
+            f"来自于 {ref_date or '-'} 的 {ref_no}（{ver}）。"
+        )
+
+    payload = {
+        "ok": True,
+        "project_uri": scoped_project,
+        "smu_id": smu_id,
+        "boq_item_uri": normalized_boq,
+        "item_no": item_no,
+        "latest_proof_id": _to_text(chain_rows[-1].get("proof_id") or "").strip(),
+        "genesis_utxo_id": genesis_id,
+        "contract_quantity": round(contract_qty, 6),
+        "measured_quantity": round(float(measured_qty), 6),
+        "delta_vs_contract": round(delta_vs_contract, 6),
+        "variation_total_delta": round(total_variation_delta, 6),
+        "unexplained_delta": round(unexplained_delta, 6),
+        "variation_sources": variation_sources,
+        "lineage_path": lineage_path,
+        "lineage_uri": f"{lineage_base}/lineage/{_safe_path_token(item_no or 'item', fallback='item')}/",
+        "statement": statement,
+    }
+    payload["lineage_proof_hash"] = _sha256_json(
+        {
+            "project_uri": payload["project_uri"],
+            "boq_item_uri": payload["boq_item_uri"],
+            "latest_proof_id": payload["latest_proof_id"],
+            "genesis_utxo_id": payload["genesis_utxo_id"],
+            "contract_quantity": payload["contract_quantity"],
+            "measured_quantity": payload["measured_quantity"],
+            "delta_vs_contract": payload["delta_vs_contract"],
+            "variation_sources": payload["variation_sources"],
+        }
+    )
+    return payload
 
 
 def _resolve_latest_boq_row(
@@ -2455,6 +2915,10 @@ def _validate_transition(action: str, input_row: dict[str, Any]) -> None:
 
     if action == "settlement.confirm" and stage not in {"INSTALLATION", "VARIATION"}:
         raise HTTPException(409, f"settlement.confirm expects INSTALLATION/VARIATION input, got {stage}")
+    if action == "dispute.resolve":
+        ptype = _to_text(input_row.get("proof_type") or "").strip().lower()
+        if ptype != "dispute":
+            raise HTTPException(409, f"dispute.resolve expects dispute input, got {ptype or '-'}")
 
 
 def execute_triprole_action(*, sb: Any, body: Any) -> dict[str, Any]:
@@ -2553,6 +3017,232 @@ def execute_triprole_action(*, sb: Any, body: Any) -> dict[str, Any]:
         raise HTTPException(404, "input proof_utxo not found")
     if not _is_leaf_boq_row(input_row):
         raise HTTPException(409, f"{action} is only allowed for leaf BOQ nodes")
+
+    if action == "scan.entry":
+        input_sd = _as_dict(input_row.get("state_data"))
+        project_uri = _to_text(input_row.get("project_uri") or "").strip()
+        project_id = input_row.get("project_id")
+        owner_uri = _to_text(input_row.get("owner_uri") or "").strip() or executor_uri
+        segment_uri = _resolve_segment_uri(input_row, payload, segment_uri_override)
+        boq_item_uri = _resolve_boq_item_uri(input_row, boq_item_uri_override)
+        required_credential = resolve_required_credential(
+            action=action,
+            boq_item_uri=boq_item_uri,
+            payload=payload,
+        )
+        did_gate = verify_credential(
+            sb=sb,
+            user_did=executor_did,
+            required_credential=required_credential,
+            project_uri=project_uri,
+            boq_item_uri=boq_item_uri,
+            payload_credentials=credentials_vc_raw,
+        )
+        if not bool(did_gate.get("ok")):
+            raise HTTPException(
+                403,
+                f"DID gate rejected: {did_gate.get('reason')}; required={did_gate.get('required_credential')}",
+            )
+        parent_hash = _to_text(input_row.get("proof_hash") or "").strip()
+        now_iso = _utc_iso()
+        anchor = _build_spatiotemporal_anchor(
+            action=action,
+            input_proof_id=input_proof_id,
+            executor_uri=executor_uri,
+            now_iso=now_iso,
+            geo_location_raw=body_geo_location_raw if body_geo_location_raw is not None else payload.get("geo_location"),
+            server_timestamp_raw=(
+                body_server_timestamp_raw if body_server_timestamp_raw is not None else payload.get("server_timestamp_proof")
+            ),
+        )
+        project_boundary = _resolve_project_boundary(
+            sb=sb,
+            project_id=project_id,
+            project_uri=project_uri,
+            override=payload.get("project_boundary") or payload.get("site_boundary"),
+        )
+        geo_compliance = check_location_compliance(
+            _as_dict(anchor.get("geo_location")),
+            project_boundary,
+        )
+        scan_status = _to_text(payload.get("status") or "ok").strip().lower()
+        scan_result = "PASS" if scan_status in {"ok", "pass", "success"} else "FAIL"
+        scan_entry = dict(payload)
+        if not scan_entry.get("scan_entry_at"):
+            scan_entry["scan_entry_at"] = now_iso
+        scan_entry["geo_compliance"] = geo_compliance
+        state_data = dict(input_sd)
+        state_data.update(
+            {
+                "trip_action": action,
+                "trip_executor": executor_uri,
+                "executor_did": executor_did,
+                "trip_executed_at": now_iso,
+                "lifecycle_stage": "SCAN_ENTRY",
+                "status": "SCAN_ENTRY",
+                "parent_proof_id": input_proof_id,
+                "parent_hash": parent_hash,
+                "boq_item_uri": boq_item_uri or _to_text(input_sd.get("boq_item_uri") or "").strip(),
+                "scan_entry": scan_entry,
+                "scan_entry_hash": _sha256_json(scan_entry),
+                "did_gate": did_gate,
+                "geo_location": anchor.get("geo_location"),
+                "server_timestamp_proof": anchor.get("server_timestamp_proof"),
+                "spatiotemporal_anchor_hash": anchor.get("spatiotemporal_anchor_hash"),
+                "geo_compliance": geo_compliance,
+                "geo_fence_warning": _to_text(geo_compliance.get("warning") or "").strip(),
+            }
+        )
+        proof_id_seed = hashlib.sha256(f"{input_proof_id}|scan.entry|{now_iso}".encode("utf-8")).hexdigest()[:16].upper()
+        proof_id = f"GP-SCAN-{proof_id_seed}"
+        created = engine.create(
+            proof_id=proof_id,
+            owner_uri=owner_uri,
+            project_id=project_id,
+            project_uri=project_uri,
+            segment_uri=segment_uri or boq_item_uri,
+            proof_type="scan_entry",
+            result=scan_result,
+            state_data=state_data,
+            conditions=_as_list(input_row.get("conditions")),
+            parent_proof_id=input_proof_id,
+            norm_uri="v://norm/CoordOS/ScanEntry/1.0",
+            signer_uri=_to_text(executor_uri).strip(),
+            signer_role=_to_text(executor_role).strip() or "TRIPROLE",
+        )
+        return {
+            "ok": True,
+            "action": action,
+            "input_proof_id": input_proof_id,
+            "output_proof_id": _to_text(created.get("proof_id") or "").strip(),
+            "proof_hash": _to_text(created.get("proof_hash") or "").strip(),
+            "proof_type": "scan_entry",
+            "result": scan_result,
+            "boq_item_uri": boq_item_uri,
+            "did_gate": did_gate,
+            "geo_compliance": geo_compliance,
+            "spatiotemporal_anchor_hash": _to_text(anchor.get("spatiotemporal_anchor_hash") or "").strip(),
+        }
+
+    if action in {"meshpeg.verify", "formula.price", "gateway.sync"}:
+        input_sd = _as_dict(input_row.get("state_data"))
+        project_uri = _to_text(input_row.get("project_uri") or "").strip()
+        project_id = input_row.get("project_id")
+        owner_uri = _to_text(input_row.get("owner_uri") or "").strip() or executor_uri
+        segment_uri = _resolve_segment_uri(input_row, payload, segment_uri_override)
+        boq_item_uri = _resolve_boq_item_uri(input_row, boq_item_uri_override)
+        required_credential = resolve_required_credential(
+            action=action,
+            boq_item_uri=boq_item_uri,
+            payload=payload,
+        )
+        did_gate = verify_credential(
+            sb=sb,
+            user_did=executor_did,
+            required_credential=required_credential,
+            project_uri=project_uri,
+            boq_item_uri=boq_item_uri,
+            payload_credentials=credentials_vc_raw,
+        )
+        if not bool(did_gate.get("ok")):
+            raise HTTPException(
+                403,
+                f"DID gate rejected: {did_gate.get('reason')}; required={did_gate.get('required_credential')}",
+            )
+        parent_hash = _to_text(input_row.get("proof_hash") or "").strip()
+        now_iso = _utc_iso()
+        anchor = _build_spatiotemporal_anchor(
+            action=action,
+            input_proof_id=input_proof_id,
+            executor_uri=executor_uri,
+            now_iso=now_iso,
+            geo_location_raw=body_geo_location_raw if body_geo_location_raw is not None else payload.get("geo_location"),
+            server_timestamp_raw=(
+                body_server_timestamp_raw if body_server_timestamp_raw is not None else payload.get("server_timestamp_proof")
+            ),
+        )
+        project_boundary = _resolve_project_boundary(
+            sb=sb,
+            project_id=project_id,
+            project_uri=project_uri,
+            override=payload.get("project_boundary") or payload.get("site_boundary"),
+        )
+        geo_compliance = check_location_compliance(
+            _as_dict(anchor.get("geo_location")),
+            project_boundary,
+        )
+        status = _to_text(payload.get("status") or payload.get("result") or "PASS").strip().upper()
+        result = "PASS" if status in {"PASS", "OK", "SUCCESS"} else "FAIL"
+        if action == "meshpeg.verify":
+            lifecycle = "MESHPEG"
+            proof_type = "meshpeg"
+            norm_uri = "v://norm/CoordOS/MeshPeg/1.0"
+            record_key = "meshpeg"
+        elif action == "formula.price":
+            lifecycle = "PRICING"
+            proof_type = "railpact"
+            norm_uri = "v://norm/CoordOS/FormulaPeg/1.0"
+            record_key = "railpact"
+        else:
+            lifecycle = "GATEWAY_SYNC"
+            proof_type = "gateway_sync"
+            norm_uri = "v://norm/CoordOS/Gateway/1.0"
+            record_key = "gateway_sync"
+
+        record = dict(payload)
+        record.setdefault("created_at", now_iso)
+        state_data = dict(input_sd)
+        state_data.update(
+            {
+                "trip_action": action,
+                "trip_executor": executor_uri,
+                "executor_did": executor_did,
+                "trip_executed_at": now_iso,
+                "lifecycle_stage": lifecycle,
+                "status": lifecycle,
+                "parent_proof_id": input_proof_id,
+                "parent_hash": parent_hash,
+                "boq_item_uri": boq_item_uri or _to_text(input_sd.get("boq_item_uri") or "").strip(),
+                record_key: record,
+                f"{record_key}_hash": _sha256_json(record),
+                "did_gate": did_gate,
+                "geo_location": anchor.get("geo_location"),
+                "server_timestamp_proof": anchor.get("server_timestamp_proof"),
+                "spatiotemporal_anchor_hash": anchor.get("spatiotemporal_anchor_hash"),
+                "geo_compliance": geo_compliance,
+                "geo_fence_warning": _to_text(geo_compliance.get("warning") or "").strip(),
+            }
+        )
+        proof_id_seed = hashlib.sha256(f"{input_proof_id}|{action}|{now_iso}".encode("utf-8")).hexdigest()[:16].upper()
+        proof_id = f"GP-{record_key.upper()}-{proof_id_seed}"
+        created = engine.create(
+            proof_id=proof_id,
+            owner_uri=owner_uri,
+            project_id=project_id,
+            project_uri=project_uri,
+            segment_uri=segment_uri or boq_item_uri,
+            proof_type=proof_type,
+            result=result,
+            state_data=state_data,
+            conditions=_as_list(input_row.get("conditions")),
+            parent_proof_id=input_proof_id,
+            norm_uri=norm_uri,
+            signer_uri=_to_text(executor_uri).strip(),
+            signer_role=_to_text(executor_role).strip() or "TRIPROLE",
+        )
+        return {
+            "ok": True,
+            "action": action,
+            "input_proof_id": input_proof_id,
+            "output_proof_id": _to_text(created.get("proof_id") or "").strip(),
+            "proof_hash": _to_text(created.get("proof_hash") or "").strip(),
+            "proof_type": proof_type,
+            "result": result,
+            "boq_item_uri": boq_item_uri,
+            "did_gate": did_gate,
+            "geo_compliance": geo_compliance,
+            "spatiotemporal_anchor_hash": _to_text(anchor.get("spatiotemporal_anchor_hash") or "").strip(),
+        }
 
     _validate_transition(action, input_row)
 
@@ -2871,9 +3561,43 @@ def execute_triprole_action(*, sb: Any, body: Any) -> dict[str, Any]:
                 }
             )
 
+    elif action == "dispute.resolve":
+        next_proof_type = "dispute_resolution"
+        next_result = _normalize_result(override_result or _to_text(payload.get("result") or "PASS"))
+        resolution_payload = dict(payload)
+        resolution_payload["resolved_at"] = now_iso
+        next_state.update(
+            {
+                "lifecycle_stage": "DISPUTE_RESOLUTION",
+                "status": "RESOLVED" if next_result == "PASS" else "REJECTED",
+                "resolution": resolution_payload,
+                "resolution_hash": _sha256_json(resolution_payload),
+            }
+        )
+
     elif action == "settlement.confirm":
         next_proof_type = "payment"
         tx_type = "settle"
+
+        # Block if any unresolved dispute exists.
+        try:
+            open_dispute = (
+                sb.table("proof_utxo")
+                .select("proof_id")
+                .eq("segment_uri", boq_item_uri)
+                .eq("proof_type", "dispute")
+                .eq("spent", False)
+                .limit(1)
+                .execute()
+                .data
+                or []
+            )
+            if open_dispute:
+                raise HTTPException(409, f"consensus_dispute_open: {open_dispute[0].get('proof_id')}")
+        except HTTPException:
+            raise
+        except Exception:
+            pass
 
         agg_before = aggregate_provenance_chain(input_proof_id, sb)
         gate = _as_dict(agg_before.get("gate"))
@@ -2926,12 +3650,34 @@ def execute_triprole_action(*, sb: Any, body: Any) -> dict[str, Any]:
                 f"biometric_verification_incomplete; missing={missing or '-'}; failed={failed or '-'}",
             )
 
+        conflict = detect_consensus_deviation(
+            signer_metadata_raw=signer_metadata_raw,
+            payload=payload,
+            input_sd=input_sd,
+        )
+        if conflict.get("conflict"):
+            dispute = _create_consensus_dispute(
+                sb=sb,
+                input_row=input_row,
+                project_uri=project_uri,
+                boq_item_uri=boq_item_uri,
+                executor_uri=executor_uri,
+                conflict=conflict,
+                consensus_signatures=consensus_signatures,
+                signer_metadata=normalized_signer_metadata,
+            )
+            dispute_id = _to_text(dispute.get("proof_id") or "").strip()
+            raise HTTPException(
+                409,
+                f"consensus_conflict_detected; dispute_proof_id={dispute_id or '-'}",
+            )
+
         artifact_seed = hashlib.sha256(f"{input_proof_id}|{now_iso}|{project_uri}".encode("utf-8")).hexdigest()[:16]
         artifact_uri = _to_text(payload.get("artifact_uri") or "").strip()
         if not artifact_uri:
             base = project_uri.rstrip("/") if project_uri else "v://project"
-            anchor = _safe_path_token(boq_item_uri or segment_uri or "settlement", fallback="settlement")
-            artifact_uri = f"{base}/artifact/{anchor}/{artifact_seed}"
+            artifact_token = _safe_path_token(boq_item_uri or segment_uri or "settlement", fallback="settlement")
+            artifact_uri = f"{base}/artifact/{artifact_token}/{artifact_seed}"
 
         next_state.update(
             {
@@ -3411,6 +4157,182 @@ def scan_to_confirm_signature(
     }
 
 
+def _compute_docfinal_risk_audit(
+    *,
+    sb: Any,
+    project_uri: str,
+    boq_item_uri: str,
+    chain_rows: list[dict[str, Any]],
+) -> dict[str, Any]:
+    total = len(chain_rows)
+    issues: list[dict[str, Any]] = []
+    did_reputation: dict[str, Any] = {}
+
+    dual_gate: dict[str, Any] = {}
+    try:
+        dual_gate = resolve_dual_pass_gate(
+            sb=sb,
+            project_uri=project_uri,
+            boq_item_uri=boq_item_uri,
+            rows=chain_rows,
+        )
+    except Exception as exc:
+        dual_gate = {"ok": False, "error": f"{exc.__class__.__name__}: {exc}"}
+    if not bool(dual_gate.get("ok")):
+        issues.append({"severity": "high", "issue": "dual_pass_gate_missing"})
+
+    by_id: dict[str, dict[str, Any]] = {}
+    for row in chain_rows:
+        pid = _to_text(row.get("proof_id") or "").strip()
+        if pid:
+            by_id[pid] = row
+
+    stage_rank = {
+        "INITIAL": 0,
+        "GENESIS": 0,
+        "ENTRY": 1,
+        "INSPECTION": 1,
+        "INSTALLATION": 2,
+        "VARIATION": 2,
+        "SETTLEMENT": 3,
+    }
+    max_seen_rank = -1
+    stage_conflicts = 0
+    for row in chain_rows:
+        sd = _as_dict(row.get("state_data"))
+        stage = _to_text(sd.get("lifecycle_stage") or sd.get("status") or "").strip().upper()
+        rank = stage_rank.get(stage, None)
+        if rank is None:
+            continue
+        if rank < max_seen_rank:
+            stage_conflicts += 1
+            issues.append(
+                {
+                    "severity": "medium",
+                    "issue": "stage_order_conflict",
+                    "proof_id": _to_text(row.get("proof_id") or "").strip(),
+                    "stage": stage,
+                    "max_seen_stage_rank": max_seen_rank,
+                }
+            )
+        max_seen_rank = max(max_seen_rank, rank)
+
+    timestamp_conflicts = 0
+    for row in chain_rows:
+        parent_id = _to_text(row.get("parent_proof_id") or "").strip()
+        if not parent_id:
+            continue
+        parent = by_id.get(parent_id)
+        if not parent:
+            continue
+        child_ms = _parse_iso_epoch_ms(row.get("created_at"))
+        parent_ms = _parse_iso_epoch_ms(parent.get("created_at"))
+        if child_ms is None or parent_ms is None:
+            continue
+        if child_ms < parent_ms:
+            timestamp_conflicts += 1
+            issues.append(
+                {
+                    "severity": "medium",
+                    "issue": "timestamp_conflict",
+                    "proof_id": _to_text(row.get("proof_id") or "").strip(),
+                    "parent_proof_id": parent_id,
+                }
+            )
+
+    geo_outside = 0
+    missing_geo = 0
+    missing_ntp = 0
+    for row in chain_rows:
+        sd = _as_dict(row.get("state_data"))
+        geo = _as_dict(sd.get("geo_compliance"))
+        trust = _to_text(geo.get("trust_level") or sd.get("trust_level") or "").strip().upper()
+        if trust in {"LOW", "OUTSIDE"}:
+            geo_outside += 1
+            issues.append(
+                {
+                    "severity": "medium",
+                    "issue": "geo_outside_boundary",
+                    "proof_id": _to_text(row.get("proof_id") or "").strip(),
+                    "trust_level": trust,
+                }
+            )
+        geo_loc = _as_dict(sd.get("geo_location"))
+        if not geo_loc or _to_float(geo_loc.get("lat")) is None or _to_float(geo_loc.get("lng")) is None:
+            missing_geo += 1
+            issues.append(
+                {
+                    "severity": "medium",
+                    "issue": "missing_geo_location",
+                    "proof_id": _to_text(row.get("proof_id") or "").strip(),
+                }
+            )
+        ntp = _as_dict(sd.get("server_timestamp_proof"))
+        if not ntp or not _to_text(ntp.get("ntp_server") or ntp.get("proof_hash") or "").strip():
+            missing_ntp += 1
+            issues.append(
+                {
+                    "severity": "medium",
+                    "issue": "missing_ntp_proof",
+                    "proof_id": _to_text(row.get("proof_id") or "").strip(),
+                }
+            )
+
+    risk_score = 100.0
+    if not bool(dual_gate.get("ok")):
+        risk_score -= 40.0
+    if timestamp_conflicts > 0:
+        risk_score -= min(30.0, 30.0 * (timestamp_conflicts / max(1, total)))
+    if stage_conflicts > 0:
+        risk_score -= min(20.0, 20.0 * (stage_conflicts / max(1, total)))
+    if missing_geo > 0:
+        risk_score -= min(20.0, 20.0 * (missing_geo / max(1, total)))
+    if missing_ntp > 0:
+        risk_score -= min(20.0, 20.0 * (missing_ntp / max(1, total)))
+    if geo_outside > 0:
+        risk_score -= min(30.0, 30.0 * (geo_outside / max(1, total)))
+    try:
+        did_reputation = build_did_reputation_summary(
+            sb=sb,
+            project_uri=project_uri,
+            chain_rows=chain_rows,
+            window_days=90,
+        )
+    except Exception:
+        did_reputation = {}
+    if _as_dict(did_reputation).get("available"):
+        rep_penalty = _to_float(_as_dict(did_reputation).get("risk_penalty")) or 0.0
+        if rep_penalty > 0:
+            risk_score -= min(25.0, rep_penalty)
+        for item in _as_list(did_reputation.get("high_risk_dids")):
+            r = _as_dict(item)
+            issues.append(
+                {
+                    "severity": "medium",
+                    "issue": "did_reputation_low",
+                    "participant_did": _to_text(r.get("participant_did") or "").strip(),
+                    "identity_uri": _to_text(r.get("identity_uri") or "").strip(),
+                    "score": _to_float(r.get("score")),
+                }
+            )
+    risk_score = max(0.0, min(100.0, round(risk_score, 2)))
+
+    return {
+        "ok": True,
+        "total": total,
+        "risk_score": risk_score,
+        "timestamp_conflicts": timestamp_conflicts,
+        "stage_conflicts": stage_conflicts,
+        "geo_outside_count": geo_outside,
+        "missing_geo": missing_geo,
+        "missing_ntp": missing_ntp,
+        "dual_gate": dual_gate,
+        "did_reputation": did_reputation,
+        "sampling_multiplier": _to_float(_as_dict(did_reputation).get("sampling_multiplier")) or 1.0,
+        "issues": issues[:500],
+    }
+
+
 def build_docfinal_package_for_boq(
     *,
     boq_item_uri: str,
@@ -3469,6 +4391,20 @@ def build_docfinal_package_for_boq(
     )
     context["timeline_rows"] = _as_list(context.get("timeline"))
     context["record_rows"] = _as_list(context.get("records"))
+
+    risk_audit = _compute_docfinal_risk_audit(
+        sb=sb,
+        project_uri=_to_text(meta.get("project_uri") or latest.get("project_uri") or "").strip(),
+        boq_item_uri=normalized_uri,
+        chain_rows=chain,
+    )
+    if risk_audit:
+        risk_audit["total_proof_hash"] = _to_text(
+            context.get("total_proof_hash") or context.get("chain_root_hash") or ""
+        ).strip()
+        context["risk_audit"] = risk_audit
+        context["risk_score"] = risk_audit.get("risk_score")
+        context["risk_issue_count"] = len(risk_audit.get("issues") or [])
 
     status_snapshot = get_boq_realtime_status(
         sb=sb,
@@ -3557,6 +4493,7 @@ def build_docfinal_package_for_boq(
         context["biometric_signer_count"] = len(signer_list)
 
     lineage_snapshot: dict[str, Any] | None = None
+    asset_origin: dict[str, Any] | None = None
     latest_proof_id = _to_text(latest.get("proof_id") or "").strip()
     if latest_proof_id:
         try:
@@ -3566,6 +4503,30 @@ def build_docfinal_package_for_boq(
             context["lineage_evidence_hash_count"] = len(_as_list(lineage_snapshot.get("evidence_hashes")))
         except Exception:
             lineage_snapshot = None
+        try:
+            asset_origin = trace_asset_origin(
+                sb=sb,
+                utxo_id=latest_proof_id,
+                boq_item_uri=normalized_uri,
+                project_uri=_to_text(meta.get("project_uri") or latest.get("project_uri") or "").strip(),
+            )
+            context["asset_origin"] = asset_origin
+            context["asset_origin_statement"] = _to_text(asset_origin.get("statement") or "").strip()
+        except Exception:
+            asset_origin = None
+
+    total_proof_hash = _to_text(context.get("total_proof_hash") or context.get("chain_root_hash") or "").strip()
+    if total_proof_hash:
+        sealing_trip = build_sealing_trip(
+            total_proof_hash=total_proof_hash,
+            project_uri=_to_text(meta.get("project_uri") or latest.get("project_uri") or "").strip(),
+            boq_item_uri=normalized_uri,
+            smu_id=_smu_id_from_item_no(_to_text(latest_sd.get("item_no") or _item_no_from_boq_uri(normalized_uri)).strip()),
+        )
+        context["sealing_trip"] = sealing_trip
+        context["sealing_pattern_id"] = _to_text(sealing_trip.get("pattern_id") or "").strip()
+        context["sealing_margin_microtext"] = _as_list(sealing_trip.get("margin_microtext"))
+        context["sealing_scan_hint"] = _to_text(sealing_trip.get("scan_hint") or "").strip()
 
     transfer_receipt: dict[str, Any] | None = None
     if apply_asset_transfer:
@@ -3617,12 +4578,21 @@ def build_docfinal_package_for_boq(
 
     docx_bytes = render_rebar_inspection_docx(template_path=resolved_template, context=context)
     pdf_bytes = render_rebar_inspection_pdf(docx_bytes=docx_bytes, context=context)
+    evidence_items = None
+    try:
+        evidence_payload = get_all_evidence_for_item(sb=sb, boq_item_uri=normalized_uri)
+        if isinstance(evidence_payload, dict) and isinstance(evidence_payload.get("evidence"), list):
+            evidence_items = evidence_payload.get("evidence")
+            context["evidence_count"] = len(evidence_items)
+            context["evidence_source"] = "boq_chain"
+    except Exception:
+        evidence_items = None
     zip_bytes = build_dsp_zip_package(
         report_pdf_bytes=pdf_bytes,
         docx_bytes=docx_bytes,
         proof_chain=chain,
         context=context,
-        evidence_items=None,
+        evidence_items=evidence_items,
     )
 
     file_base = re.sub(r"[^\w\-]+", "_", normalized_uri, flags=re.ASCII)[:120] or "docfinal"
@@ -3637,6 +4607,7 @@ def build_docfinal_package_for_boq(
         "filename_base": file_base,
         "asset_transfer": transfer_receipt,
         "full_lineage": lineage_snapshot,
+        "asset_origin": asset_origin,
     }
 
 
@@ -3679,6 +4650,7 @@ def get_boq_realtime_status(
     total_design = 0.0
     total_settled = 0.0
     total_consumed = 0.0
+    total_approved = 0.0
 
     for boq_item_uri, bucket in grouped.items():
         bucket.sort(key=lambda r: _to_text(r.get("created_at") or ""))
@@ -3703,6 +4675,19 @@ def get_boq_realtime_status(
         gsd = _as_dict(genesis.get("state_data"))
         design_qty = float(_effective_design_quantity(genesis, bucket))
         total_design += design_qty
+        unit_price = _to_float(gsd.get("unit_price"))
+        contract_qty = _to_float(gsd.get("contract_quantity"))
+        if contract_qty is None:
+            contract_qty = _to_float(gsd.get("approved_quantity"))
+        approved_qty = _to_float(gsd.get("approved_quantity"))
+        if approved_qty is not None:
+            total_approved += approved_qty
+        design_total = _to_float(gsd.get("design_total"))
+        if design_total is None and unit_price is not None:
+            design_total = float(unit_price) * float(_to_float(gsd.get("design_quantity")) or 0.0)
+        contract_total = _to_float(gsd.get("contract_total"))
+        if contract_total is None and unit_price is not None:
+            contract_total = float(unit_price) * float(contract_qty or 0.0)
 
         settled_qty = 0.0
         if settlement_rows:
@@ -3738,23 +4723,33 @@ def get_boq_realtime_status(
                 sign_ready = False
                 sign_block_reason = f"gate_check_failed:{exc.__class__.__name__}"
 
+        baseline_qty = approved_qty if (approved_qty is not None and approved_qty > 0) else (contract_qty or design_qty)
         progress = 0.0
-        if design_qty > 1e-9:
-            progress = max(0.0, min(1.0, settled_qty / design_qty))
+        if baseline_qty > 1e-9:
+            progress = max(0.0, min(1.0, settled_qty / baseline_qty))
 
         item_no = _item_no_from_boq_uri(boq_item_uri)
+        unit_price_val = round(unit_price or 0.0, 4)
+        design_total_val = round(design_total or 0.0, 4)
+        contract_total_val = round(contract_total or 0.0, 4)
+        contract_qty_val = contract_qty if contract_qty is not None else (approved_qty or 0.0)
         items.append(
             {
                 "boq_item_uri": boq_item_uri,
                 "item_no": item_no,
                 "item_name": _to_text(gsd.get("item_name") or ""),
                 "unit": _to_text(gsd.get("unit") or ""),
-                "design_quantity": design_qty,
-                "approved_quantity": _to_float(gsd.get("approved_quantity")),
-                "unit_price": _to_float(gsd.get("unit_price")),
-                "settled_quantity": round(settled_qty, 6),
-                "consumed_quantity": round(consumed_qty, 6),
-                "remaining_quantity": round(max(0.0, design_qty - settled_qty), 6),
+                "design_quantity": round(design_qty, 4),
+                "approved_quantity": round(approved_qty or 0.0, 4),
+                "contract_quantity": round(contract_qty_val, 4),
+                "unit_price": unit_price_val,
+                "design_total": design_total_val,
+                "contract_total": contract_total_val,
+                "settled_quantity": round(settled_qty, 4),
+                "consumed_quantity": round(consumed_qty, 4),
+                "remaining_quantity": round(max(0.0, design_qty - settled_qty), 4),
+                "consumption_rate": round(progress, 6),
+                "consumption_percent": round(progress * 100.0, 2),
                 "progress_percent": round(progress * 100.0, 2),
                 "settlement_count": len(settlement_rows),
                 "latest_settlement_proof_id": latest_settlement_id,
@@ -3775,8 +4770,9 @@ def get_boq_realtime_status(
     items.sort(key=_sort_key)
 
     project_progress = 0.0
-    if total_design > 1e-9:
-        project_progress = max(0.0, min(1.0, total_settled / total_design))
+    baseline_total = total_approved if total_approved > 1e-9 else total_design
+    if baseline_total > 1e-9:
+        project_progress = max(0.0, min(1.0, total_settled / baseline_total))
 
     return {
         "ok": True,
@@ -3784,6 +4780,7 @@ def get_boq_realtime_status(
         "summary": {
             "boq_item_count": len(items),
             "design_total": round(total_design, 6),
+            "approved_total": round(total_approved, 6),
             "settled_total": round(total_settled, 6),
             "consumed_total": round(total_consumed, 6),
             "progress_percent": round(project_progress * 100.0, 2),
@@ -4113,8 +5110,8 @@ def export_doc_final(
             if not boq_item_uri:
                 continue
             item_no = _to_text(item.get("item_no") or _item_no_from_boq_uri(boq_item_uri) or "unknown").strip()
-            chapter = item_no.split("-")[0] if item_no else "misc"
-            base_dir = f"400章/{chapter}/{item_no}"
+            smu_id = _smu_id_from_item_no(item_no)
+            base_dir = f"smu_archive/{smu_id}/{item_no or 'unknown'}"
             try:
                 package = build_docfinal_package_for_boq(
                     boq_item_uri=boq_item_uri,
@@ -4149,6 +5146,7 @@ def export_doc_final(
                     {
                         "boq_item_uri": boq_item_uri,
                         "item_no": item_no,
+                        "smu_id": smu_id,
                         "base_dir": base_dir,
                         "latest_settlement_proof_id": _to_text(item.get("latest_settlement_proof_id") or ""),
                         "file_count": item_file_count,
@@ -4192,17 +5190,21 @@ def export_doc_final(
 
         archive_volumes: list[dict[str, Any]] = []
         page_cursor = 1
-        by_chapter: dict[str, list[dict[str, Any]]] = {}
+        by_smu: dict[str, list[dict[str, Any]]] = {}
         for item in exported_items:
-            ino = _to_text(item.get("item_no") or "").strip()
-            chapter = ino.split("-")[0] if "-" in ino else (ino or "misc")
-            by_chapter.setdefault(chapter, []).append(item)
+            smu_id = _to_text(item.get("smu_id") or "").strip() or _smu_id_from_item_no(
+                _to_text(item.get("item_no") or "").strip()
+            )
+            by_smu.setdefault(smu_id, []).append(item)
         volume_no = 1
-        for chapter in sorted(by_chapter.keys()):
-            chapter_items = by_chapter.get(chapter) or []
+        for smu_id in sorted(by_smu.keys()):
+            smu_items = sorted(
+                by_smu.get(smu_id) or [],
+                key=lambda row: _to_text(_as_dict(row).get("item_no") or "").strip(),
+            )
             est_pages = 0
             entries: list[dict[str, Any]] = []
-            for item in chapter_items:
+            for item in smu_items:
                 item_pages = max(1, int(item.get("file_count") or 1) * 2)
                 start_page = page_cursor
                 end_page = page_cursor + item_pages - 1
@@ -4212,6 +5214,7 @@ def export_doc_final(
                     {
                         "item_no": _to_text(item.get("item_no") or "").strip(),
                         "boq_item_uri": _to_text(item.get("boq_item_uri") or "").strip(),
+                        "smu_id": smu_id,
                         "start_page": start_page,
                         "end_page": end_page,
                     }
@@ -4219,8 +5222,10 @@ def export_doc_final(
             archive_volumes.append(
                 {
                     "volume_no": volume_no,
-                    "title": f"JTG Archive Volume {volume_no} (Chapter {chapter})",
-                    "chapter": chapter,
+                    "title": f"JTG Archive Volume {volume_no} (SMU {smu_id})",
+                    "smu_id": smu_id,
+                    "chapter": smu_id,
+                    "archive_scope": "smu",
                     "estimated_pages": est_pages,
                     "entries": entries,
                 }
@@ -4255,6 +5260,24 @@ def export_doc_final(
             master_zip.writestr(
                 f"jtg_archive/volume_{int(vol.get('volume_no') or 0):02d}_cover.txt",
                 cover,
+            )
+            toc_lines = [
+                "SMU Archive Catalog",
+                f"SMU ID: {_to_text(vol.get('smu_id') or '').strip()}",
+                f"Volume No: {int(vol.get('volume_no') or 0)}",
+                f"Estimated Pages: {int(vol.get('estimated_pages') or 0)}",
+                "",
+                "Entries:",
+            ]
+            for entry in _as_list(vol.get("entries")):
+                toc_lines.append(
+                    f"- {_to_text(_as_dict(entry).get('item_no') or '').strip()}: "
+                    f"p.{int(_as_dict(entry).get('start_page') or 0)}-"
+                    f"{int(_as_dict(entry).get('end_page') or 0)}"
+                )
+            master_zip.writestr(
+                f"jtg_archive/volume_{int(vol.get('volume_no') or 0):02d}_toc.txt",
+                "\n".join(toc_lines),
             )
 
     master_bytes = master_buf.getvalue()

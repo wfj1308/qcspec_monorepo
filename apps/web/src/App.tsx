@@ -492,6 +492,33 @@ export default function App() {
     if (typeFilter && p.type !== typeFilter) return false
     return true
   })
+  const currentDtoRole = String(user?.dto_role || 'PUBLIC').toUpperCase()
+  const globalAllowedNavKeys = currentDtoRole === 'AI'
+    ? ['dashboard', 'inspection', 'photos', 'projects']
+    : currentDtoRole === 'SUPERVISOR'
+      ? ['dashboard', 'proof', 'reports', 'projects']
+      : currentDtoRole === 'OWNER'
+        ? ['dashboard', 'proof', 'reports', 'projects', 'team', 'settings']
+        : ['dashboard', 'proof', 'reports', 'projects']
+  const roleAwareNavItems = NAV.filter((item) => globalAllowedNavKeys.includes(item.key))
+  const roleAwareNavSections = NAV_SECTIONS
+    .map((section) => ({ ...section, keys: section.keys.filter((key) => globalAllowedNavKeys.includes(key)) }))
+    .filter((section) => section.keys.length > 0)
+
+  useEffect(() => {
+    const match = (window.location.pathname || '').match(/^\/project\/([^/]+)\/(contractor|supervisor|auditor)\/workbench\/?$/)
+    if (!match) return
+    const projectId = decodeURIComponent(match[1] || '')
+    if (!projectId) return
+    if (projectDetailOpen && detailProject?.id === projectId) return
+    if (!projects.some((item) => item.id === projectId)) return
+    void openProjectDetail(projectId, false)
+  }, [detailProject?.id, openProjectDetail, projectDetailOpen, projects])
+
+  useEffect(() => {
+    if (roleAwareNavItems.some((item) => item.key === activeTab)) return
+    if (roleAwareNavItems[0]?.key) setActiveTab(roleAwareNavItems[0].key)
+  }, [activeTab, roleAwareNavItems, setActiveTab])
 
   useEffect(() => {
     if (!projectDetailOpen || !detailProject?.id || !detailProject?.v_uri) return
@@ -1408,8 +1435,8 @@ export default function App() {
       <AppShellLayout
         sidebarOpen={sidebarOpen}
         activeTab={activeTab}
-        navItems={NAV}
-        navSections={NAV_SECTIONS}
+        navItems={roleAwareNavItems}
+        navSections={roleAwareNavSections}
         projects={projects}
         currentProjectId={proj.id}
         currentUserName={user?.name || DEMO_USER.name}

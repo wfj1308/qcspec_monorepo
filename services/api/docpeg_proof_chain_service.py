@@ -10,6 +10,7 @@ import hashlib
 import io
 import json
 import mimetypes
+import os
 from pathlib import Path
 import re
 from typing import Any
@@ -38,6 +39,12 @@ def _as_dict(value: Any) -> dict[str, Any]:
     if isinstance(value, dict):
         return value
     return {}
+
+
+def _as_list(value: Any) -> list[Any]:
+    if isinstance(value, list):
+        return value
+    return []
 
 
 def _to_float(value: Any) -> float | None:
@@ -451,10 +458,63 @@ def render_rebar_inspection_docx(
     tpl.save(buf)
     rendered = buf.getvalue()
     hierarchy_rows = render_ctx.get("hierarchy_summary_rows")
-    if not isinstance(hierarchy_rows, list) or not hierarchy_rows:
+    has_hierarchy = isinstance(hierarchy_rows, list) and bool(hierarchy_rows)
+    evidence_count = render_ctx.get("evidence_count")
+    evidence_source = _to_text(render_ctx.get("evidence_source") or "").strip()
+    total_proof_hash = _to_text(render_ctx.get("total_proof_hash") or "").strip()
+    risk_score = _to_text(render_ctx.get("risk_score") or "").strip()
+    risk_issue_count = _to_text(render_ctx.get("risk_issue_count") or "").strip()
+    asset_origin_statement = _to_text(render_ctx.get("asset_origin_statement") or "").strip()
+    sealing_trip = _as_dict(render_ctx.get("sealing_trip"))
+    sealing_pattern_id = _to_text(sealing_trip.get("pattern_id") or "").strip()
+    sealing_symmetry = _to_text(sealing_trip.get("symmetry") or "").strip()
+    sealing_scan_hint = _to_text(sealing_trip.get("scan_hint") or "").strip()
+    has_evidence_summary = bool(
+        evidence_count is not None
+        or evidence_source
+        or total_proof_hash
+        or risk_score
+        or risk_issue_count
+        or asset_origin_statement
+        or sealing_pattern_id
+    )
+    if not has_hierarchy and not has_evidence_summary:
         return rendered
     try:
         doc = Document(io.BytesIO(rendered))
+        if has_evidence_summary:
+            doc.add_paragraph("证据链摘要")
+            if evidence_count is not None:
+                doc.add_paragraph(f"证据数量: {evidence_count}")
+            if evidence_source:
+                doc.add_paragraph(f"证据来源: {evidence_source}")
+            if total_proof_hash:
+                doc.add_paragraph(f"Total Proof Hash: {total_proof_hash}")
+            if risk_score:
+                doc.add_paragraph(f"风险分值: {risk_score}")
+            if risk_issue_count:
+                doc.add_paragraph(f"风险项数量: {risk_issue_count}")
+            if asset_origin_statement:
+                doc.add_paragraph(f"量值来源说明: {asset_origin_statement}")
+            if sealing_pattern_id:
+                doc.add_paragraph("主权防伪底纹")
+                doc.add_paragraph(f"Pattern ID: {sealing_pattern_id}")
+                if sealing_symmetry:
+                    doc.add_paragraph(f"对称策略: {sealing_symmetry}")
+                if sealing_scan_hint:
+                    doc.add_paragraph(f"验真码: {sealing_scan_hint}")
+        verify_uri = _to_text(render_ctx.get("verify_uri") or "").strip()
+        scan_confirm_uri = _to_text(render_ctx.get("scan_confirm_uri") or "").strip()
+        if verify_uri or scan_confirm_uri:
+            doc.add_paragraph("验真摘要")
+            if verify_uri:
+                doc.add_paragraph(f"验真链接: {verify_uri}")
+            if scan_confirm_uri:
+                doc.add_paragraph(f"复核链接: {scan_confirm_uri}")
+        if not has_hierarchy:
+            out = io.BytesIO()
+            doc.save(out)
+            return out.getvalue()
         doc.add_paragraph("分部分项汇总（章/节/目/细目）")
         table = doc.add_table(rows=1, cols=6)
         head = table.rows[0].cells
@@ -499,6 +559,8 @@ def render_rebar_inspection_pdf(*, docx_bytes: bytes, context: dict[str, Any]) -
         f"Proof Chain Count: {_to_text(context.get('chain_count') or 0)}",
         f"Chain Root Hash: {_to_text(context.get('chain_root_hash') or '-')}",
         f"Total Proof Hash: {_to_text(context.get('total_proof_hash') or context.get('chain_root_hash') or '-')}",
+        f"Evidence Count: {_to_text(context.get('evidence_count') or '-')}",
+        f"Evidence Source: {_to_text(context.get('evidence_source') or '-')}",
         f"Artifact URI: {_to_text(context.get('artifact_uri') or '-')}",
         f"GitPeg Anchor: {_to_text(context.get('gitpeg_anchor') or '-')}",
         f"Verify URI: {_to_text(context.get('verify_uri') or '-')}",
@@ -514,6 +576,14 @@ def render_rebar_inspection_pdf(*, docx_bytes: bytes, context: dict[str, Any]) -
         f"Sensor Calibration Valid: {_to_text(context.get('sensor_calibration_valid') or '-')}",
         f"Biometric OK: {_to_text(context.get('biometric_ok') or '-')}",
         f"Biometric Verified/Required: {_to_text(context.get('biometric_verified_count') or '-')}/{_to_text(context.get('biometric_required_count') or '-')}",
+        f"Risk Score: {_to_text(context.get('risk_score') or '-')}",
+        f"Risk Issue Count: {_to_text(context.get('risk_issue_count') or '-')}",
+        f"DID Reputation Score: {_to_text(_as_dict(_as_dict(context.get('risk_audit')).get('did_reputation')).get('aggregate_score') or '-')}",
+        f"DID Sampling Multiplier: {_to_text(_as_dict(_as_dict(context.get('risk_audit')).get('did_reputation')).get('sampling_multiplier') or '-')}",
+        f"Asset Origin: {_to_text(context.get('asset_origin_statement') or '-')}",
+        f"Sealing Pattern ID: {_to_text(_as_dict(context.get('sealing_trip')).get('pattern_id') or '-')}",
+        f"Sealing Symmetry: {_to_text(_as_dict(context.get('sealing_trip')).get('symmetry') or '-')}",
+        f"Sealing Scan Hint: {_to_text(_as_dict(context.get('sealing_trip')).get('scan_hint') or '-')}",
         f"Hierarchy Root Hash: {_to_text(context.get('hierarchy_root_hash') or '-')}",
         f"Chapter Progress(%): {_to_text(_as_dict(context.get('chapter_progress')).get('progress_percent') or '-')}",
         "---- Rows ----",
@@ -541,10 +611,15 @@ def render_rebar_inspection_pdf(*, docx_bytes: bytes, context: dict[str, Any]) -
             lines.append(
                 f"{indent}{_to_text(row.get('code') or '-')} [{_to_text(row.get('node_type') or '-')}] | progress={_to_text(row.get('progress_percent') or 0)}% | settled={_to_text(row.get('settled_quantity') or 0)} | design={_to_text(row.get('design_quantity') or 0)}"
             )
+    seal_ascii = _as_list(_as_dict(context.get("sealing_trip")).get("ascii_pattern"))
+    if seal_ascii:
+        lines.append("---- Sovereign Sealing Pattern ----")
+        for row in seal_ascii[:14]:
+            lines.append(_to_text(row))
 
     return pdf_report_bytes(
         lines,
-        watermark="QCSpec BOQ Proof Chain",
+        watermark=_to_text(_as_dict(context.get("sealing_trip")).get("watermark") or "QCSpec BOQ Proof Chain"),
         trust_ok=True,
     )
 
@@ -673,6 +748,7 @@ def build_dsp_zip_package(
         "signer_uri": _to_text(context.get("project_uri") or "v://executor/system"),
         "payload_hash": hashlib.sha256(signature_payload.encode("utf-8")).hexdigest(),
     }
+    sealing_trip = _as_dict(context.get("sealing_trip"))
 
     if evidence_items is None:
         evidence_items = _extract_evidence_from_chain(proof_chain)
@@ -732,6 +808,8 @@ def build_dsp_zip_package(
             json.dumps(spatiotemporal_anchor_json, ensure_ascii=False, indent=2, default=str),
         )
         zf.writestr("signature.json", json.dumps(signature_json, ensure_ascii=False, indent=2, default=str))
+        if sealing_trip:
+            zf.writestr("sealing_trip.json", json.dumps(sealing_trip, ensure_ascii=False, indent=2, default=str))
         zf.writestr("evidence/manifest.json", json.dumps(evidence_manifest, ensure_ascii=False, indent=2, default=str))
         for path, blob in evidence_files:
             zf.writestr(path, blob)

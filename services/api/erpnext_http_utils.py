@@ -205,3 +205,104 @@ async def erp_request(
                     errors.append(f"{site_tag}:session:{exc.__class__.__name__}")
 
     return {"attempted": True, "success": False, "errors": errors}
+
+
+def erp_request_sync(
+    custom: dict[str, Any],
+    *,
+    method: str,
+    path: str,
+    params: Optional[dict[str, Any]] = None,
+    body: Optional[dict[str, Any]] = None,
+    timeout_s: float = 10.0,
+) -> dict[str, Any]:
+    base_url = normalize_erp_url(custom.get("erpnext_url"))
+    if not base_url:
+        return {"attempted": False, "success": False, "reason": "erpnext_url_not_configured"}
+
+    base_host = str(urlparse(base_url).hostname or "").strip()
+    site_name = str(custom.get("erpnext_site_name") or "").strip() or None
+    if not site_name and base_host.endswith(".localhost"):
+        site_name = base_host
+    site_candidates: list[Optional[str]] = [None]
+    if site_name:
+        site_candidates.append(site_name)
+
+    request_base_url = rewrite_localhost_alias_url(base_url)
+    endpoint = erp_endpoint(request_base_url, path)
+    auth_candidates = erp_auth_candidates(custom.get("erpnext_api_key"), custom.get("erpnext_api_secret"))
+    session_user = str(custom.get("erpnext_username") or "").strip()
+    session_pass = str(custom.get("erpnext_password") or "").strip()
+    has_session = bool(session_user and session_pass)
+    if not auth_candidates and not has_session:
+        return {"attempted": False, "success": False, "reason": "erpnext_credentials_not_configured"}
+
+    errors: list[str] = []
+    with httpx.Client(
+        timeout=timeout_s,
+        follow_redirects=True,
+        trust_env=erp_should_trust_env(endpoint),
+    ) as client:
+        for site_name_try in site_candidates:
+            site_tag = site_name_try or "site:auto"
+            for mode, auth_header in auth_candidates:
+                headers = erp_headers(site_name_try, auth_header, as_json=body is not None)
+                try:
+                    res = client.request(
+                        method.upper(),
+                        endpoint,
+                        headers=headers,
+                        params=params,
+                        json=body if body is not None else None,
+                    )
+                    if res.status_code < 400:
+                        return {
+                            "attempted": True,
+                            "success": True,
+                            "authMode": mode,
+                            "statusCode": res.status_code,
+                            "data": safe_json_or_text(res),
+                        }
+                    detail = safe_json_or_text(res)
+                    errors.append(f"{site_tag}:{mode}:{res.status_code}:{detail}")
+                except Exception as exc:
+                    errors.append(f"{site_tag}:{mode}:{exc.__class__.__name__}")
+
+            if has_session:
+                try:
+                    login = client.post(
+                        f"{request_base_url}/api/method/login",
+                        headers=erp_headers(site_name_try, None, as_json=False),
+                        data={"usr": session_user, "pwd": session_pass},
+                    )
+                    if login.status_code >= 400:
+                        errors.append(f"{site_tag}:session_login:{login.status_code}:{safe_json_or_text(login)}")
+                    else:
+                        headers = erp_headers(site_name_try, None, as_json=body is not None)
+                        csrf = str(
+                            login.headers.get("x-frappe-csrf-token")
+                            or login.headers.get("X-Frappe-CSRF-Token")
+                            or ""
+                        ).strip()
+                        if csrf:
+                            headers["X-Frappe-CSRF-Token"] = csrf
+                        res = client.request(
+                            method.upper(),
+                            endpoint,
+                            headers=headers,
+                            params=params,
+                            json=body if body is not None else None,
+                        )
+                        if res.status_code < 400:
+                            return {
+                                "attempted": True,
+                                "success": True,
+                                "authMode": "session",
+                                "statusCode": res.status_code,
+                                "data": safe_json_or_text(res),
+                            }
+                        errors.append(f"{site_tag}:session:{res.status_code}:{safe_json_or_text(res)}")
+                except Exception as exc:
+                    errors.append(f"{site_tag}:session:{exc.__class__.__name__}")
+
+    return {"attempted": True, "success": False, "errors": errors}

@@ -42,6 +42,23 @@ def _as_list(value: Any) -> list[Any]:
     return []
 
 
+def _is_document_row(row: dict[str, Any]) -> bool:
+    ptype = _to_text(_as_dict(row).get("proof_type") or "").strip().lower()
+    if ptype == "document":
+        return True
+    if ptype != "archive":
+        return False
+    sd = _as_dict(_as_dict(row).get("state_data"))
+    if bool(sd.get("doc_registry")):
+        return True
+    return _to_text(sd.get("artifact_type") or "").strip().lower() == "governance_document"
+
+
+def _is_proof_type_constraint_error(exc: Exception) -> bool:
+    text = f"{exc.__class__.__name__}: {exc}".lower()
+    return "proof_utxo_proof_type_check" in text or "proof_type_check" in text
+
+
 def _utc_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
@@ -65,10 +82,12 @@ def _normalize_uri(uri: str) -> str:
         return ""
     if not text.startswith("v://"):
         raise HTTPException(400, "uri must start with v://")
-    if not text.endswith("/"):
-        text += "/"
-    text = re.sub(r"/{2,}", "/", text.replace("v://", "v:///", 1)).replace("v:///", "v://", 1)
-    return text
+    body = text[4:].replace("\\", "/")
+    body = re.sub(r"/{2,}", "/", body).strip("/")
+    normalized = f"v://{body}" if body else "v://"
+    if not normalized.endswith("/"):
+        normalized += "/"
+    return normalized
 
 
 def _join_node_uri(parent_uri: str, node_name: str) -> str:
@@ -258,28 +277,37 @@ def create_node(
     proof_seed = _sha256_json({"project_uri": proj_uri, "node_uri": node_uri, "ts": _utc_iso()})
     proof_id = f"GP-NODE-{proof_seed[:16].upper()}"
     proj = _project_by_uri(sb, proj_uri)
-    row = ProofUTXOEngine(sb).create(
-        proof_id=proof_id,
-        owner_uri=_to_text(executor_uri).strip() or "v://executor/system/",
-        project_uri=proj_uri,
-        project_id=proj.get("id"),
-        proof_type="node",
-        result="PASS",
-        state_data={
-            "node_uri": node_uri,
-            "parent_uri": parent,
-            "node_name": _safe_token(node_name),
-            "node_kind": "folder",
-            "metadata": _as_dict(metadata),
-            "created_at": _utc_iso(),
-        },
-        conditions=[],
-        parent_proof_id=None,
-        norm_uri="v://norm/CoordOS/DocNode/1.0#create",
-        segment_uri=node_uri,
-        signer_uri=_to_text(executor_uri).strip() or "v://executor/system/",
-        signer_role="DOCPEG",
-    )
+    node_state = {
+        "artifact_type": "doc_node",
+        "node_registry": True,
+        "node_uri": node_uri,
+        "parent_uri": parent,
+        "node_name": _safe_token(node_name),
+        "node_kind": "folder",
+        "metadata": _as_dict(metadata),
+        "created_at": _utc_iso(),
+    }
+    engine = ProofUTXOEngine(sb)
+    create_kwargs = {
+        "proof_id": proof_id,
+        "owner_uri": _to_text(executor_uri).strip() or "v://executor/system/",
+        "project_uri": proj_uri,
+        "project_id": proj.get("id"),
+        "result": "PASS",
+        "state_data": node_state,
+        "conditions": [],
+        "parent_proof_id": None,
+        "norm_uri": "v://norm/CoordOS/DocNode/1.0#create",
+        "segment_uri": node_uri,
+        "signer_uri": _to_text(executor_uri).strip() or "v://executor/system/",
+        "signer_role": "DOCPEG",
+    }
+    try:
+        row = engine.create(proof_type="node", **create_kwargs)
+    except Exception as exc:
+        if not _is_proof_type_constraint_error(exc):
+            raise
+        row = engine.create(proof_type="archive", **create_kwargs)
     return {
         "ok": True,
         "node_uri": node_uri,
@@ -387,7 +415,7 @@ def list_node_tree(
     for row in rows:
         if not isinstance(row, dict):
             continue
-        if _to_text(row.get("proof_type")).strip().lower() != "document":
+        if not _is_document_row(row):
             continue
         sd = _as_dict(row.get("state_data"))
         node_uri = _normalize_uri(_to_text(sd.get("node_uri") or "").strip() or _to_text(row.get("segment_uri") or "").strip() or proj_uri)
@@ -470,6 +498,9 @@ def register_document(
     custom_metadata: dict[str, Any] | None = None,
     tags: list[str] | None = None,
     executor_uri: str = "v://executor/system/",
+    trip_action: str = "",
+    lifecycle_stage: str = "",
+    trip_payload: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     proj_uri = _normalize_uri(project_uri)
     n_uri = _normalize_uri(node_uri or proj_uri)
@@ -524,40 +555,60 @@ def register_document(
         }
     )
     proof_id = f"GP-DOC-{fingerprint[:16].upper()}"
-    row = ProofUTXOEngine(sb).create(
-        proof_id=proof_id,
-        owner_uri=_to_text(executor_uri).strip() or "v://executor/system/",
-        project_uri=proj_uri,
-        project_id=proj.get("id"),
-        proof_type="document",
-        result="PASS",
-        state_data={
-            "node_uri": n_uri,
-            "file_name": _to_text(file_name).strip(),
-            "file_size": int(max(file_size, 0)),
-            "mime_type": _to_text(mime_type).strip(),
-            "storage_path": _to_text(storage_path).strip(),
-            "storage_url": _to_text(storage_url).strip(),
-            "text_excerpt": _to_text(text_excerpt).strip()[:2000],
-            "ai_metadata": ai_meta,
-            "custom_metadata": cus_meta,
-            "source_utxo_id": src_id,
-            "source_boq_item_uri": source_boq_item_uri,
-            "source_item_no": source_item_no,
-            "tags": merged_tags[:30],
-            "doc_type": _to_text(ai_meta.get("doc_type") or "").strip(),
-            "discipline": _to_text(ai_meta.get("discipline") or "").strip(),
-            "summary": _to_text(ai_meta.get("summary") or "").strip(),
-            "uploaded_at": _utc_iso(),
-            "proof_fingerprint": fingerprint,
-        },
-        conditions=[],
-        parent_proof_id=src_id,
-        norm_uri="v://norm/CoordOS/DocGovernance/1.0#document_register",
-        segment_uri=segment_uri,
-        signer_uri=_to_text(executor_uri).strip() or "v://executor/system/",
-        signer_role="DOCPEG",
-    )
+    state_data = {
+        "artifact_type": "governance_document",
+        "doc_registry": True,
+        "node_uri": n_uri,
+        "file_name": _to_text(file_name).strip(),
+        "file_size": int(max(file_size, 0)),
+        "mime_type": _to_text(mime_type).strip(),
+        "storage_path": _to_text(storage_path).strip(),
+        "storage_url": _to_text(storage_url).strip(),
+        "text_excerpt": _to_text(text_excerpt).strip()[:2000],
+        "ai_metadata": ai_meta,
+        "custom_metadata": cus_meta,
+        "source_utxo_id": src_id,
+        "source_boq_item_uri": source_boq_item_uri,
+        "source_item_no": source_item_no,
+        "tags": merged_tags[:30],
+        "doc_type": _to_text(ai_meta.get("doc_type") or "").strip(),
+        "discipline": _to_text(ai_meta.get("discipline") or "").strip(),
+        "summary": _to_text(ai_meta.get("summary") or "").strip(),
+        "uploaded_at": _utc_iso(),
+        "proof_fingerprint": fingerprint,
+    }
+    if _to_text(trip_action).strip():
+        state_data["trip_action"] = _to_text(trip_action).strip()
+    if _to_text(lifecycle_stage).strip():
+        state_data["lifecycle_stage"] = _to_text(lifecycle_stage).strip()
+    if isinstance(trip_payload, dict) and trip_payload:
+        state_data["trip"] = trip_payload
+
+    engine = ProofUTXOEngine(sb)
+    create_kwargs = {
+        "proof_id": proof_id,
+        "owner_uri": _to_text(executor_uri).strip() or "v://executor/system/",
+        "project_uri": proj_uri,
+        "project_id": proj.get("id"),
+        "result": "PASS",
+        "state_data": state_data,
+        "conditions": [],
+        "parent_proof_id": src_id,
+        "norm_uri": "v://norm/CoordOS/DocGovernance/1.0#document_register",
+        "segment_uri": segment_uri,
+        "signer_uri": _to_text(executor_uri).strip() or "v://executor/system/",
+        "signer_role": "DOCPEG",
+    }
+    proof_type_used = "document"
+    try:
+        row = engine.create(proof_type=proof_type_used, **create_kwargs)
+    except Exception as exc:
+        if not _is_proof_type_constraint_error(exc):
+            raise
+        # Backward-compatible fallback for deployments where `document`
+        # is not yet allowed by proof_utxo_proof_type_check.
+        proof_type_used = "archive"
+        row = engine.create(proof_type=proof_type_used, **create_kwargs)
     _insert_doc_tags(
         sb=sb,
         proof_id=_to_text(row.get("proof_id")).strip(),
@@ -576,6 +627,7 @@ def register_document(
         "source_boq_item_uri": source_boq_item_uri,
         "file_name": _to_text(file_name).strip(),
         "storage_url": _to_text(storage_url).strip(),
+        "proof_type": proof_type_used,
         "tags": merged_tags[:30],
     }
 
@@ -634,7 +686,7 @@ def search_documents(
         sb.table("proof_utxo")
         .select("*")
         .eq("project_uri", proj_uri)
-        .eq("proof_type", "document")
+        .in_("proof_type", ["document", "archive"])
         .order("created_at", desc=True)
         .limit(20000)
         .execute()
@@ -646,6 +698,8 @@ def search_documents(
     filtered: list[dict[str, Any]] = []
     for row in rows:
         if not isinstance(row, dict):
+            continue
+        if not _is_document_row(row):
             continue
         sd = _as_dict(row.get("state_data"))
         n_uri = _normalize_uri(_to_text(sd.get("node_uri") or row.get("segment_uri") or proj_uri))

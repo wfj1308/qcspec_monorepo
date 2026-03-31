@@ -31,8 +31,8 @@ async def run_project_autoreg_sync_safe(
 ) -> dict[str, Any]:
     try:
         return await sync_project_autoreg(
-            sb,
-            project,
+            sb=sb,
+            project=project,
             force=force,
             writeback=writeback,
         )

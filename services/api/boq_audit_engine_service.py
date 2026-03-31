@@ -8,9 +8,13 @@ Implements:
 
 from __future__ import annotations
 
+import hashlib
+import json
 from typing import Any
 
 from fastapi import HTTPException
+
+from services.api.triprole_engine import _compute_docfinal_risk_audit
 
 
 def _to_text(value: Any, default: str = "") -> str:
@@ -46,6 +50,53 @@ def _as_list(value: Any) -> list[Any]:
     if isinstance(value, list):
         return value
     return []
+
+
+def _row_fingerprint(row: dict[str, Any]) -> dict[str, Any]:
+    sd = _as_dict(row.get("state_data"))
+    v_uri_refs = [
+        _to_text(row.get("project_uri") or "").strip(),
+        _to_text(row.get("segment_uri") or "").strip(),
+        _to_text(row.get("norm_uri") or "").strip(),
+        _to_text(sd.get("v_uri") or "").strip(),
+        _to_text(sd.get("boq_item_uri") or sd.get("item_uri") or "").strip(),
+        _to_text(sd.get("norm_uri") or sd.get("spec_uri") or "").strip(),
+    ]
+    v_uri_refs = [uri for uri in v_uri_refs if uri.startswith("v://")]
+
+    payload = {
+        "proof_id": _to_text(row.get("proof_id") or ""),
+        "proof_hash": _to_text(row.get("proof_hash") or ""),
+        "parent_proof_id": _to_text(row.get("parent_proof_id") or ""),
+        "project_uri": _to_text(row.get("project_uri") or ""),
+        "segment_uri": _to_text(row.get("segment_uri") or ""),
+        "proof_type": _to_text(row.get("proof_type") or ""),
+        "result": _to_text(row.get("result") or ""),
+        "state_data": sd if isinstance(sd, dict) else {},
+        "norm_uri": _to_text(row.get("norm_uri") or ""),
+    }
+    canonical = json.dumps(payload, ensure_ascii=False, sort_keys=True, default=str)
+    row_hash = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+    return {
+        "proof_id": payload["proof_id"],
+        "proof_hash": payload["proof_hash"],
+        "row_hash": row_hash,
+        "parent_proof_id": payload["parent_proof_id"],
+        "proof_type": payload["proof_type"],
+        "result": payload["result"],
+        "created_at": _to_text(row.get("created_at") or ""),
+        "segment_uri": payload["segment_uri"],
+        "norm_uri": payload["norm_uri"],
+        "v_uri_refs": sorted(set(v_uri_refs)),
+        "geo_location": _as_dict(sd.get("geo_location")),
+        "server_timestamp_proof": _as_dict(sd.get("server_timestamp_proof")),
+        "spatiotemporal_anchor_hash": _to_text(sd.get("spatiotemporal_anchor_hash") or "").strip(),
+    }
+
+
+def _chain_root_hash(fingerprints: list[dict[str, Any]]) -> str:
+    canonical = json.dumps(fingerprints, ensure_ascii=False, sort_keys=True, default=str)
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
 def _item_code_from_boq_uri(boq_item_uri: str) -> str:
@@ -128,7 +179,7 @@ def _is_settlement_row(row: dict[str, Any]) -> bool:
 
 def _is_document_row(row: dict[str, Any]) -> bool:
     ptype = _to_text(row.get("proof_type") or "").strip().lower()
-    if ptype in {"document", "photo"}:
+    if ptype in {"document", "photo", "erpnext_receipt"}:
         return True
     sd = _as_dict(row.get("state_data"))
     return bool(_to_text(sd.get("doc_type") or "").strip())
@@ -188,6 +239,29 @@ def get_item_sovereign_history(
     root_uri = _extract_boq_item_uri(initial)
     if not root_id:
         raise HTTPException(500, "invalid root utxo for subitem")
+    initial_sd = _as_dict(initial.get("state_data"))
+    design_qty = _to_float(initial_sd.get("design_quantity"))
+    approved_qty = _to_float(initial_sd.get("approved_quantity"))
+    contract_qty = _to_float(initial_sd.get("contract_quantity"))
+    unit_price = _to_float(initial_sd.get("unit_price"))
+    design_total = _to_float(initial_sd.get("design_total"))
+    if design_total is None and unit_price is not None and design_qty is not None:
+        design_total = float(unit_price) * float(design_qty)
+    contract_total = _to_float(initial_sd.get("contract_total"))
+    if contract_total is None and unit_price is not None and contract_qty is not None:
+        contract_total = float(unit_price) * float(contract_qty)
+    ledger_snapshot = {
+        "item_no": _extract_item_code(initial),
+        "item_name": _to_text(initial_sd.get("item_name") or "").strip(),
+        "unit": _to_text(initial_sd.get("unit") or "").strip(),
+        "design_quantity": design_qty,
+        "approved_quantity": approved_qty,
+        "contract_quantity": contract_qty,
+        "unit_price": unit_price,
+        "design_total": design_total,
+        "contract_total": contract_total,
+        "boq_item_uri": root_uri,
+    }
 
     children_by_parent: dict[str, list[dict[str, Any]]] = {}
     row_by_id: dict[str, dict[str, Any]] = {}
@@ -253,6 +327,23 @@ def get_item_sovereign_history(
     settlement_count = 0
     fail_count = 0
 
+    chain_sorted = sorted(chain_rows, key=lambda x: _to_text(x.get("created_at") or ""))
+    chain_fingerprints = [_row_fingerprint(row) for row in chain_sorted if isinstance(row, dict)]
+    total_proof_hash = _chain_root_hash(chain_fingerprints) if chain_fingerprints else ""
+    risk_audit: dict[str, Any] = {}
+    if chain_sorted:
+        try:
+            risk_audit = _compute_docfinal_risk_audit(
+                sb=sb,
+                project_uri=project_uri,
+                boq_item_uri=root_uri,
+                chain_rows=chain_sorted,
+            )
+            if total_proof_hash:
+                risk_audit["total_proof_hash"] = total_proof_hash
+        except Exception:
+            risk_audit = {}
+
     for row in ordered:
         sd = _as_dict(row.get("state_data"))
         pid = _to_text(row.get("proof_id") or "").strip()
@@ -279,11 +370,13 @@ def get_item_sovereign_history(
             "item_no": _extract_item_code(row),
             "boq_item_uri": _extract_boq_item_uri(row),
             "source_utxo_ids": _source_utxo_refs(row),
+            "spent": bool(row.get("spent")),
             "summary": _to_text(sd.get("summary") or sd.get("item_name") or "").strip(),
         }
         timeline.append(entry)
 
         if _is_document_row(row):
+            report_url = _to_text(sd.get("report_url") or "").strip()
             documents.append(
                 {
                     "proof_id": pid,
@@ -292,7 +385,11 @@ def get_item_sovereign_history(
                     "doc_type": _to_text(sd.get("doc_type") or "").strip(),
                     "file_name": _to_text(sd.get("file_name") or "").strip(),
                     "mime_type": _to_text(sd.get("mime_type") or "").strip(),
-                    "storage_url": _to_text(sd.get("storage_url") or "").strip(),
+                    "storage_url": _to_text(sd.get("storage_url") or report_url or "").strip(),
+                    "report_url": report_url,
+                    "doc_status": _to_text(sd.get("status") or "").strip(),
+                    "trip_action": _to_text(sd.get("trip_action") or "").strip(),
+                    "lifecycle_stage": _to_text(sd.get("lifecycle_stage") or "").strip(),
                     "node_uri": _to_text(sd.get("node_uri") or "").strip(),
                     "source_utxo_id": _to_text(sd.get("source_utxo_id") or "").strip(),
                     "tags": _as_list(sd.get("tags")),
@@ -306,6 +403,9 @@ def get_item_sovereign_history(
         "boq_item_uri": root_uri,
         "root_utxo_id": root_id,
         "root_proof_hash": _to_text(initial.get("proof_hash") or "").strip(),
+        "total_proof_hash": total_proof_hash,
+        "risk_audit": risk_audit,
+        "ledger_snapshot": ledger_snapshot,
         "totals": {
             "proof_count": len(timeline),
             "document_count": len(documents),

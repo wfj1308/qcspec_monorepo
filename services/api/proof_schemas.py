@@ -269,6 +269,18 @@ class NormEvolutionBody(BaseModel):
     create_proof: bool = True
 
 
+class SpecDictEvolutionBody(BaseModel):
+    project_uris: list[str] = Field(default_factory=list)
+    min_samples: int = Field(default=5, ge=3, le=200)
+
+
+class SpecDictExportBody(BaseModel):
+    project_uris: list[str] = Field(default_factory=list)
+    min_samples: int = Field(default=5, ge=3, le=200)
+    namespace_uri: str = "v://global/templates"
+    commit: bool = False
+
+
 class TransferAssetBody(BaseModel):
     item_id: str = Field(..., description="proof_id or boq_item_uri")
     amount: float = Field(..., gt=0)
@@ -379,6 +391,9 @@ class SMUSignBody(BaseModel):
     contractor_did: str
     owner_did: str
     signer_metadata: dict[str, Any] = Field(default_factory=dict)
+    consensus_values: list[dict[str, Any]] = Field(default_factory=list)
+    allowed_deviation: float | None = None
+    allowed_deviation_percent: float | None = None
     geo_location: dict[str, Any] = Field(default_factory=dict)
     server_timestamp_proof: dict[str, Any] = Field(default_factory=dict)
     auto_docpeg: bool = True

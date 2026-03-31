@@ -480,6 +480,37 @@ export function useProof() {
     return request(`/v1/proof/verify/${proof_id}`)
   }, [request])
 
+  const publicVerifyDetail = useCallback(async (proof_id: string, lineage_depth = 'item') => {
+    const id = encodeURIComponent(String(proof_id || '').trim())
+    if (!id) return null
+    const qs = new URLSearchParams({ lineage_depth }).toString()
+    return request(`/api/v1/verify/${id}?${qs}`, { skipAuthRedirect: true })
+  }, [request])
+
+  const downloadEvidenceCenterZip = useCallback(async (query: {
+    project_uri: string
+    subitem_code: string
+    proof_id?: string
+    verify_base_url?: string
+  }) => {
+    const qs = new URLSearchParams({
+      project_uri: query.project_uri,
+      subitem_code: query.subitem_code,
+      ...(query.proof_id ? { proof_id: query.proof_id } : {}),
+      ...(query.verify_base_url ? { verify_base_url: query.verify_base_url } : {}),
+    }).toString()
+    const res = await fetch(`${API_BASE}/v1/proof/boq/evidence-center/download?${qs}`, {
+      method: 'GET',
+      headers: withAuthHeaders(useAuthStore.getState().token),
+    })
+    if (!res.ok) return null
+    const blob = await res.blob()
+    const filename =
+      (res.headers.get('Content-Disposition') || '').match(/filename=\"?([^\";]+)\"?/)?.[1] ||
+      'EvidenceCenter.zip'
+    return { blob, filename }
+  }, [])
+
   const stats = useCallback(async (project_id: string) => {
     return request(`/v1/proof/stats/${project_id}`)
   }, [request])
@@ -737,6 +768,9 @@ export function useProof() {
     contractor_did: string
     owner_did: string
     signer_metadata?: Record<string, unknown>
+    consensus_values?: Array<Record<string, unknown>>
+    allowed_deviation?: number
+    allowed_deviation_percent?: number
     geo_location?: Record<string, unknown>
     server_timestamp_proof?: Record<string, unknown>
     auto_docpeg?: boolean
@@ -744,6 +778,29 @@ export function useProof() {
     template_path?: string
   }) => {
     return request('/v1/proof/smu/sign', {
+      method: 'POST',
+      body: JSON.stringify(body),
+      skipAuthRedirect: true,
+    })
+  }, [request])
+
+  const tripGenerateDoc = useCallback(async (body: {
+    project_uri: string
+    boq_item_uri?: string
+    smu_id?: string
+    subitem_code?: string
+    item_name?: string
+    unit?: string
+    executor_did?: string
+    geo_location?: Record<string, unknown>
+    anchor_location?: Record<string, unknown>
+    norm_rows?: Array<Record<string, unknown>>
+    measurements?: Record<string, unknown>
+    evidence_hashes?: string[]
+    report_template?: string
+    verify_base_url?: string
+  }) => {
+    return request('/api/trip/generate-doc', {
       method: 'POST',
       body: JSON.stringify(body),
       skipAuthRedirect: true,
@@ -774,6 +831,13 @@ export function useProof() {
     })
   }, [request])
 
+  const smuRetryErpnext = useCallback(async (limit = 20) => {
+    return request(`/v1/proof/smu/erpnext/retry?limit=${encodeURIComponent(String(limit))}`, {
+      method: 'POST',
+      skipAuthRedirect: true,
+    })
+  }, [request])
+
   const boqRealtimeStatus = useCallback(async (project_uri: string) => {
     return request(`/v1/proof/boq/realtime-status?project_uri=${encodeURIComponent(project_uri)}`, {
       skipAuthRedirect: true,
@@ -797,6 +861,45 @@ export function useProof() {
       ...(typeof query.max_rows === 'number' ? { max_rows: String(query.max_rows) } : {}),
     }).toString()
     return request(`/v1/proof/boq/item-sovereign-history?${p}`)
+  }, [request])
+
+  const evidenceCenterEvidence = useCallback(async (query: {
+    project_uri?: string
+    subitem_code?: string
+    boq_item_uri?: string
+    smu_id?: string
+  }) => {
+    const p = new URLSearchParams()
+    if (query.project_uri) p.set('project_uri', query.project_uri)
+    if (query.subitem_code) p.set('subitem_code', query.subitem_code)
+    if (query.boq_item_uri) p.set('boq_item_uri', query.boq_item_uri)
+    if (query.smu_id) p.set('smu_id', query.smu_id)
+    return request(`/v1/proof/boq/evidence-center/evidence?${p.toString()}`)
+  }, [request])
+
+  const triproleAssetOrigin = useCallback(async (query: {
+    utxo_id?: string
+    boq_item_uri?: string
+    project_uri?: string
+  }) => {
+    const p = new URLSearchParams()
+    if (query.utxo_id) p.set('utxo_id', query.utxo_id)
+    if (query.boq_item_uri) p.set('boq_item_uri', query.boq_item_uri)
+    if (query.project_uri) p.set('project_uri', query.project_uri)
+    return request(`/v1/proof/triprole/asset-origin?${p.toString()}`)
+  }, [request])
+
+  const identityReputation = useCallback(async (query: {
+    project_uri: string
+    participant_did: string
+    window_days?: number
+  }) => {
+    const p = new URLSearchParams({
+      project_uri: query.project_uri,
+      participant_did: query.participant_did,
+      ...(typeof query.window_days === 'number' ? { window_days: String(query.window_days) } : {}),
+    }).toString()
+    return request(`/v1/proof/identity/reputation?${p}`)
   }, [request])
 
   const boqReconciliation = useCallback(async (query: {
@@ -1115,6 +1218,30 @@ export function useProof() {
     }
   }, [])
 
+  const triproleExecute = useCallback(async (body: {
+    action: string
+    input_proof_id: string
+    executor_uri?: string
+    executor_did?: string
+    executor_role?: string
+    result?: string
+    segment_uri?: string
+    boq_item_uri?: string
+    signatures?: Array<Record<string, unknown>>
+    consensus_signatures?: Array<Record<string, unknown>>
+    signer_metadata?: Record<string, unknown>
+    payload?: Record<string, unknown>
+    credentials_vc?: Array<Record<string, unknown>>
+    geo_location?: Record<string, unknown>
+    server_timestamp_proof?: Record<string, unknown>
+    offline_packet_id?: string
+  }) => {
+    return request('/v1/proof/triprole/execute', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    })
+  }, [request])
+
   const applyVariationDelta = useCallback(async (body: {
     boq_item_uri: string
     delta_amount: number
@@ -1277,9 +1404,50 @@ export function useProof() {
     })
   }, [request])
 
+  const specdictEvolve = useCallback(async (body: {
+    project_uris?: string[]
+    min_samples?: number
+  }) => {
+    return request('/v1/proof/specdict/evolve', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    })
+  }, [request])
+
+  const specdictExport = useCallback(async (body: {
+    project_uris?: string[]
+    min_samples?: number
+    namespace_uri?: string
+    commit?: boolean
+  }) => {
+    return request('/v1/proof/specdict/export', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    })
+  }, [request])
+
+  const arOverlay = useCallback(async (query: {
+    project_uri: string
+    lat: number
+    lng: number
+    radius_m?: number
+    limit?: number
+  }) => {
+    const p = new URLSearchParams({
+      project_uri: query.project_uri,
+      lat: String(query.lat),
+      lng: String(query.lng),
+      ...(typeof query.radius_m === 'number' ? { radius_m: String(query.radius_m) } : {}),
+      ...(typeof query.limit === 'number' ? { limit: String(query.limit) } : {}),
+    }).toString()
+    return request(`/v1/proof/ar/overlay?${p}`)
+  }, [request])
+
   return {
     listProofs,
     verify,
+    publicVerifyDetail,
+    downloadEvidenceCenterZip,
     stats,
     nodeTree,
     docAutoClassify,
@@ -1297,11 +1465,16 @@ export function useProof() {
     smuNodeContext,
     smuExecute,
     smuSign,
+    tripGenerateDoc,
     smuValidateLogic,
     smuFreeze,
+    smuRetryErpnext,
     boqRealtimeStatus,
     projectReadinessCheck,
     boqItemSovereignHistory,
+    evidenceCenterEvidence,
+    triproleAssetOrigin,
+    identityReputation,
     boqReconciliation,
     docFinalContext,
     getGateEditorPayload,
@@ -1327,6 +1500,7 @@ export function useProof() {
     spatialDashboard,
     predictiveQualityAnalysis,
     exportFinanceProof,
+    triproleExecute,
     applyVariationDelta,
     replayOfflinePackets,
     scanConfirmSignature,
@@ -1336,6 +1510,9 @@ export function useProof() {
     exportOmHandoverBundle,
     registerOmEvent,
     generateNormEvolutionReport,
+    specdictEvolve,
+    specdictExport,
+    arOverlay,
     loading,
   }
 }

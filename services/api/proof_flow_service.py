@@ -5,23 +5,37 @@ Flow helpers for proof router.
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import hashlib
 import json
+import mimetypes
 import re
 from typing import Any
 from uuid import UUID
 import uuid
+import zipfile
 
 import httpx
 from fastapi import HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
 import io
-from postgrest.exceptions import APIError
 from supabase import Client
 
+from services.api.domain.boq.helpers import (
+    download_evidence_center_zip as domain_download_evidence_center_zip,
+    get_evidence_center_evidence as domain_get_evidence_center_evidence,
+    project_readiness_check as domain_project_readiness_check,
+)
+from services.api.domain.proof.helpers import (
+    download_docfinal_zip as domain_download_docfinal_zip,
+    export_doc_final_package as domain_export_doc_final_package,
+    finalize_docfinal_delivery_package as domain_finalize_docfinal_delivery_package,
+    get_docfinal_context as domain_get_docfinal_context,
+    replay_offline_packets_payload as domain_replay_offline_packets_payload,
+)
+from services.api.domain.proof.service import ProofApplicationService
 from services.api.proof_utxo_engine import ProofUTXOEngine
 from services.api.boq_payment_audit_service import (
     audit_trace,
-    finalize_docfinal_delivery,
     generate_railpact_instruction,
     generate_payment_certificate,
 )
@@ -48,16 +62,15 @@ from services.api.rwa_om_evolution_service import (
 from services.api.triprole_engine import (
     aggregate_provenance_chain,
     apply_variation,
-    export_doc_final,
-    build_docfinal_package_for_boq,
     execute_triprole_action,
     get_full_lineage,
+    trace_asset_origin,
     get_boq_realtime_status,
     ingest_sensor_data,
-    replay_offline_packets,
     scan_to_confirm_signature,
     transfer_asset,
 )
+from services.api.did_reputation_service import compute_did_reputation
 from services.api.gate_rule_editor_service import (
     generate_rules_via_ai,
     get_gate_editor_payload,
@@ -83,12 +96,19 @@ from services.api.boq_audit_engine_service import (
     get_item_sovereign_history,
     run_boq_audit_engine,
 )
+from services.api.specdict_evolution_service import (
+    analyze_specdict_evolution,
+    export_specdict_bundle,
+)
+from services.api.ar_anchor_service import get_ar_anchor_overlay
 from services.api.smu_flow_service import (
     execute_smu_trip,
     freeze_smu,
     get_governance_context,
     import_genesis_trip,
+    list_spu_template_library,
     preview_genesis_tree,
+    retry_erpnext_push_queue as retry_erpnext_push_queue_smu,
     sign_smu_approval,
     validate_logic,
 )
@@ -105,6 +125,16 @@ def _is_uuid(value: str) -> bool:
         return True
     except Exception:
         return False
+
+
+def _to_float(value: Any) -> float | None:
+    if value is None:
+        return None
+    try:
+        return float(value)
+    except Exception:
+        match = re.search(r"[-+]?\d+(?:\.\d+)?", str(value))
+        return float(match.group(0)) if match else None
 
 
 def _run_with_retry(fn: Any, retries: int = 1):
@@ -212,6 +242,24 @@ def _extract_text_excerpt(content: bytes, mime_type: str, max_chars: int = 2000)
     return ""
 
 
+def _chain_root_hash(fingerprints: list[dict[str, Any]]) -> str:
+    canonical = json.dumps(fingerprints, ensure_ascii=False, sort_keys=True, default=str)
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def _fetch_binary(url: str, timeout_s: float = 10.0) -> bytes | None:
+    target = _to_text(url).strip()
+    if not target or not (target.startswith("http://") or target.startswith("https://")):
+        return None
+    try:
+        res = httpx.get(target, timeout=timeout_s)
+        if res.status_code >= 400:
+            return None
+        return res.content
+    except Exception:
+        return None
+
+
 async def list_proofs_flow(
     *,
     project_id: str,
@@ -219,170 +267,19 @@ async def list_proofs_flow(
     limit: int,
     sb: Client,
 ) -> dict[str, Any]:
-    if not _is_uuid(project_id):
-        raise HTTPException(400, "Invalid project_id format. UUID expected.")
-
-    def _query():
-        q = (
-            sb.table("proof_chain")
-            .select("proof_id,proof_hash,v_uri,object_type,action,summary,created_at")
-            .eq("project_id", project_id)
-            .order("created_at", desc=True)
-            .limit(max(1, min(limit, 200)))
-        )
-        if v_uri:
-            q = q.eq("v_uri", v_uri)
-        return q.execute()
-
-    try:
-        res = _run_with_retry(_query, retries=1)
-        rows = res.data or []
-        return {"data": rows, "count": len(rows)}
-    except APIError as e:
-        if "invalid input syntax for type uuid" in str(e):
-            raise HTTPException(400, "Invalid project_id format. UUID expected.")
-        try:
-            proj = (
-                sb.table("projects")
-                .select("v_uri")
-                .eq("id", project_id)
-                .limit(1)
-                .execute()
-            )
-            rows: list[dict[str, Any]] = []
-            if proj.data:
-                engine = ProofUTXOEngine(sb)
-                rows = [_utxo_to_legacy_row(x) for x in engine.get_unspent(project_uri=proj.data[0]["v_uri"], limit=limit)]
-            return {"data": rows, "count": len(rows)}
-        except Exception:
-            raise HTTPException(502, "Failed to query proof chain.")
-    except (httpx.RemoteProtocolError, httpx.ReadTimeout, httpx.ConnectError, httpx.ConnectTimeout):
-        return {"data": [], "count": 0}
+    return await ProofApplicationService(sb=sb).list_proofs(project_id=project_id, v_uri=v_uri, limit=limit)
 
 
 async def verify_proof_flow(*, proof_id: str, sb: Client) -> dict[str, Any]:
-    try:
-        res = _run_with_retry(
-            lambda: sb.table("proof_chain").select("*").eq("proof_id", proof_id).single().execute(),
-            retries=1,
-        )
-    except (APIError, httpx.RemoteProtocolError, httpx.ReadTimeout, httpx.ConnectError, httpx.ConnectTimeout):
-        res = None
-
-    if not res or not res.data:
-        try:
-            utxo = ProofUTXOEngine(sb).get_by_id(proof_id)
-        except Exception:
-            utxo = None
-
-        if not utxo:
-            return {"valid": False, "proof": None, "message": "Proof not found."}
-
-        anchor = str(utxo.get("gitpeg_anchor") or "").strip()
-        return {
-            "valid": True,
-            "proof_id": proof_id,
-            "proof_hash": utxo.get("proof_hash"),
-            "v_uri": (utxo.get("state_data") or {}).get("v_uri") or utxo.get("project_uri"),
-            "project_uri": utxo.get("project_uri"),
-            "segment_uri": utxo.get("segment_uri"),
-            "object_type": utxo.get("proof_type"),
-            "action": "consume" if utxo.get("spent") else "create",
-            "summary": f"{utxo.get('proof_type')}:{utxo.get('result')}",
-            "created_at": utxo.get("created_at"),
-            "chain_length": int(utxo.get("depth") or 0) + 1,
-            "gitpeg_anchor": anchor or None,
-            "anchor_status": _anchor_status(anchor),
-            "message": "Proof verified via proof_utxo.",
-        }
-
-    proof = res.data
-    expected_hash = str(proof_id).replace("GP-PROOF-", "").lower()
-    hash_valid = proof.get("proof_hash") == expected_hash
-
-    try:
-        chain_len = _run_with_retry(
-            lambda: sb.table("proof_chain").select("proof_id", count="exact").eq("v_uri", proof.get("v_uri")).execute(),
-            retries=1,
-        )
-        chain_count = chain_len.count or 0
-    except Exception:
-        chain_count = 0
-
-    utxo_extra: dict[str, Any] = {}
-    try:
-        utxo = ProofUTXOEngine(sb).get_by_id(proof_id)
-    except Exception:
-        utxo = None
-
-    if isinstance(utxo, dict):
-        anchor = str(utxo.get("gitpeg_anchor") or "").strip()
-        utxo_extra = {
-            "project_uri": utxo.get("project_uri"),
-            "segment_uri": utxo.get("segment_uri"),
-            "proof_hash": utxo.get("proof_hash"),
-            "gitpeg_anchor": anchor or None,
-            "anchor_status": _anchor_status(anchor),
-        }
-
-    return {
-        "valid": hash_valid,
-        "proof_id": proof_id,
-        "proof_hash": proof.get("proof_hash"),
-        "v_uri": proof.get("v_uri"),
-        "object_type": proof.get("object_type"),
-        "action": proof.get("action"),
-        "summary": proof.get("summary"),
-        "created_at": proof.get("created_at"),
-        "chain_length": chain_count,
-        "message": "Proof verified." if hash_valid else "Proof hash mismatch.",
-        **utxo_extra,
-    }
+    return await ProofApplicationService(sb=sb).verify_proof(proof_id=proof_id)
 
 
 async def get_node_tree_flow(*, root_uri: str, sb: Client) -> dict[str, Any]:
-    try:
-        res = _run_with_retry(
-            lambda: sb.table("v_nodes")
-            .select("uri,parent_uri,node_type,peg_count,status")
-            .like("uri", f"{root_uri}%")
-            .order("uri")
-            .execute(),
-            retries=1,
-        )
-        return {"data": res.data or [], "root": root_uri}
-    except Exception:
-        return {"data": [], "root": root_uri}
+    return await ProofApplicationService(sb=sb).get_node_tree(root_uri=root_uri)
 
 
 async def proof_stats_flow(*, project_id: str, sb: Client) -> dict[str, Any]:
-    if not _is_uuid(project_id):
-        raise HTTPException(400, "Invalid project_id format. UUID expected.")
-
-    try:
-        res = _run_with_retry(
-            lambda: sb.table("proof_chain").select("object_type, action").eq("project_id", project_id).execute(),
-            retries=1,
-        )
-        rows = res.data or []
-    except Exception:
-        rows = []
-
-    by_type: dict[str, int] = {}
-    by_action: dict[str, int] = {}
-    for row in rows:
-        object_type = row.get("object_type")
-        action = row.get("action")
-        if object_type:
-            by_type[object_type] = by_type.get(object_type, 0) + 1
-        if action:
-            by_action[action] = by_action.get(action, 0) + 1
-
-    return {
-        "total": len(rows),
-        "by_type": by_type,
-        "by_action": by_action,
-    }
+    return await ProofApplicationService(sb=sb).proof_stats(project_id=project_id)
 
 
 def list_unspent_utxo_flow(
@@ -502,6 +399,36 @@ def get_full_lineage_flow(*, utxo_id: str, sb: Client) -> dict[str, Any]:
     return get_full_lineage(utxo_id=utxo_id, sb=sb)
 
 
+def trace_asset_origin_flow(
+    *,
+    sb: Client,
+    utxo_id: str = "",
+    boq_item_uri: str = "",
+    project_uri: str = "",
+) -> dict[str, Any]:
+    return trace_asset_origin(
+        sb=sb,
+        utxo_id=utxo_id,
+        boq_item_uri=boq_item_uri,
+        project_uri=project_uri,
+    )
+
+
+def did_reputation_flow(
+    *,
+    sb: Client,
+    project_uri: str,
+    participant_did: str,
+    window_days: int = 90,
+) -> dict[str, Any]:
+    return compute_did_reputation(
+        sb=sb,
+        project_uri=project_uri,
+        participant_did=participant_did,
+        window_days=window_days,
+    )
+
+
 def transfer_asset_flow(*, body: Any, sb: Client) -> dict[str, Any]:
     return transfer_asset(
         sb=sb,
@@ -535,17 +462,7 @@ def apply_variation_flow(*, body: Any, sb: Client) -> dict[str, Any]:
 
 
 def replay_offline_packets_flow(*, body: Any, sb: Client) -> dict[str, Any]:
-    packets = [
-        (x.model_dump() if hasattr(x, "model_dump") else dict(x))
-        for x in list(body.packets or [])
-    ]
-    return replay_offline_packets(
-        sb=sb,
-        packets=packets,
-        stop_on_error=bool(body.stop_on_error),
-        default_executor_uri=str(body.default_executor_uri or "v://executor/system/"),
-        default_executor_role=str(body.default_executor_role or "TRIPROLE"),
-    )
+    return domain_replay_offline_packets_payload(body=body, sb=sb)
 
 
 def scan_confirm_signature_flow(*, body: Any, sb: Client) -> dict[str, Any]:
@@ -609,26 +526,16 @@ def get_docfinal_context_flow(
     aggregate_level: str,
     sb: Client,
 ) -> dict[str, Any]:
-    project_meta = {"project_name": project_name} if project_name else {}
-    package = build_docfinal_package_for_boq(
+    return domain_get_docfinal_context(
         boq_item_uri=boq_item_uri,
-        sb=sb,
-        project_meta=project_meta,
+        project_name=project_name,
         verify_base_url=verify_base_url,
         template_path=template_path,
         aggregate_anchor_code=aggregate_anchor_code,
         aggregate_direction=aggregate_direction,
         aggregate_level=aggregate_level,
-        # Context endpoint is read-only preview and must not mutate ledger state.
-        apply_asset_transfer=False,
+        sb=sb,
     )
-    return {
-        "ok": True,
-        "boq_item_uri": boq_item_uri,
-        "chain_count": len(package.get("proof_chain") or []),
-        "context": package.get("context") or {},
-        "full_lineage": package.get("full_lineage") or {},
-    }
 
 
 async def download_docfinal_zip_flow(
@@ -642,22 +549,49 @@ async def download_docfinal_zip_flow(
     aggregate_level: str,
     sb: Client,
 ) -> StreamingResponse:
-    project_meta = {"project_name": project_name} if project_name else {}
-    package = build_docfinal_package_for_boq(
+    return await domain_download_docfinal_zip(
         boq_item_uri=boq_item_uri,
-        sb=sb,
-        project_meta=project_meta,
+        project_name=project_name,
         verify_base_url=verify_base_url,
         template_path=template_path,
         aggregate_anchor_code=aggregate_anchor_code,
         aggregate_direction=aggregate_direction,
         aggregate_level=aggregate_level,
+        sb=sb,
     )
-    filename = f"DOCFINAL-{package.get('filename_base') or 'boq'}.zip"
-    return StreamingResponse(
-        io.BytesIO(package.get("zip_bytes") or b""),
-        media_type="application/zip",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+
+
+async def download_evidence_center_zip_flow(
+    *,
+    project_uri: str,
+    subitem_code: str,
+    proof_id: str | None,
+    sb: Client,
+    verify_base_url: str = "https://verify.qcspec.com",
+) -> StreamingResponse:
+    return await domain_download_evidence_center_zip(
+        project_uri=project_uri,
+        subitem_code=subitem_code,
+        proof_id=proof_id,
+        sb=sb,
+        verify_base_url=verify_base_url,
+    )
+
+
+def get_evidence_center_evidence_flow(
+    *,
+    project_uri: str | None,
+    subitem_code: str | None,
+    boq_item_uri: str | None,
+    smu_id: str | None,
+    sb: Client,
+) -> dict[str, Any]:
+    return domain_get_evidence_center_evidence(
+        project_uri=project_uri,
+        subitem_code=subitem_code,
+        boq_item_uri=boq_item_uri,
+        smu_id=smu_id,
+        sb=sb,
     )
 
 
@@ -674,24 +608,7 @@ async def export_doc_final_flow(
     body: Any,
     sb: Client,
 ) -> StreamingResponse:
-    result = export_doc_final(
-        sb=sb,
-        project_uri=str(body.project_uri or ""),
-        project_name=str(body.project_name or ""),
-        passphrase=str(body.passphrase or ""),
-        verify_base_url=str(body.verify_base_url or "https://verify.qcspec.com"),
-        include_unsettled=bool(body.include_unsettled),
-    )
-    return StreamingResponse(
-        io.BytesIO(result.get("encrypted_bytes") or b""),
-        media_type="application/octet-stream",
-        headers={
-            "Content-Disposition": f'attachment; filename="{result.get("filename") or "MASTER-DSP.qcdsp"}"',
-            "X-DocFinal-Root-Hash": str(result.get("root_hash") or ""),
-            "X-DocFinal-Proof-Id": str((result.get("birth_certificate") or {}).get("proof_id") or ""),
-            "X-DocFinal-GitPeg-Anchor": str((result.get("birth_certificate") or {}).get("gitpeg_anchor") or ""),
-        },
-    )
+    return await domain_export_doc_final_package(body=body, sb=sb)
 
 
 def generate_payment_certificate_flow(*, body: Any, sb: Client) -> dict[str, Any]:
@@ -799,27 +716,7 @@ async def finalize_docfinal_delivery_flow(
     body: Any,
     sb: Client,
 ) -> StreamingResponse:
-    result = finalize_docfinal_delivery(
-        sb=sb,
-        project_uri=str(body.project_uri or ""),
-        project_name=str(body.project_name or ""),
-        passphrase=str(body.passphrase or ""),
-        verify_base_url=str(body.verify_base_url or "https://verify.qcspec.com"),
-        include_unsettled=bool(body.include_unsettled),
-        run_anchor_rounds=int(body.run_anchor_rounds or 0),
-    )
-    return StreamingResponse(
-        io.BytesIO(result.get("encrypted_bytes") or b""),
-        media_type="application/octet-stream",
-        headers={
-            "Content-Disposition": f'attachment; filename="{result.get("filename") or "MASTER-DSP.qcdsp"}"',
-            "X-DocFinal-Root-Hash": str(result.get("root_hash") or ""),
-            "X-DocFinal-Proof-Id": str((result.get("birth_certificate") or {}).get("proof_id") or ""),
-            "X-DocFinal-GitPeg-Anchor": str((result.get("birth_certificate") or {}).get("gitpeg_anchor") or ""),
-            "X-DocFinal-Final-GitPeg-Anchor": str(result.get("final_gitpeg_anchor") or ""),
-            "X-DocFinal-Anchor-Runs": str(len(result.get("anchor_runs") or [])),
-        },
-    )
+    return await domain_finalize_docfinal_delivery_package(body=body, sb=sb)
 
 
 def bind_utxo_to_spatial_flow(*, body: Any, sb: Client) -> dict[str, Any]:
@@ -928,6 +825,43 @@ def register_om_event_flow(*, body: Any, sb: Client) -> dict[str, Any]:
         event_type=str(body.event_type or "maintenance"),
         payload=dict(body.payload or {}),
         executor_uri=str(body.executor_uri or "v://operator/om/default"),
+    )
+
+
+def specdict_evolution_flow(*, body: Any, sb: Client) -> dict[str, Any]:
+    return analyze_specdict_evolution(
+        sb=sb,
+        project_uris=list(body.project_uris or []),
+        min_samples=int(body.min_samples or 5),
+    )
+
+
+def specdict_export_bundle_flow(*, body: Any, sb: Client) -> dict[str, Any]:
+    return export_specdict_bundle(
+        sb=sb,
+        project_uris=list(body.project_uris or []),
+        min_samples=int(body.min_samples or 5),
+        namespace_uri=str(body.namespace_uri or "v://global/templates"),
+        commit=bool(body.commit),
+    )
+
+
+def ar_anchor_overlay_flow(
+    *,
+    project_uri: str,
+    lat: float,
+    lng: float,
+    radius_m: float,
+    limit: int,
+    sb: Client,
+) -> dict[str, Any]:
+    return get_ar_anchor_overlay(
+        sb=sb,
+        project_uri=project_uri,
+        lat=lat,
+        lng=lng,
+        radius_m=radius_m,
+        limit=limit,
     )
 
 
@@ -1267,6 +1201,10 @@ def smu_genesis_import_active_job_flow(*, project_uri: str) -> dict[str, Any]:
     return get_active_smu_import_job(project_uri=project_uri)
 
 
+def smu_spu_library_flow() -> dict[str, Any]:
+    return list_spu_template_library()
+
+
 def smu_node_context_flow(
     *,
     project_uri: str,
@@ -1312,6 +1250,11 @@ def smu_sign_flow(*, body: Any, sb: Client) -> dict[str, Any]:
         contractor_did=str(body.contractor_did or ""),
         owner_did=str(body.owner_did or ""),
         signer_metadata=dict(body.signer_metadata or {}),
+        consensus_values=list(body.consensus_values or []),
+        allowed_deviation=(float(body.allowed_deviation) if body.allowed_deviation is not None else None),
+        allowed_deviation_percent=(
+            float(body.allowed_deviation_percent) if body.allowed_deviation_percent is not None else None
+        ),
         geo_location=dict(body.geo_location or {}),
         server_timestamp_proof=dict(body.server_timestamp_proof or {}),
         auto_docpeg=bool(body.auto_docpeg if body.auto_docpeg is not None else True),
@@ -1338,266 +1281,9 @@ def smu_freeze_flow(*, body: Any, sb: Client) -> dict[str, Any]:
     )
 
 
+def retry_erpnext_push_queue(*, sb: Client, limit: int = 20) -> dict[str, Any]:
+    return retry_erpnext_push_queue_smu(sb=sb, limit=limit)
+
+
 def project_readiness_check_flow(*, project_uri: str, sb: Client) -> dict[str, Any]:
-    normalized_project_uri = _to_text(project_uri).strip()
-    if not normalized_project_uri:
-        raise HTTPException(400, "project_uri is required")
-
-    try:
-        rows = (
-            sb.table("proof_utxo")
-            .select("proof_id,proof_type,result,state_data,created_at,segment_uri,spent")
-            .eq("project_uri", normalized_project_uri)
-            .order("created_at", desc=False)
-            .limit(30000)
-            .execute()
-            .data
-            or []
-        )
-    except Exception as exc:
-        raise HTTPException(502, f"failed to load project proofs: {exc}") from exc
-
-    leaf_total = 0
-    group_total = 0
-    linked_gate_leaf = 0
-    specdict_leaf = 0
-    with_children_merkle = 0
-    proof_type_counts: dict[str, int] = {}
-    inspection_total = 0
-    inspection_pass = 0
-    inspection_with_geo = 0
-    inspection_with_ntp = 0
-    inspection_with_evidence = 0
-    lab_total = 0
-    lab_pass = 0
-    payment_total = 0
-    payment_pass = 0
-    railpact_instruction_count = 0
-    doc_count = 0
-    docfinal_count = 0
-    scan_confirm_count = 0
-    variation_count = 0
-
-    for row in rows:
-        if not isinstance(row, dict):
-            continue
-        ptype = _to_text(row.get("proof_type") or "").strip().lower()
-        result = _to_text(row.get("result") or "").strip().upper()
-        sd = _as_dict(row.get("state_data"))
-        proof_type_counts[ptype] = int(proof_type_counts.get(ptype, 0)) + 1
-
-        tree = _as_dict(sd.get("hierarchy_tree"))
-        if tree:
-            is_leaf = bool(tree.get("is_leaf")) if "is_leaf" in tree else bool(sd.get("is_leaf"))
-            if is_leaf:
-                leaf_total += 1
-                if _to_text(sd.get("linked_gate_id") or "").strip() or _as_list(sd.get("linked_gate_ids")):
-                    linked_gate_leaf += 1
-                if _to_text(sd.get("spec_dict_key") or "").strip():
-                    specdict_leaf += 1
-            else:
-                group_total += 1
-                if _to_text(tree.get("children_merkle_root") or "").strip():
-                    with_children_merkle += 1
-
-        if ptype == "inspection":
-            inspection_total += 1
-            if result == "PASS":
-                inspection_pass += 1
-            geo = _as_dict(sd.get("geo_location"))
-            if geo.get("lat") is not None and geo.get("lng") is not None:
-                inspection_with_geo += 1
-            if _as_dict(sd.get("server_timestamp_proof")):
-                inspection_with_ntp += 1
-            if _as_list(sd.get("evidence_hashes")):
-                inspection_with_evidence += 1
-        if ptype == "lab":
-            lab_total += 1
-            if result == "PASS":
-                lab_pass += 1
-        if ptype == "payment":
-            payment_total += 1
-            if result == "PASS":
-                payment_pass += 1
-        if ptype == "payment_instruction":
-            railpact_instruction_count += 1
-        if ptype == "document":
-            doc_count += 1
-        if "docfinal" in ptype:
-            docfinal_count += 1
-        if _to_text(sd.get("trip_action") or "").strip() == "variation.record" or ptype == "variation":
-            variation_count += 1
-        if _as_list(sd.get("scan_confirmations")):
-            scan_confirm_count += 1
-
-    try:
-        realtime = get_boq_realtime_status(sb=sb, project_uri=normalized_project_uri, limit=5000)
-    except Exception:
-        realtime = {"summary": {}, "items": [], "ok": False}
-    try:
-        boq_audit = run_boq_audit_engine(
-            sb=sb,
-            project_uri=normalized_project_uri,
-            subitem_code="",
-            max_rows=50000,
-            limit_items=2000,
-        )
-    except Exception:
-        boq_audit = {"summary": {}, "audits": [], "illegal_attempts": [], "ok": False}
-    try:
-        frequency = get_frequency_dashboard(sb=sb, project_uri=normalized_project_uri, limit_items=300)
-    except Exception:
-        frequency = {"summary": {}, "items": [], "ok": False}
-
-    realtime_summary = _as_dict(realtime.get("summary"))
-    audit_summary = _as_dict(boq_audit.get("summary"))
-    freq_summary = _as_dict(frequency.get("summary"))
-    illegal_attempt_count = int(audit_summary.get("illegal_attempt_count") or 0)
-    missed_dual_pass = int(freq_summary.get("missed_check_total") or 0)
-    should_check_total = int(freq_summary.get("should_check_total") or 0)
-
-    inspection_geo_ratio = 0.0 if inspection_total <= 0 else float(inspection_with_geo) / float(inspection_total)
-    inspection_ntp_ratio = 0.0 if inspection_total <= 0 else float(inspection_with_ntp) / float(inspection_total)
-    inspection_evidence_ratio = 0.0 if inspection_total <= 0 else float(inspection_with_evidence) / float(inspection_total)
-    realtime_item_count = int(
-        realtime_summary.get("item_count")
-        or realtime_summary.get("boq_item_count")
-        or 0
-    )
-
-    layers: list[dict[str, Any]] = []
-    layers.append(
-        {
-            "key": "live_boq",
-            "name": "核心资产层 Live BOQ",
-            "status": _status(
-                complete=(leaf_total > 0 and group_total > 0 and realtime_item_count > 0),
-                partial=(leaf_total > 0),
-            ),
-            "metrics": {
-                "leaf_nodes": leaf_total,
-                "group_nodes": group_total,
-                "group_nodes_with_children_merkle": with_children_merkle,
-                "realtime_item_count": realtime_item_count,
-            },
-        }
-    )
-    layers.append(
-        {
-            "key": "specdict_qcgate",
-            "name": "规则治理层 SpecDict + QCGate",
-            "status": _status(
-                complete=(leaf_total > 0 and linked_gate_leaf >= leaf_total and specdict_leaf > 0),
-                partial=(linked_gate_leaf > 0 or specdict_leaf > 0),
-            ),
-            "metrics": {
-                "leaf_nodes": leaf_total,
-                "leaf_with_gate_binding": linked_gate_leaf,
-                "leaf_with_specdict_binding": specdict_leaf,
-            },
-        }
-    )
-    layers.append(
-        {
-            "key": "docpeg_documents",
-            "name": "主权文档层 DocPeg + 文档治理",
-            "status": _status(
-                complete=(docfinal_count > 0 and (doc_count > 0 or inspection_with_evidence > 0)),
-                partial=(docfinal_count > 0 or doc_count > 0 or inspection_with_evidence > 0),
-            ),
-            "metrics": {
-                "docfinal_proofs": docfinal_count,
-                "document_proofs": doc_count,
-                "inspection_with_evidence": inspection_with_evidence,
-                "scan_confirmed_records": scan_confirm_count,
-            },
-        }
-    )
-    layers.append(
-        {
-            "key": "field_execution_qcspec",
-            "name": "现场执行层 QCSpec",
-            "status": _status(
-                complete=(inspection_pass > 0 and inspection_geo_ratio >= 0.8 and inspection_ntp_ratio >= 0.8),
-                partial=(inspection_total > 0),
-            ),
-            "metrics": {
-                "inspection_total": inspection_total,
-                "inspection_pass": inspection_pass,
-                "geo_coverage_ratio": round(inspection_geo_ratio, 4),
-                "ntp_coverage_ratio": round(inspection_ntp_ratio, 4),
-                "evidence_coverage_ratio": round(inspection_evidence_ratio, 4),
-            },
-        }
-    )
-    layers.append(
-        {
-            "key": "labpeg_dual_gate",
-            "name": "实验室联动层 LabPeg 双合格门控",
-            "status": _status(
-                complete=(should_check_total > 0 and missed_dual_pass == 0 and lab_pass > 0),
-                partial=(lab_total > 0 or should_check_total > 0),
-            ),
-            "metrics": {
-                "lab_total": lab_total,
-                "lab_pass": lab_pass,
-                "expected_dual_checks": should_check_total,
-                "missed_dual_checks": missed_dual_pass,
-            },
-        }
-    )
-    layers.append(
-        {
-            "key": "finance_erp_railpact",
-            "name": "财务监管层 计量支付 + RailPact",
-            "status": _status(
-                complete=(payment_pass > 0 and railpact_instruction_count > 0 and illegal_attempt_count == 0),
-                partial=(payment_total > 0 or railpact_instruction_count > 0),
-            ),
-            "metrics": {
-                "payment_total": payment_total,
-                "payment_pass": payment_pass,
-                "railpact_instruction_count": railpact_instruction_count,
-                "illegal_attempt_count": illegal_attempt_count,
-            },
-        }
-    )
-    layers.append(
-        {
-            "key": "audit_reconciliation",
-            "name": "审计对账层 主权穿透 + 自动对账",
-            "status": _status(
-                complete=(int(audit_summary.get("item_count") or 0) > 0 and illegal_attempt_count == 0),
-                partial=(int(audit_summary.get("item_count") or 0) > 0),
-            ),
-            "metrics": {
-                "audited_items": int(audit_summary.get("item_count") or 0),
-                "illegal_attempt_count": illegal_attempt_count,
-                "variation_records": variation_count,
-            },
-        }
-    )
-
-    score = 0.0
-    for layer in layers:
-        st = _to_text(layer.get("status")).strip()
-        if st == "complete":
-            score += 1.0
-        elif st == "partial":
-            score += 0.5
-    readiness_percent = round((score / max(1, len(layers))) * 100.0, 2)
-    overall_status = "complete" if readiness_percent >= 95 else ("partial" if readiness_percent >= 40 else "missing")
-
-    return {
-        "ok": True,
-        "project_uri": normalized_project_uri,
-        "overall_status": overall_status,
-        "readiness_percent": readiness_percent,
-        "layers": layers,
-        "raw_summary": {
-            "proof_type_counts": proof_type_counts,
-            "realtime": realtime_summary,
-            "boq_audit": audit_summary,
-            "frequency": freq_summary,
-        },
-    }
+    return domain_project_readiness_check(project_uri=project_uri, sb=sb)
