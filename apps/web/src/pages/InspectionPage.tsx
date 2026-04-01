@@ -4,7 +4,7 @@ import InspectionList from '../components/inspection/InspectionList'
 import PhotoUpload from '../components/photo/PhotoUpload'
 import { Card, EmptyState } from '../components/ui'
 import { useProjectStore, useInspectionStore, useAuthStore } from '../store'
-import { useInspections } from '../hooks/useApi'
+import { useInspections } from '../hooks/api/inspections'
 import type { Project } from '@qcspec/types'
 
 type Tab = 'form' | 'photos'

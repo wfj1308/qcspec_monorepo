@@ -5,7 +5,7 @@
 
 import React, { useState, useRef, useCallback, useEffect } from 'react'
 import { Button, Card, VPathDisplay } from '../ui'
-import { usePhotos } from '../../hooks/useApi'
+import { usePhotos } from '../../hooks/api/photos'
 import { usePhotoStore, useUIStore, useProjectStore } from '../../store'
 import type { Photo } from '@qcspec/types'
 

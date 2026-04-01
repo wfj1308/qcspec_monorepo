@@ -7,7 +7,7 @@ import React, { useEffect, useState, useCallback } from 'react'
 import { Card, Button, EmptyState, VPathDisplay } from '../components/ui'
 import PhotoUpload from '../components/photo/PhotoUpload'
 import { usePhotoStore, useProjectStore, useAuthStore, useUIStore } from '../store'
-import { usePhotos } from '../hooks/useApi'
+import { usePhotos } from '../hooks/api/photos'
 import type { Photo } from '@qcspec/types'
 
 type ViewMode = 'grid' | 'list'

@@ -6,7 +6,9 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { Card, Button, EmptyState, ProgressBar, VPathDisplay, StatCard } from '../components/ui'
 import { useProjectStore, useInspectionStore, useAuthStore, useUIStore } from '../store'
-import { useReports, useProof, useInspections } from '../hooks/useApi'
+import { useReports } from '../hooks/api/reports'
+import { useProof } from '../hooks/api/proof'
+import { useInspections } from '../hooks/api/inspections'
 import type { Report } from '@qcspec/types'
 
 const formatDateTimeSeconds = (input?: string | null): string => {

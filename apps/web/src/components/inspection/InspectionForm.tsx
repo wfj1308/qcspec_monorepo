@@ -7,7 +7,8 @@ import React, { useState, useCallback, useEffect, useRef } from 'react'
 import { INSPECTION_TYPES } from '@qcspec/types'
 import type { InspectResult } from '@qcspec/types'
 import { Button, Input, Select, Card, VPathDisplay } from '../ui'
-import { useErpnext, useInspections } from '../../hooks/useApi'
+import { useErpnext } from '../../hooks/api/erpnext'
+import { useInspections } from '../../hooks/api/inspections'
 import { useInspectionStore, useUIStore, useProjectStore, usePhotoStore } from '../../store'
 
 const TYPE_OPTIONS = [

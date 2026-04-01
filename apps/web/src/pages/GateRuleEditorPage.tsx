@@ -1,6 +1,6 @@
 ﻿import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { Button, Card, Input, Select, Toast, VPathDisplay } from '../components/ui'
-import { useProof } from '../hooks/useApi'
+import { useProof } from '../hooks/api/proof'
 import { useUIStore } from '../store'
 
 type RuleRow = {

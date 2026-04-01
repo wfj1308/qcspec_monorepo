@@ -8,7 +8,7 @@ import { RESULT_LABELS, RESULT_COLORS } from '@qcspec/types'
 import type { Inspection, Photo } from '@qcspec/types'
 import { ResultBadge, ProgressBar, EmptyState, Button } from '../ui'
 import { useInspectionStore, useUIStore, usePhotoStore } from '../../store'
-import { useInspections } from '../../hooks/useApi'
+import { useInspections } from '../../hooks/api/inspections'
 
 interface Props {
   projectId: string

@@ -1,6 +1,7 @@
 ﻿import React, { useEffect, useState } from 'react'
 import { useProjectStore, useInspectionStore, usePhotoStore, useAuthStore, useUIStore } from '../store'
-import { useProjects, useInspections } from '../hooks/useApi'
+import { useProjects } from '../hooks/api/projects'
+import { useInspections } from '../hooks/api/inspections'
 
 interface ActivityItem {
   dot: string

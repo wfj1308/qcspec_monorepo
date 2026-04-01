@@ -5,7 +5,7 @@
 
 import React, { useState, useRef, useCallback, useEffect } from 'react'
 import { Card, Button, VPathDisplay } from '../ui'
-import { usePhotos } from '../../hooks/useApi'
+import { usePhotos } from '../../hooks/api/photos'
 import { usePhotoStore, useUIStore } from '../../store'
 
 interface Props {
