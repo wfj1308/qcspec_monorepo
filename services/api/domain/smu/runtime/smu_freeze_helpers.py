@@ -6,7 +6,7 @@ import hashlib
 import json
 from typing import Any
 from fastapi import HTTPException
-from services.api.smu_primitives import (
+from services.api.domain.smu.runtime.smu_primitives import (
     as_dict as _as_dict,
     to_float as _to_float,
     to_text as _to_text,
@@ -263,3 +263,4 @@ __all__ = [
     "normalize_freeze_context",
     "resolve_freeze_context",
 ]
+

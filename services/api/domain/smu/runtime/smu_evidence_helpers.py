@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Callable
 
-from services.api.smu_primitives import (
+from services.api.domain.smu.runtime.smu_primitives import (
     as_dict as _as_dict,
     as_list as _as_list,
     to_float as _to_float,
@@ -138,3 +138,4 @@ __all__ = [
     "resolve_lab_status",
     "verify_conservation",
 ]
+

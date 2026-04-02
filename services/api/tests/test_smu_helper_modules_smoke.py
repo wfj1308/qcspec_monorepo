@@ -3,20 +3,20 @@ from __future__ import annotations
 import pytest
 from fastapi import HTTPException
 
-from services.api import smu_docpeg_helpers as docpeg
-from services.api import smu_evidence_helpers as evidence_helpers
-from services.api import smu_execute_helpers as execute_helpers
-from services.api import smu_erp_helpers as erp
-from services.api import smu_freeze_helpers as freeze
-from services.api import smu_genesis_helpers as genesis_helpers
-from services.api import smu_governance_context_helpers as govctx
-from services.api import smu_governance_helpers as gov
-from services.api import smu_primitives as primitives
-from services.api import smu_response_builders as builders
-from services.api import smu_sign_helpers as sign_helpers
-from services.api import smu_state_helpers as state_helpers
-from services.api import smu_validation_helpers as val
-from services.api import smu_trip_helpers as trip
+from services.api.domain.smu.runtime import smu_docpeg_helpers as docpeg
+from services.api.domain.smu.runtime import smu_evidence_helpers as evidence_helpers
+from services.api.domain.smu.runtime import smu_execute_helpers as execute_helpers
+from services.api.domain.smu.runtime import smu_erp_helpers as erp
+from services.api.domain.smu.runtime import smu_freeze_helpers as freeze
+from services.api.domain.smu.runtime import smu_genesis_helpers as genesis_helpers
+from services.api.domain.smu.runtime import smu_governance_context_helpers as govctx
+from services.api.domain.smu.runtime import smu_governance_helpers as gov
+from services.api.domain.smu.runtime import smu_primitives as primitives
+from services.api.domain.smu.runtime import smu_response_builders as builders
+from services.api.domain.smu.runtime import smu_sign_helpers as sign_helpers
+from services.api.domain.smu.runtime import smu_state_helpers as state_helpers
+from services.api.domain.smu.runtime import smu_validation_helpers as val
+from services.api.domain.smu.runtime import smu_trip_helpers as trip
 
 
 def test_smu_governance_helpers_basic_behaviors() -> None:

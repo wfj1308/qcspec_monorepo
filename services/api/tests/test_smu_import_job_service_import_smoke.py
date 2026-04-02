@@ -4,5 +4,5 @@ import importlib
 
 
 def test_smu_import_job_service_importable() -> None:
-    module = importlib.import_module("services.api.smu_import_job_service")
+    module = importlib.import_module("services.api.domain.smu.runtime.smu_import_job_service")
     assert hasattr(module, "start_smu_import_job")

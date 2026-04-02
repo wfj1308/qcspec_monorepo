@@ -10,7 +10,7 @@ from typing import Any, Callable
 from services.api.domain.documents.integrations import register_document
 from services.api.domain.execution.flows import build_docfinal_package_for_boq
 from services.api.reports_generation_service import REPORTS_BUCKET
-from services.api.smu_primitives import (
+from services.api.domain.smu.runtime.smu_primitives import (
     as_dict as _as_dict,
     to_text as _to_text,
 )
@@ -365,3 +365,4 @@ def run_auto_docpeg_after_sign(
 __all__ = [
     "run_auto_docpeg_after_sign",
 ]
+

@@ -1,4 +1,4 @@
-﻿"""
+"""
 Background job service for SMU BOQ genesis import.
 
 This prevents heavy import parsing from blocking unrelated APIs.

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from services.api.smu_primitives import (
+from services.api.domain.smu.runtime.smu_primitives import (
     as_dict as _as_dict,
     to_text as _to_text,
 )
@@ -72,3 +72,4 @@ __all__ = [
     "latest_unspent_leaf",
     "patch_state_data",
 ]
+

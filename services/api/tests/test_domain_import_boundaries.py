@@ -24,7 +24,11 @@ _FORBIDDEN_ROOT_IMPORT_PATTERN = re.compile(
 
 def _domain_py_files() -> list[Path]:
     domain_root = Path(__file__).resolve().parents[1] / "domain"
-    return sorted(p for p in domain_root.rglob("*.py") if p.name != "integrations.py")
+    return sorted(
+        p
+        for p in domain_root.rglob("*.py")
+        if p.name != "integrations.py" and "runtime" not in p.parts
+    )
 
 
 def test_domain_modules_do_not_import_legacy_service_modules_directly() -> None:

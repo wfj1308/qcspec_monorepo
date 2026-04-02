@@ -7,7 +7,7 @@ from typing import Any
 import hashlib
 from fastapi import HTTPException
 
-from services.api.smu_primitives import (
+from services.api.domain.smu.runtime.smu_primitives import (
     as_dict as _as_dict,
     to_float as _to_float,
     to_text as _to_text,
@@ -259,3 +259,4 @@ __all__ = [
     "filter_rows_by_smu_id",
     "resolve_validate_logic",
 ]
+

@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Callable
 
-from services.api.smu_primitives import (
+from services.api.domain.smu.runtime.smu_primitives import (
     as_dict as _as_dict,
     as_list as _as_list,
     to_text as _to_text,
@@ -257,3 +257,4 @@ __all__ = [
     "normalize_governance_payload",
     "resolve_governance_payload",
 ]
+

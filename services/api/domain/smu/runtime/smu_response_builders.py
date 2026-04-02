@@ -6,12 +6,12 @@ import hashlib
 import json
 from typing import Any
 
-from services.api.smu_primitives import (
+from services.api.domain.smu.runtime.smu_primitives import (
     as_dict as _as_dict,
     to_float as _to_float,
     to_text as _to_text,
 )
-from services.api.smu_trip_helpers import (
+from services.api.domain.smu.runtime.smu_trip_helpers import (
     build_quality_payload,
     collect_qc_values,
     resolve_single_value,
@@ -310,3 +310,4 @@ __all__ = [
     "build_governance_context_response",
     "build_sign_approval_response",
 ]
+

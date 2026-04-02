@@ -7,11 +7,11 @@ from typing import Any
 
 
 def _smu_flow_module() -> Any:
-    return import_module("services.api.smu_flow_service")
+    return import_module("services.api.domain.smu.runtime.smu_flow_service")
 
 
 def _smu_import_job_module() -> Any:
-    return import_module("services.api.smu_import_job_service")
+    return import_module("services.api.domain.smu.runtime.smu_import_job_service")
 
 
 def import_genesis_trip(*args: Any, **kwargs: Any) -> dict[str, Any]:

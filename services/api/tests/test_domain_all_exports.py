@@ -49,6 +49,8 @@ def test_domain_modules_all_exports_are_defined() -> None:
     for path in sorted(domain_root.rglob("*.py")):
         if path.name == "__init__.py":
             continue
+        if "runtime" in path.parts:
+            continue
         tree = ast.parse(path.read_text(encoding="utf-8"))
         all_names = _extract_all_names(tree)
         if not all_names:

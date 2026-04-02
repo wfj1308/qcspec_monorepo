@@ -26,55 +26,55 @@ from services.api.domain.utxo.integrations import ProofUTXOEngine
 from services.api.domain.execution.flows import (
     get_boq_realtime_status,
 )
-from services.api.smu_boq_upload_parser import parse_boq_upload
-from services.api.smu_docpeg_helpers import run_auto_docpeg_after_sign
-from services.api.smu_evidence_helpers import (
+from services.api.domain.smu.runtime.smu_boq_upload_parser import parse_boq_upload
+from services.api.domain.smu.runtime.smu_docpeg_helpers import run_auto_docpeg_after_sign
+from services.api.domain.smu.runtime.smu_evidence_helpers import (
     resolve_boq_balance as _resolve_boq_balance,
     resolve_lab_pass_for_sample as _resolve_lab_pass_for_sample,
     resolve_lab_status as _resolve_lab_status,
     verify_conservation,
 )
-from services.api.smu_execute_helpers import (
+from services.api.domain.smu.runtime.smu_execute_helpers import (
     build_execute_state_patch as _build_execute_state_patch,
     enforce_execute_guards as _enforce_execute_guards,
     resolve_execute_context as _resolve_execute_context,
 )
-from services.api.smu_genesis_helpers import (
+from services.api.domain.smu.runtime.smu_genesis_helpers import (
     enrich_genesis_preview_rows as _enrich_genesis_preview_rows,
     initialize_genesis_chain as _initialize_genesis_chain,
     persist_genesis_created_enrichment as _persist_genesis_created_enrichment,
     resolve_genesis_roots as _resolve_genesis_roots,
 )
-from services.api.smu_primitives import (
+from services.api.domain.smu.runtime.smu_primitives import (
     as_dict as _as_dict,
     as_list as _as_list,
     to_float as _to_float,
     to_text as _to_text,
     utc_iso as _utc_iso,
 )
-from services.api.smu_erp_helpers import (
+from services.api.domain.smu.runtime.smu_erp_helpers import (
     create_erpnext_receipt_proof as _create_erpnext_receipt_proof,
     push_docpeg_to_erpnext as _push_docpeg_to_erpnext,
     queue_erpnext_push as _queue_erpnext_push,
     retry_erpnext_push_queue as _retry_erpnext_push_queue,
 )
-from services.api.smu_freeze_helpers import (
+from services.api.domain.smu.runtime.smu_freeze_helpers import (
     build_freeze_payloads_from_context as _build_freeze_payloads_from_context,
     build_freeze_proof_create_payload as _build_freeze_proof_create_payload,
     build_freeze_response,
     resolve_freeze_context as _resolve_freeze_context,
 )
-from services.api.smu_governance_helpers import (
+from services.api.domain.smu.runtime.smu_governance_helpers import (
     build_gatekeeper,
     container_status_from_stage,
     derive_display_metadata,
     eval_threshold,
 )
-from services.api.smu_governance_context_helpers import (
+from services.api.domain.smu.runtime.smu_governance_context_helpers import (
     build_governance_context_response_from_payload as _build_governance_context_response_from_payload,
     resolve_governance_payload as _resolve_governance_payload_impl,
 )
-from services.api.smu_rules import (
+from services.api.domain.smu.runtime.smu_rules import (
     _build_spu_formula_audit,
     _is_contract_payload,
     _resolve_allowed_roles,
@@ -83,18 +83,18 @@ from services.api.smu_rules import (
     _resolve_spu_template,
     list_spu_template_library,
 )
-from services.api.smu_state_helpers import (
+from services.api.domain.smu.runtime.smu_state_helpers import (
     collect_smu_qualification as _collect_smu_qualification,
     is_smu_frozen as _is_smu_frozen,
     mark_smu_scope_immutable as _mark_smu_scope_immutable,
     smu_id_from_item_code as _smu_id_from_item_code,
 )
-from services.api.smu_storage_helpers import (
+from services.api.domain.smu.runtime.smu_storage_helpers import (
     boq_rows as _boq_rows,
     latest_unspent_leaf as _latest_unspent_leaf,
     patch_state_data as _patch_state_data,
 )
-from services.api.smu_response_builders import (
+from services.api.domain.smu.runtime.smu_response_builders import (
     build_execute_quality_bundle as _build_execute_quality_bundle,
     build_execute_trip_response as _build_execute_trip_response,
     build_genesis_import_response as _build_genesis_import_response,
@@ -103,7 +103,7 @@ from services.api.smu_response_builders import (
     build_governance_context_response as _build_governance_context_response,
     build_sign_approval_response as _build_sign_approval_response,
 )
-from services.api.smu_sign_helpers import (
+from services.api.domain.smu.runtime.smu_sign_helpers import (
     normalize_docpeg_bundle as _normalize_docpeg_bundle,
     normalize_sign_context as _normalize_sign_context,
     normalize_sign_inputs as _normalize_sign_inputs,
@@ -111,12 +111,12 @@ from services.api.smu_sign_helpers import (
     build_sign_output_patch as _build_sign_output_patch,
     resolve_sign_context as _resolve_sign_context,
 )
-from services.api.smu_trip_helpers import (
+from services.api.domain.smu.runtime.smu_trip_helpers import (
     build_sign_inputs,
     run_execute_actions as _run_execute_actions,
     run_settlement_confirm,
 )
-from services.api.smu_validation_helpers import (
+from services.api.domain.smu.runtime.smu_validation_helpers import (
     resolve_validate_logic as _resolve_validate_logic,
 )
 
@@ -706,6 +706,7 @@ def freeze_smu(
         merkle=merkle,
         state_data=state_data,
     )
+
 
 
 

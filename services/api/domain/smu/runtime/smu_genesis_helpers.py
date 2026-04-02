@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any, Callable
 
 from services.api.boq_utxo_service import initialize_boq_utxos
-from services.api.smu_primitives import (
+from services.api.domain.smu.runtime.smu_primitives import (
     as_dict as _as_dict,
     as_list as _as_list,
     to_text as _to_text,
@@ -129,3 +129,4 @@ __all__ = [
     "persist_genesis_created_enrichment",
     "resolve_genesis_roots",
 ]
+
