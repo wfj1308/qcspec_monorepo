@@ -1,5 +1,5 @@
 ﻿
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React, { useRef } from 'react'
 import { GlobalWorkerOptions } from 'pdfjs-dist/legacy/build/pdf'
 import pdfWorkerUrl from 'pdfjs-dist/legacy/build/pdf.worker.min.mjs?url'
 import { Card } from '../ui'
@@ -27,8 +27,9 @@ import {
 } from './sovereign/useSovereignTreeDerivedState'
 import { useSovereignTreeImport } from './sovereign/useSovereignTreeImport'
 import { useSovereignConsensusState } from './sovereign/useSovereignConsensusState'
-import { useSovereignTripFlow } from './sovereign/useSovereignTripFlow'
+import { useSovereignTripFlow, useSovereignTripFlowState } from './sovereign/useSovereignTripFlow'
 import { useSovereignWorkbenchActions } from './sovereign/useSovereignWorkbenchActions'
+import { useSovereignWorkbenchLocalState } from './sovereign/useSovereignWorkbenchLocalState'
 import {
   useDocPegPreviewEffects,
   useGeoFenceToastEffect,
@@ -62,7 +63,6 @@ import {
   toApiUri,
   toDisplayUri,
 } from './sovereign/treeUtils'
-import type { EvidenceCenterPayload } from './sovereign/types'
 import { useAuditFinalizeActions } from './sovereign/useAuditFinalizeActions'
 import { useEvidenceCenterLoader } from './sovereign/useEvidenceCenterLoader'
 import { useEvidenceEventLogs } from './sovereign/useEvidenceEventLogs'
@@ -73,13 +73,29 @@ import { useScanConfirmAction } from './sovereign/useScanConfirmAction'
 import { useScanEntryState } from './sovereign/useScanEntryState'
 import { useSpecdictArActions } from './sovereign/useSpecdictArActions'
 import { useSovereignSession } from './sovereign/useSovereignSession'
+import { useSovereignP2PManifestExport } from './sovereign/useSovereignP2PManifestExport'
 import {
-  buildWorkbenchDisplayTexts,
   OFFLINE_KEY,
   WORKBENCH_FRAME_STYLE_TEXT,
   WORKBENCH_GRID_OVERLAY_STYLE,
-  WORKBENCH_STYLES,
 } from './sovereign/workbenchConfig'
+import { buildSovereignWorkbenchDisplayState } from './sovereign/workbenchDisplayState'
+import { asWorkbenchDict, buildDraftPdfBase64 } from './sovereign/workbenchPdfUtils'
+import { buildSovereignWorkbenchSectionHandlers } from './sovereign/workbenchSectionHandlers'
+import {
+  buildSovereignWorkbenchSecondary,
+  buildSovereignWorkbenchSecondaryAuditShell,
+  buildSovereignWorkbenchSecondaryEvidenceModal,
+  buildSovereignWorkbenchSecondaryEvidenceVault,
+  buildSovereignWorkbenchSecondaryOfflineFooter,
+  buildSovereignWorkbenchSecondaryOverlay,
+  buildSovereignWorkbenchSecondaryStylePacks,
+  buildSovereignWorkbenchSecondaryTripFlowModal,
+} from './sovereign/workbenchSecondaryBuilders'
+import {
+  buildSovereignWorkbenchPrimary,
+  buildSovereignWorkbenchShell,
+} from './sovereign/workbenchPrimaryBuilders'
 
 type Props = {
   project: { id?: string; v_uri?: string; name?: string } | null
@@ -94,50 +110,6 @@ try {
   // ignore worker setup failures in non-browser env
 }
 
-function _asDict(value: unknown): Record<string, unknown> {
-  return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {}
-}
-
-function escapePdfText(input: string): string {
-  return String(input || '').replace(/\\/g, '\\\\').replace(/\(/g, '\\(').replace(/\)/g, '\\)').replace(/\r?\n/g, ' ')
-}
-
-function buildDraftPdfBase64(lines: string[]): string {
-  const safeLines = lines.filter(Boolean).map((line) => escapePdfText(line))
-  const content = safeLines
-    .map((line, idx) => {
-      const y = 720 - idx * 16
-      return `BT /F1 12 Tf 72 ${y} Td (${line}) Tj ET`
-    })
-    .join('\n')
-  const encoder = new TextEncoder()
-  const header = '%PDF-1.4\n'
-  const obj1 = '1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n'
-  const obj2 = '2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n'
-  const obj3 = '3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>\nendobj\n'
-  const contentBytes = encoder.encode(content)
-  const obj4 = `4 0 obj\n<< /Length ${contentBytes.length} >>\nstream\n${content}\nendstream\nendobj\n`
-  const obj5 = '5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n'
-  const objects = [obj1, obj2, obj3, obj4, obj5]
-  const offsets: number[] = [0]
-  let cursor = encoder.encode(header).length
-  for (const obj of objects) {
-    offsets.push(cursor)
-    cursor += encoder.encode(obj).length
-  }
-  let xref = `xref\n0 ${objects.length + 1}\n`
-  xref += '0000000000 65535 f \n'
-  for (let i = 1; i < offsets.length; i += 1) {
-    xref += `${String(offsets[i]).padStart(10, '0')} 00000 n \n`
-  }
-  const trailer = `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${cursor}\n%%EOF`
-  const pdf = header + objects.join('') + xref + trailer
-  const bytes = encoder.encode(pdf)
-  let binary = ''
-  bytes.forEach((b) => { binary += String.fromCharCode(b) })
-  return btoa(binary)
-}
-
 export default function SovereignWorkbenchPanel({
   project,
   workspaceView = 'trip',
@@ -148,6 +120,7 @@ export default function SovereignWorkbenchPanel({
   const apiProjectUri = toApiUri(projectUri)
   const displayProjectUri = projectUri || toDisplayUri(apiProjectUri)
   const projectId = String(project?.id || '')
+  const projectName = String(project?.name || '')
   const { showToast } = useUIStore()
   const dtoRole = useAuthStore((s) => String(s.user?.dto_role || 'PUBLIC').toUpperCase())
   const forcedBoqProjectUri = displayProjectUri ? displayProjectUri.replace(/\/$/, '') : 'v://cn.zhongbei/highway'
@@ -191,19 +164,94 @@ export default function SovereignWorkbenchPanel({
   const supervisorAnchorRef = useRef<HTMLDivElement | null>(null)
   const ownerAnchorRef = useRef<HTMLDivElement | null>(null)
   const autoRejectRef = useRef('')
-  const [ctx, setCtx] = useState<Record<string, unknown> | null>(null)
-  const [loadingCtx, setLoadingCtx] = useState(false)
-  const [contextError, setContextError] = useState('')
-  const [form, setForm] = useState<Record<string, string>>({})
-  const [compType, setCompType] = useState('generic')
-  const [sampleId, setSampleId] = useState('')
-  const [claimQty, setClaimQty] = useState('')
-
-  const [executorDid, setExecutorDid] = useState('did:qcspec:contractor:demo')
-  const [supervisorDid, setSupervisorDid] = useState('did:qcspec:supervisor:demo')
-  const [ownerDid, setOwnerDid] = useState('did:qcspec:owner:demo')
-  const [lat, setLat] = useState('30.657')
-  const [lng, setLng] = useState('104.065')
+  const {
+    ctx,
+    setCtx,
+    loadingCtx,
+    setLoadingCtx,
+    contextError,
+    setContextError,
+    form,
+    setForm,
+    compType,
+    setCompType,
+    sampleId,
+    setSampleId,
+    claimQty,
+    setClaimQty,
+    executorDid,
+    setExecutorDid,
+    supervisorDid,
+    setSupervisorDid,
+    ownerDid,
+    setOwnerDid,
+    lat,
+    setLat,
+    lng,
+    setLng,
+    evidenceCenter,
+    setEvidenceCenter,
+    evidenceCenterLoading,
+    setEvidenceCenterLoading,
+    evidenceCenterError,
+    setEvidenceCenterError,
+    erpRetrying,
+    setErpRetrying,
+    erpRetryMsg,
+    setErpRetryMsg,
+    fingerprintOpen,
+    setFingerprintOpen,
+    draftStamp,
+    setDraftStamp,
+    disputeProofId,
+    setDisputeProofId,
+    disputeResolutionNote,
+    setDisputeResolutionNote,
+    disputeResult,
+    setDisputeResult,
+    copiedMsg,
+    setCopiedMsg,
+    traceOpen,
+    setTraceOpen,
+    docModalOpen,
+    setDocModalOpen,
+    pdfRenderError,
+    setPdfRenderError,
+    pdfRenderLoading,
+    setPdfRenderLoading,
+    showAdvancedConsensus,
+    setShowAdvancedConsensus,
+    showAcceptanceAdvanced,
+    setShowAcceptanceAdvanced,
+    specdictProjectUris,
+    setSpecdictProjectUris,
+    specdictMinSamples,
+    setSpecdictMinSamples,
+    specdictNamespace,
+    setSpecdictNamespace,
+    specdictCommit,
+    setSpecdictCommit,
+    arRadius,
+    setArRadius,
+    arLimit,
+    setArLimit,
+    p2pNodeId,
+    p2pPeers,
+    setP2pPeers,
+    p2pAutoSync,
+    setP2pAutoSync,
+    p2pLastSync,
+    setP2pLastSync,
+    docFinalPassphrase,
+    setDocFinalPassphrase,
+    docFinalIncludeUnsettled,
+    setDocFinalIncludeUnsettled,
+    nowTick,
+    setNowTick,
+  } = useSovereignWorkbenchLocalState({
+    apiProjectUri,
+    displayProjectUri,
+  })
 
   const {
     evidence,
@@ -216,58 +264,41 @@ export default function SovereignWorkbenchPanel({
     openEvidencePreview,
     closeEvidencePreview,
   } = useEvidenceFiles()
-  const [evidenceCenter, setEvidenceCenter] = useState<EvidenceCenterPayload | null>(null)
-  const [evidenceCenterLoading, setEvidenceCenterLoading] = useState(false)
-  const [evidenceCenterError, setEvidenceCenterError] = useState('')
-  const [erpRetrying, setErpRetrying] = useState(false)
-  const [erpRetryMsg, setErpRetryMsg] = useState('')
-  const [fingerprintOpen, setFingerprintOpen] = useState(false)
-  const [draftStamp, setDraftStamp] = useState('')
-  const [disputeProofId, setDisputeProofId] = useState('')
-  const [disputeResolutionNote, setDisputeResolutionNote] = useState('')
-  const [disputeResult, setDisputeResult] = useState<'PASS' | 'REJECT'>('PASS')
-  const [copiedMsg, setCopiedMsg] = useState('')
-  const [traceOpen, setTraceOpen] = useState(false)
-  const [docModalOpen, setDocModalOpen] = useState(false)
-  const [pdfRenderError, setPdfRenderError] = useState('')
-  const [pdfRenderLoading, setPdfRenderLoading] = useState(false)
-  const [showAdvancedConsensus, setShowAdvancedConsensus] = useState(false)
-  const [showAcceptanceAdvanced, setShowAcceptanceAdvanced] = useState(false)
-  const [specdictProjectUris, setSpecdictProjectUris] = useState(apiProjectUri || displayProjectUri || '')
-  const [specdictMinSamples, setSpecdictMinSamples] = useState('5')
-  const [specdictNamespace, setSpecdictNamespace] = useState('v://global/templates')
-  const [specdictCommit, setSpecdictCommit] = useState(false)
-  const [arRadius, setArRadius] = useState('80')
-  const [arLimit, setArLimit] = useState('50')
-  const [p2pNodeId] = useState(() => `node-${Math.random().toString(16).slice(2, 8)}`)
-  const [p2pPeers, setP2pPeers] = useState('')
-  const [p2pAutoSync, setP2pAutoSync] = useState(true)
-  const [p2pLastSync, setP2pLastSync] = useState('')
-  const [docFinalPassphrase, setDocFinalPassphrase] = useState('')
-  const [docFinalIncludeUnsettled, setDocFinalIncludeUnsettled] = useState(false)
-  const [executing, setExecuting] = useState(false)
-  const [rejecting, setRejecting] = useState(false)
-  const [execRes, setExecRes] = useState<Record<string, unknown> | null>(null)
-  const [signOpen, setSignOpen] = useState(false)
-  const [signStep, setSignStep] = useState(0)
-  const [signing, setSigning] = useState(false)
-  const [signRes, setSignRes] = useState<Record<string, unknown> | null>(null)
-  const [mockGenerating, setMockGenerating] = useState(false)
-  const [mockDocRes, setMockDocRes] = useState<Record<string, unknown> | null>(null)
-  const [consensusContractorValue, setConsensusContractorValue] = useState('')
-  const [consensusSupervisorValue, setConsensusSupervisorValue] = useState('')
-  const [consensusOwnerValue, setConsensusOwnerValue] = useState('')
-  const [consensusAllowedDeviation, setConsensusAllowedDeviation] = useState('')
-  const [consensusAllowedDeviationPct, setConsensusAllowedDeviationPct] = useState('')
-  const [, setFreezeProof] = useState('')
-  const [signFocus, setSignFocus] = useState<'contractor' | 'supervisor' | 'owner' | ''>('')
-  const [deltaAmount, setDeltaAmount] = useState('')
-  const [deltaReason, setDeltaReason] = useState('变更指令')
-  const [applyingDelta, setApplyingDelta] = useState(false)
-  const [variationRes, setVariationRes] = useState<Record<string, unknown> | null>(null)
-  const [showAdvancedExecution, setShowAdvancedExecution] = useState(false)
-  const [deltaModalOpen, setDeltaModalOpen] = useState(false)
-  const [nowTick, setNowTick] = useState(Date.now())
+  const tripFlowState = useSovereignTripFlowState()
+  const {
+    executing,
+    rejecting,
+    execRes,
+    signOpen,
+    setSignOpen,
+    signStep,
+    signing,
+    signRes,
+    mockGenerating,
+    mockDocRes,
+    consensusContractorValue,
+    setConsensusContractorValue,
+    consensusSupervisorValue,
+    setConsensusSupervisorValue,
+    consensusOwnerValue,
+    setConsensusOwnerValue,
+    consensusAllowedDeviation,
+    setConsensusAllowedDeviation,
+    consensusAllowedDeviationPct,
+    setConsensusAllowedDeviationPct,
+    signFocus,
+    setSignFocus,
+    deltaAmount,
+    setDeltaAmount,
+    deltaReason,
+    setDeltaReason,
+    applyingDelta,
+    variationRes,
+    showAdvancedExecution,
+    setShowAdvancedExecution,
+    deltaModalOpen,
+    setDeltaModalOpen,
+  } = tripFlowState
   const {
     scanEntryLog,
     meshpegLog,
@@ -422,12 +453,17 @@ export default function SovereignWorkbenchPanel({
     normResolution,
     lifecycle,
   } = sovereignSession
+  const activeCode = String(active?.code || '')
+  const activeName = String(active?.name || '')
+  const activeStatus = String(active?.status || '')
+  const activeSpu = String(active?.spu || '')
+  const activeUriText = String(active?.uri || '')
   useActiveNodeBroadcastEffect({
-    activeCode: String(active?.code || ''),
-    activeName: String(active?.name || ''),
-    activeStatus: String(active?.status || ''),
-    activeSpu: String(active?.spu || ''),
-    activeUri: String(active?.uri || ''),
+    activeCode,
+    activeName,
+    activeStatus,
+    activeSpu,
+    activeUri: activeUriText,
     activePath,
     displayProjectUri,
   })
@@ -495,6 +531,8 @@ export default function SovereignWorkbenchPanel({
   const isGenesisView = workspaceView === 'genesis'
   const isTripView = workspaceView === 'trip'
   const isAuditView = workspaceView === 'audit'
+  const navigateToTrip = onNavigateView ? () => onNavigateView('trip') : undefined
+  const navigateToAudit = onNavigateView ? () => onNavigateView('audit') : undefined
   const {
     evidenceTimeline,
     evidenceDocs,
@@ -537,7 +575,7 @@ export default function SovereignWorkbenchPanel({
     evidenceCenter,
     signRes,
     mockDocRes,
-    activeStatus: String(active?.status || ''),
+    activeStatus,
   })
   const {
     showAllScanEntries,
@@ -546,7 +584,7 @@ export default function SovereignWorkbenchPanel({
     scanChainBadge,
     scanEntryActiveOnly,
   } = useSovereignEvidencePanelState({
-    activeUri: String(active?.uri || ''),
+    activeUri: activeUriText,
     scanEntryItems,
   })
   const {
@@ -576,7 +614,7 @@ export default function SovereignWorkbenchPanel({
     exportEvidenceCenterCsv,
     downloadEvidenceCenterPackage,
   } = useEvidenceCenterView({
-    activeCode: String(active?.code || ''),
+    activeCode,
     apiProjectUri,
     smuOptions,
     evidenceCenter,
@@ -728,7 +766,7 @@ export default function SovereignWorkbenchPanel({
     },
     context: {
       apiProjectUri,
-      activeUri: String(active?.uri || ''),
+      activeUri: activeUriText,
     },
     helpers: {
       formatNumber,
@@ -766,39 +804,18 @@ export default function SovereignWorkbenchPanel({
     setNodes,
     setDisputeProofId,
     setShowAdvancedConsensus,
+    consensusContractorValue,
+    consensusSupervisorValue,
+    consensusOwnerValue,
+    consensusAllowedDeviation,
+    consensusAllowedDeviationPct,
     showToast,
     smuExecute,
     tripGenerateDoc,
     smuSign,
     smuFreeze,
     applyVariationDelta,
-    tripState: {
-      setExecuting,
-      setRejecting,
-      execRes,
-      setExecRes,
-      setSignOpen,
-      setSignStep,
-      setSigning,
-      signRes,
-      setSignRes,
-      mockGenerating,
-      setMockGenerating,
-      mockDocRes,
-      setMockDocRes,
-      consensusContractorValue,
-      consensusSupervisorValue,
-      consensusOwnerValue,
-      consensusAllowedDeviation,
-      consensusAllowedDeviationPct,
-      setFreezeProof,
-      deltaAmount,
-      deltaReason,
-      setApplyingDelta,
-      setVariationRes,
-      setShowAdvancedExecution,
-      setDeltaModalOpen,
-    },
+    tripState: tripFlowState,
     onMockDocReady: () => setDocModalOpen(true),
   })
 
@@ -816,9 +833,9 @@ export default function SovereignWorkbenchPanel({
 
   const { loadEvidenceCenter } = useEvidenceCenterLoader({
     apiProjectUri,
-    activeCode: String(active?.code || ''),
+    activeCode,
     activeIsLeaf: Boolean(active?.isLeaf),
-    activeUri: String(active?.uri || ''),
+    activeUri: activeUriText,
     evidenceScope,
     evidenceSmuId,
     finalProofId,
@@ -878,7 +895,7 @@ export default function SovereignWorkbenchPanel({
     buildAssetAppraisal,
   } = useAuditFinalizeActions({
     apiProjectUri,
-    projectName: String(project?.name || ''),
+    projectName,
     ownerDid,
     lat,
     lng,
@@ -887,7 +904,7 @@ export default function SovereignWorkbenchPanel({
     disputeResult,
     docFinalPassphrase,
     docFinalIncludeUnsettled,
-    activeUri: String(active?.uri || ''),
+    activeUri: activeUriText,
     finalProofReady,
     consensusConflict,
     disputeOpen,
@@ -908,21 +925,25 @@ export default function SovereignWorkbenchPanel({
     activePath,
     displayProjectUri,
     lifecycle,
-    activeCode: String(active?.code || ''),
-    activeStatus: String(active?.status || ''),
+    activeCode,
+    activeStatus,
     totalHash: String(totalHash || ''),
     verifyUri: String(verifyUri || ''),
     finalProofReady,
     isOnline,
-    offlineQueueSize: offlinePackets.length,
-    disputeOpen: Boolean(_asDict(evidenceCenter?.consensusDispute || {}).open),
-    disputeProof: String(_asDict(evidenceCenter?.consensusDispute || {}).open_proof_id || _asDict(evidenceCenter?.consensusDispute || {}).latest_proof_id || ''),
+    offlineQueueSize: offlineCount,
+    disputeOpen: Boolean(asWorkbenchDict(evidenceCenter?.consensusDispute || {}).open),
+    disputeProof: String(
+      asWorkbenchDict(evidenceCenter?.consensusDispute || {}).open_proof_id
+        || asWorkbenchDict(evidenceCenter?.consensusDispute || {}).latest_proof_id
+        || '',
+    ),
     archiveLocked,
   })
 
   useGeoFenceToastEffect({
     geoFenceActive,
-    activeUri: String(active?.uri || ''),
+    activeUri: activeUriText,
     geoTemporalBlocked,
     geoDistance,
     temporalBlocked,
@@ -960,7 +981,7 @@ export default function SovereignWorkbenchPanel({
     draftReady,
     draftStamp,
     setDraftStamp,
-    activeUri: String(active?.uri || ''),
+    activeUri: activeUriText,
     previewPdfB64,
     pdfPage,
     pdfCanvasRef,
@@ -998,7 +1019,7 @@ export default function SovereignWorkbenchPanel({
       showToast,
     },
     offline: {
-      activeUri: String(active?.uri || ''),
+      activeUri: activeUriText,
       apiProjectUri,
       compType,
       deltaAmount,
@@ -1015,7 +1036,7 @@ export default function SovereignWorkbenchPanel({
       sampleId,
     },
     scanEntry: {
-      activeUri: String(active?.uri || ''),
+      activeUri: activeUriText,
       apiProjectUri,
       inputProofId,
       executorDid,
@@ -1028,7 +1049,7 @@ export default function SovereignWorkbenchPanel({
       temporalWindow,
     },
     triprole: {
-      activeUri: String(active?.uri || ''),
+      activeUri: activeUriText,
       apiProjectUri,
       inputProofId,
       executorDid,
@@ -1049,7 +1070,7 @@ export default function SovereignWorkbenchPanel({
     setScanEntryRequired,
     handleScanEntry,
   } = useScanEntryState({
-    activeUri: String(active?.uri || ''),
+    activeUri: activeUriText,
     geoTemporalBlocked,
     lat,
     lng,
@@ -1092,8 +1113,8 @@ export default function SovereignWorkbenchPanel({
     verifyUnitMerkle,
   } = useSovereignAdvancedOps({
     apiProjectUri,
-    activeCode: String(active?.code || ''),
-    activeUri: String(active?.uri || ''),
+    activeCode,
+    activeUri: activeUriText,
     inputProofId,
     finalProofId,
     totalHash,
@@ -1111,21 +1132,15 @@ export default function SovereignWorkbenchPanel({
     showToast,
   })
 
-  const exportP2PManifest = useCallback(() => {
-    const projectRoot = String((unitRes || {}).project_root_hash || (unitRes || {}).global_project_fingerprint || '')
-    const payload = {
-      node_id: p2pNodeId,
-      project_uri: apiProjectUri,
-      project_root_hash: projectRoot,
-      total_proof_hash: totalHash,
-      offline_packets: offlinePackets,
-      offline_queue_size: offlinePackets.length,
-      offline_conflicts: offlineSyncConflicts,
-      peers: p2pPeers.split(/[\n,]+/).map((x) => x.trim()).filter(Boolean),
-      generated_at: new Date().toISOString(),
-    }
-    downloadJson(`gitpeg-sync-${Date.now()}.json`, payload)
-  }, [apiProjectUri, offlinePackets, offlineSyncConflicts, p2pNodeId, p2pPeers, totalHash, unitRes])
+  const exportP2PManifest = useSovereignP2PManifestExport({
+    apiProjectUri,
+    p2pNodeId,
+    p2pPeers,
+    totalHash,
+    unitRes,
+    offlinePackets,
+    offlineSyncConflicts,
+  })
   const {
     inputBaseCls,
     inputXsCls,
@@ -1134,14 +1149,12 @@ export default function SovereignWorkbenchPanel({
     btnAmberCls,
     btnRedCls,
     panelCls,
-  } = WORKBENCH_STYLES
-  const {
     latestProofIdText,
     totalHashShort,
     nearestAnchorText,
     currentSubdivisionText,
     merkleRootText,
-  } = buildWorkbenchDisplayTexts({
+  } = buildSovereignWorkbenchDisplayState({
     latestEvidenceNode,
     inputProofId,
     totalHash,
@@ -1207,30 +1220,77 @@ export default function SovereignWorkbenchPanel({
       compType,
     },
   })
-  const workbenchSectionsProps = buildWorkbenchSectionsProps({
-    shell: {
-      isGenesisView,
-      isTripView,
-      isAuditView,
-      frameStyleText: WORKBENCH_FRAME_STYLE_TEXT,
-      gridOverlayStyle: WORKBENCH_GRID_OVERLAY_STYLE,
-    },
-    primary: {
-      hero: {
+  const {
+    handleRunReadinessCheck,
+    handleToggleRolePlaybook,
+    handleImportGenesis,
+    handleLoadBuiltinLedger400,
+    handleToggleTreeSummary,
+    handleSelectNode,
+    handleOpenTrace,
+    triggerScanEntry,
+    handleLoadContext,
+    handleEvidenceUpload,
+    handleOpenFingerprint,
+    handleApplyDelta,
+    handleSuggestDelta,
+    handleSubmitTrip,
+    handleSubmitTripMock,
+    handleRecordRejectTrip,
+    handleArCopyText,
+    handleArRefresh,
+    handleCloseFingerprint,
+    handleCloseTrace,
+    handleTriggerOfflineImport,
+  } = buildSovereignWorkbenchSectionHandlers({
+    runReadinessCheck,
+    setShowRolePlaybook,
+    importGenesis,
+    loadBuiltinLedger400,
+    setShowLeftSummary,
+    selectNode,
+    setTraceOpen,
+    handleScanEntry,
+    activeUri: activeUriText,
+    loadContext,
+    compType,
+    onEvidence,
+    setFingerprintOpen,
+    applyDelta,
+    setDeltaAmount,
+    deltaSuggest,
+    setDeltaReason,
+    setShowAdvancedExecution,
+    submitTrip,
+    submitTripMock,
+    recordRejectTrip,
+    copyText,
+    runArOverlay,
+    offlineImportRef,
+  })
+  const workbenchShell = buildSovereignWorkbenchShell({
+    isGenesisView,
+    isTripView,
+    isAuditView,
+    frameStyleText: WORKBENCH_FRAME_STYLE_TEXT,
+    gridOverlayStyle: WORKBENCH_GRID_OVERLAY_STYLE,
+  })
+  const workbenchPrimary = buildSovereignWorkbenchPrimary({
+    hero: {
       activePath,
       displayProjectUri,
       progressPct: summary.pct,
       isOnline,
       offlineCount,
       nodeCount: nodes.length,
-      activeCode: active?.code || '',
+      activeCode,
       totalHash,
       isTripView,
       finalProofReady,
       btnBlueCls,
-      onNavigateAudit: onNavigateView ? () => onNavigateView('audit') : undefined,
+      onNavigateAudit: navigateToAudit,
     },
-      genesisOverview: {
+    genesisOverview: {
       isGenesisView,
       readinessOverall,
       readinessLoading,
@@ -1248,16 +1308,16 @@ export default function SovereignWorkbenchPanel({
       normRefs,
       isSpecBound,
       lifecycle,
-      activeCode: active?.code || '',
+      activeCode,
       availableTotal,
       activePath,
       displayProjectUri,
-      onRunReadinessCheck: () => void runReadinessCheck(false),
-      onToggleRolePlaybook: () => setShowRolePlaybook((value) => !value),
-      onNavigateTrip: onNavigateView ? () => onNavigateView('trip') : undefined,
-      onNavigateAudit: onNavigateView ? () => onNavigateView('audit') : undefined,
+      onRunReadinessCheck: handleRunReadinessCheck,
+      onToggleRolePlaybook: handleToggleRolePlaybook,
+      onNavigateTrip: navigateToTrip,
+      onNavigateAudit: navigateToAudit,
     },
-      genesisTree: {
+    genesisTree: {
       styles: {
         panelCls,
         inputBaseCls,
@@ -1287,15 +1347,15 @@ export default function SovereignWorkbenchPanel({
       },
       actions: {
         onSelectFile,
-        onImportGenesis: () => importGenesis(),
-        onLoadBuiltinLedger400: () => loadBuiltinLedger400(),
-        onToggleSummary: () => setShowLeftSummary((v) => !v),
+        onImportGenesis: handleImportGenesis,
+        onLoadBuiltinLedger400: handleLoadBuiltinLedger400,
+        onToggleSummary: handleToggleTreeSummary,
         onTreeQueryChange: setTreeQuery,
         onToggleExpanded: toggleExpanded,
-        onSelectNode: (code) => selectNode(code),
+        onSelectNode: handleSelectNode,
       },
     },
-      tripWorkbench: {
+    tripWorkbench: {
       styles: {
         panelCls,
         inputBaseCls,
@@ -1369,30 +1429,26 @@ export default function SovereignWorkbenchPanel({
         rejecting,
       },
       actions: {
-        onTraceOpen: () => setTraceOpen(true),
-        onScanEntry: () => handleScanEntry(),
+        onTraceOpen: handleOpenTrace,
+        onScanEntry: triggerScanEntry,
         onScanEntryTokenChange: setScanEntryToken,
         onScanEntryRequiredChange: setScanEntryRequired,
         onSampleIdChange: setSampleId,
         onCompTypeChange: setCompType,
         onExecutorDidChange: setExecutorDid,
-        onLoadContext: () => active?.uri && loadContext(active.uri, compType),
+        onLoadContext: handleLoadContext,
         onFormChange: setForm,
-        onEvidence: (files) => onEvidence(files),
-        onFingerprintOpen: () => setFingerprintOpen(true),
+        onEvidence: handleEvidenceUpload,
+        onFingerprintOpen: handleOpenFingerprint,
         onEvidencePreview: openEvidencePreview,
         onDeltaAmountChange: setDeltaAmount,
         onDeltaReasonChange: setDeltaReason,
-        onApplyDelta: () => applyDelta(),
-        onSuggestDelta: () => {
-          setDeltaAmount(deltaSuggest.toFixed(3))
-          setDeltaReason('超量补差')
-          setShowAdvancedExecution(true)
-        },
+        onApplyDelta: handleApplyDelta,
+        onSuggestDelta: handleSuggestDelta,
         onClaimQtyChange: setClaimQty,
-        onSubmitTrip: () => submitTrip(),
-        onSubmitTripMock: () => submitTripMock(),
-        onRecordRejectTrip: () => recordRejectTrip(),
+        onSubmitTrip: handleSubmitTrip,
+        onSubmitTripMock: handleSubmitTripMock,
+        onRecordRejectTrip: handleRecordRejectTrip,
         onLatChange: setLat,
         onLngChange: setLng,
       },
@@ -1402,479 +1458,478 @@ export default function SovereignWorkbenchPanel({
         toChineseCompType,
       },
     },
+  })
+  const { auditActionStyles, overlayArStyles } = buildSovereignWorkbenchSecondaryStylePacks({
+    inputBaseCls,
+    btnBlueCls,
+    btnGreenCls,
+    btnAmberCls,
+  })
+  const workbenchSecondaryAuditShell = buildSovereignWorkbenchSecondaryAuditShell({
+    shell: {
+      isAuditView,
+      panelCls,
+      draftReady,
     },
-    secondary: {
-      auditShell: {
-        shell: {
-          isAuditView,
-          panelCls,
-          draftReady,
-        },
-        consensusAudit: {
-          visibility: {
-            showAdvancedConsensus,
-            setShowAdvancedConsensus,
-            showAcceptanceAdvanced,
-            setShowAcceptanceAdvanced,
-          },
-          scan: {
-            finalPiecePrompt,
-            scanConfirmUri,
-            scanProofId,
-            setScanProofId,
-            scanPayload,
-            setScanPayload,
-            scanDid,
-            setScanDid,
-            scanConfirmToken,
-            scanning,
-            scanRes,
-            doScanConfirm,
-          },
-          consensus: {
-            minValueText: consensusMinValueText,
-            maxValueText: consensusMaxValueText,
-            deviationText: consensusDeviationText,
-            deviationPercentText: consensusDeviationPercentText,
-            consensusAllowedAbsText,
-            consensusAllowedPctText,
-            consensusConflict,
-            consensusConflictSummary,
-          },
-          dispute: {
-            disputeProof,
-            disputeOpen,
-            disputeProofId,
-            setDisputeProofId,
-            disputeResolutionNote,
-            setDisputeResolutionNote,
-            disputeResult,
-            setDisputeResult,
-            disputeResolving,
-            disputeResolveRes,
-            resolveDispute,
-          },
-          docFinal: {
-            archiveLocked,
-            docFinalPassphrase,
-            setDocFinalPassphrase,
-            docFinalIncludeUnsettled,
-            setDocFinalIncludeUnsettled,
-            docFinalExporting,
-            docFinalFinalizing,
-            docFinalRes,
-            docFinalAuditUrl,
-            docFinalVerifyBaseUrl,
-            verifyUri,
-            disputeProofShort,
-            offlineQueueSize: offlinePackets.length,
-            offlineSyncConflicts,
-            apiProjectUri,
-            docFinalQrSrc,
-            exportProjectDocFinal,
-            finalizeProjectDocFinal,
-          },
-          specdict: {
-            specdictProjectUris,
-            setSpecdictProjectUris,
-            specdictMinSamples,
-            setSpecdictMinSamples,
-            specdictNamespace,
-            setSpecdictNamespace,
-            specdictCommit,
-            setSpecdictCommit,
-            specdictLoading,
-            specdictExporting,
-            specdictRuleTotal,
-            specdictHighRisk,
-            specdictBestPractice,
-            specdictBundleUri,
-            specdictSuccessPatterns,
-            specdictHighRiskItems,
-            specdictBestPracticeItems,
-            specdictWeightEntries,
-            specdictRes,
-            runSpecdictEvolve,
-            runSpecdictExport,
-          },
-          styles: {
-            inputBaseCls,
-            btnBlueCls,
-            btnGreenCls,
-            btnAmberCls,
-          },
-          helpers: {
-            copyText,
-            describeSpecdictItem,
-          },
-        },
-        advancedOps: {
-          visibility: {
-            showAdvancedConsensus,
-            showFingerprintAdvanced,
-            setShowFingerprintAdvanced,
-          },
-          meshpeg: {
-            meshpegCloudName,
-            setMeshpegCloudName,
-            meshpegBimName,
-            setMeshpegBimName,
-            meshpegRunning,
-            meshpegRes,
-            runMeshpeg,
-          },
-          formula: {
-            formulaExpr,
-            setFormulaExpr,
-            formulaRunning,
-            formulaRes,
-            runFormulaPeg,
-          },
-          gateway: {
-            gatewayRes,
-            runGatewaySync,
-          },
-          asset: {
-            assetAppraising,
-            assetAppraisal,
-            buildAssetAppraisal,
-          },
-          ar: {
-            arRadius,
-            setArRadius,
-            arLimit,
-            setArLimit,
-            arLoading,
-            activeUri: String(active?.uri || ''),
-            latestProofId: latestProofIdText,
-            totalHashShort,
-            nearestAnchorText,
-            arItems,
-            runArOverlay,
-            openArFullscreen,
-            openArFocus,
-          },
-          geo: {
-            geoFenceStatusText,
-            scanEntryStatus,
-            scanEntryRequired,
-            scanEntryToken,
-            scanChainBadge,
-            geoAnchor,
-            geoDistance,
-            temporalWindow,
-            geoTemporalBlocked,
-            currentSubdivisionText,
-          },
-          fingerprint: {
-            unitLoading,
-            unitProofId,
-            setUnitProofId,
-            unitMaxRows,
-            setUnitMaxRows,
-            unitRes,
-            unitVerifying,
-            unitVerifyMsg,
-            itemPathSteps,
-            unitPathSteps,
-            calcUnitMerkle,
-            useCurrentProofForUnit,
-            verifyUnitMerkle,
-            exportMerkleJson,
-          },
-          p2p: {
-            p2pNodeId,
-            offlineQueueSize: offlinePackets.length,
-            p2pLastSync,
-            p2pAutoSync,
-            setP2pAutoSync,
-            p2pPeers,
-            setP2pPeers,
-            merkleRootText,
-            exportP2PManifest,
-            simulateP2PSync,
-          },
-          styles: {
-            inputBaseCls,
-            btnBlueCls,
-            btnGreenCls,
-            btnAmberCls,
-          },
-          helpers: {
-            formatNumber,
-            copyText,
-            downloadJson,
-          },
-        },
-        auditDocPreview: {
-          conflict: {
-            consensusConflict,
-            disputeOpen,
-            disputeProof,
-            consensusDeviationText,
-            consensusDeviationPercentText,
-            consensusAllowedAbsText,
-            consensusAllowedPctText,
-          },
-          document: {
-            finalProofReady,
-            qrSrc,
-            verifyUri,
-            finalProofId,
-            previewPdfB64,
-            pdfB64,
-            previewIsDraft,
-            tripStage,
-            evidenceCount: evidence.length,
-            totalHash,
-            activeCode: String(active?.code || ''),
-            activePath,
-            activeUri: String(active?.uri || ''),
-            gatePass: gateStats.pass,
-            gateTotal: gateStats.total || 0,
-            reportedPctText: activeGenesisSummary.reportedPct.toFixed(2),
-            activeSignMarker,
-            pdfPage,
-            templateSourceText,
-            pdfRenderLoading,
-            pdfRenderError,
-            draftReady,
-            templateDisplay,
-            docModalOpen,
-            sampleId,
-          },
-          identity: {
-            signFocus,
-            signStep,
-            executorDid,
-            supervisorDid,
-            ownerDid,
-            setSupervisorDid,
-            setOwnerDid,
-          },
-          refs: {
-            contractorAnchorRef,
-            supervisorAnchorRef,
-            ownerAnchorRef,
-            previewScrollRef,
-            pdfCanvasRef,
-          },
-          styles: {
-            inputBaseCls,
-          },
-          helpers: {
-            scrollToSign,
-            copyText,
-            setDocModalOpen,
-          },
-        },
+    consensusAudit: {
+      visibility: {
+        showAdvancedConsensus,
+        setShowAdvancedConsensus,
+        showAcceptanceAdvanced,
+        setShowAcceptanceAdvanced,
       },
-      evidenceVault: {
-        evidenceCenter: {
-          evidenceCenterLoading,
-          evidenceCenterError,
-          evidenceQuery,
-          setEvidenceQuery,
-          evidenceScope,
-          setEvidenceScope,
-          evidenceSmuId,
-          setEvidenceSmuId,
-          evidenceFilter,
-          setEvidenceFilter,
-          smuOptions,
-          filteredEvidenceItems,
-          filteredDocs,
-          evidenceCompletenessScore,
-          settlementRiskScore,
-          evidenceGraphNodes,
-          ledgerSnapshot,
-          meshpegItems,
-          formulaItems,
-          gatewayItems,
-          assetOrigin,
-          assetOriginStatement,
-          didReputationScore,
-          didReputationGrade,
-          didSamplingMultiplier,
-          didHighRiskList,
-          sealingPatternId,
-          sealingScanHint,
-          sealingMicrotext,
-          sealingRows,
-          scanEntryActiveOnly,
-          evidenceItemsPaged,
-          evidencePageSafe,
-          setEvidencePage,
-          totalEvidencePages,
-          latestEvidenceNode,
-          utxoStatusText,
-          evidenceZipDownloading,
-          erpReceiptDoc,
-          docpegRisk,
-          docpegRiskScore,
-          loadEvidenceCenter,
-          downloadEvidenceCenterPackage,
-          exportEvidenceCenter,
-          exportEvidenceCenterCsv,
-          openEvidenceFocus,
-          openDocumentFocus,
-        },
-        dispute: {
-          consensusConflict,
-          consensusAllowedAbsText,
-          consensusAllowedPctText,
-          disputeConflict,
-          disputeDeviation,
-          disputeDeviationPct,
-          disputeAllowedAbs: typeof disputeAllowedAbs === 'number' ? disputeAllowedAbs : null,
-          disputeAllowedPct: typeof disputeAllowedPct === 'number' ? disputeAllowedPct : null,
-          disputeValues,
-          disputeProof,
-          disputeOpen,
-          disputeProofShort,
-          setShowAdvancedConsensus,
-          setDisputeProofId,
-        },
-        erp: {
-          erpRetrying,
-          erpRetryMsg,
-          retryErpnextPush,
-        },
-        styles: {
-          btnBlueCls,
-        },
-        helpers: {
-          copyText,
-        },
+      scan: {
+        finalPiecePrompt,
+        scanConfirmUri,
+        scanProofId,
+        setScanProofId,
+        scanPayload,
+        setScanPayload,
+        scanDid,
+        setScanDid,
+        scanConfirmToken,
+        scanning,
+        scanRes,
+        doScanConfirm,
       },
-      tripFlowModal: {
-        sign: {
-          signOpen,
-          tripStage,
-          signStep,
-          signing,
-          executorDid,
-          supervisorDid,
-          ownerDid,
-          doSign,
-          setSignOpen,
-        },
-        consensus: {
-          consensusContractorValue,
-          setConsensusContractorValue,
-          consensusSupervisorValue,
-          setConsensusSupervisorValue,
-          consensusOwnerValue,
-          setConsensusOwnerValue,
-          consensusAllowedDeviation,
-          setConsensusAllowedDeviation,
-          consensusAllowedDeviationPct,
-          setConsensusAllowedDeviationPct,
-          consensusBaseValueText,
-          consensusConflict,
-          consensusMinValueText,
-          consensusMaxValueText,
-          consensusDeviationText,
-          consensusDeviationPercentText,
-          consensusAllowedAbsText,
-          consensusAllowedPctText,
-        },
-        lock: {
-          scanLockStage,
-          scanLockProofId,
-          closeScanLock,
-        },
-        delta: {
-          deltaModalOpen,
-          exceedTotalText,
-          setShowAdvancedExecution,
-          setDeltaModalOpen,
-        },
-        styles: {
-          inputBaseCls,
-          btnAmberCls,
-        },
+      consensus: {
+        minValueText: consensusMinValueText,
+        maxValueText: consensusMaxValueText,
+        deviationText: consensusDeviationText,
+        deviationPercentText: consensusDeviationPercentText,
+        consensusAllowedAbsText,
+        consensusAllowedPctText,
+        consensusConflict,
+        consensusConflictSummary,
       },
-      evidenceModal: {
-        evidencePreview: {
-          evidenceOpen,
-          evidenceFocus,
-          geoTemporalBlocked,
-          activeCode: String(active?.code || ''),
-          activeUri: String(active?.uri || ''),
-          lat,
-          lng,
-          executorDid,
-          sampleId,
-          onCloseEvidencePreview: closeEvidencePreview,
-        },
-        evidenceCenter: {
-          evidenceCenterFocus,
-          evidenceCenterDocFocus,
-          onCloseEvidenceFocus: closeEvidenceFocus,
-          onCloseDocumentFocus: closeDocumentFocus,
-        },
+      dispute: {
+        disputeProof,
+        disputeOpen,
+        disputeProofId,
+        setDisputeProofId,
+        disputeResolutionNote,
+        setDisputeResolutionNote,
+        disputeResult,
+        setDisputeResult,
+        disputeResolving,
+        disputeResolveRes,
+        resolveDispute,
       },
-      workbenchOverlay: {
-        ar: {
-          focus: arFocus,
-          fullscreen: arFullscreen,
-          lat,
-          lng,
-          radius: arRadius,
-          filteredItems: arFilteredItems,
-          totalItemsCount: arItemsSorted.length,
-          loading: arLoading,
-          filterMax: arFilterMax,
-          inputBaseCls,
-          btnBlueCls,
-          btnAmberCls,
-          onCopyText: (label, value) => void copyText(label, value),
-          onFilterMaxChange: setArFilterMax,
-          onRefresh: () => void runArOverlay(),
-          onCloseFocus: closeArFocus,
-          onJumpToItem: jumpToArItem,
-          onCloseFullscreen: closeArFullscreen,
-          onSelectFullscreenItem: selectArFullscreenItem,
-        },
-        fingerprint: {
-          open: fingerprintOpen,
-          evidenceSource: evidence,
-          onClose: () => setFingerprintOpen(false),
-        },
-        trace: {
-          open: traceOpen,
-          nodes: traceOverlayNodes,
-          onClose: () => setTraceOpen(false),
-        },
-        floatingDid: {
-          executorDid,
-          supervisorDid,
-          ownerDid,
-          riskScore: effectiveRiskScore,
-          totalHash: String(totalHash || ''),
-        },
-      },
-      offlineFooter: {
-        isOnline,
-        offlineCount,
+      docFinal: {
+        archiveLocked,
+        docFinalPassphrase,
+        setDocFinalPassphrase,
+        docFinalIncludeUnsettled,
+        setDocFinalIncludeUnsettled,
+        docFinalExporting,
+        docFinalFinalizing,
+        docFinalRes,
+        docFinalAuditUrl,
+        docFinalVerifyBaseUrl,
+        verifyUri,
+        disputeProofShort,
+        offlineQueueSize: offlineCount,
         offlineSyncConflicts,
-        offlineType,
-        inputXsCls,
-        btnBlueCls,
-        offlineImporting,
-        offlineImportName,
-        offlineReplay,
-        offlinePacketsCount: offlinePackets.length,
-        offlineImportRef,
-        onOfflineTypeChange: setOfflineType,
-        onSealOfflinePacket: sealOfflinePacket,
-        onTriggerImport: () => offlineImportRef.current?.click(),
-        onExportOfflinePackets: exportOfflinePackets,
-        onClearOfflinePackets: clearOfflinePackets,
-        onImportOfflinePackets: importOfflinePackets,
+        apiProjectUri,
+        docFinalQrSrc,
+        exportProjectDocFinal,
+        finalizeProjectDocFinal,
+      },
+      specdict: {
+        specdictProjectUris,
+        setSpecdictProjectUris,
+        specdictMinSamples,
+        setSpecdictMinSamples,
+        specdictNamespace,
+        setSpecdictNamespace,
+        specdictCommit,
+        setSpecdictCommit,
+        specdictLoading,
+        specdictExporting,
+        specdictRuleTotal,
+        specdictHighRisk,
+        specdictBestPractice,
+        specdictBundleUri,
+        specdictSuccessPatterns,
+        specdictHighRiskItems,
+        specdictBestPracticeItems,
+        specdictWeightEntries,
+        specdictRes,
+        runSpecdictEvolve,
+        runSpecdictExport,
+      },
+      styles: {
+        ...auditActionStyles,
+      },
+      helpers: {
+        copyText,
+        describeSpecdictItem,
       },
     },
+    advancedOps: {
+      visibility: {
+        showAdvancedConsensus,
+        showFingerprintAdvanced,
+        setShowFingerprintAdvanced,
+      },
+      meshpeg: {
+        meshpegCloudName,
+        setMeshpegCloudName,
+        meshpegBimName,
+        setMeshpegBimName,
+        meshpegRunning,
+        meshpegRes,
+        runMeshpeg,
+      },
+      formula: {
+        formulaExpr,
+        setFormulaExpr,
+        formulaRunning,
+        formulaRes,
+        runFormulaPeg,
+      },
+      gateway: {
+        gatewayRes,
+        runGatewaySync,
+      },
+      asset: {
+        assetAppraising,
+        assetAppraisal,
+        buildAssetAppraisal,
+      },
+      ar: {
+        arRadius,
+        setArRadius,
+        arLimit,
+        setArLimit,
+        arLoading,
+        activeUri: activeUriText,
+        latestProofId: latestProofIdText,
+        totalHashShort,
+        nearestAnchorText,
+        arItems,
+        runArOverlay,
+        openArFullscreen,
+        openArFocus,
+      },
+      geo: {
+        geoFenceStatusText,
+        scanEntryStatus,
+        scanEntryRequired,
+        scanEntryToken,
+        scanChainBadge,
+        geoAnchor,
+        geoDistance,
+        temporalWindow,
+        geoTemporalBlocked,
+        currentSubdivisionText,
+      },
+      fingerprint: {
+        unitLoading,
+        unitProofId,
+        setUnitProofId,
+        unitMaxRows,
+        setUnitMaxRows,
+        unitRes,
+        unitVerifying,
+        unitVerifyMsg,
+        itemPathSteps,
+        unitPathSteps,
+        calcUnitMerkle,
+        useCurrentProofForUnit,
+        verifyUnitMerkle,
+        exportMerkleJson,
+      },
+      p2p: {
+        p2pNodeId,
+        offlineQueueSize: offlineCount,
+        p2pLastSync,
+        p2pAutoSync,
+        setP2pAutoSync,
+        p2pPeers,
+        setP2pPeers,
+        merkleRootText,
+        exportP2PManifest,
+        simulateP2PSync,
+      },
+      styles: {
+        ...auditActionStyles,
+      },
+      helpers: {
+        formatNumber,
+        copyText,
+        downloadJson,
+      },
+    },
+    auditDocPreview: {
+      conflict: {
+        consensusConflict,
+        disputeOpen,
+        disputeProof,
+        consensusDeviationText,
+        consensusDeviationPercentText,
+        consensusAllowedAbsText,
+        consensusAllowedPctText,
+      },
+      document: {
+        finalProofReady,
+        qrSrc,
+        verifyUri,
+        finalProofId,
+        previewPdfB64,
+        pdfB64,
+        previewIsDraft,
+        tripStage,
+        evidenceCount: evidence.length,
+        totalHash,
+        activeCode,
+        activePath,
+        activeUri: activeUriText,
+        gatePass: gateStats.pass,
+        gateTotal: gateStats.total || 0,
+        reportedPctText: activeGenesisSummary.reportedPct.toFixed(2),
+        activeSignMarker,
+        pdfPage,
+        templateSourceText,
+        pdfRenderLoading,
+        pdfRenderError,
+        draftReady,
+        templateDisplay,
+        docModalOpen,
+        sampleId,
+      },
+      identity: {
+        signFocus,
+        signStep,
+        executorDid,
+        supervisorDid,
+        ownerDid,
+        setSupervisorDid,
+        setOwnerDid,
+      },
+      refs: {
+        contractorAnchorRef,
+        supervisorAnchorRef,
+        ownerAnchorRef,
+        previewScrollRef,
+        pdfCanvasRef,
+      },
+      styles: {
+        inputBaseCls,
+      },
+      helpers: {
+        scrollToSign,
+        copyText,
+        setDocModalOpen,
+      },
+    },
+  })
+  const workbenchSecondaryEvidenceVault = buildSovereignWorkbenchSecondaryEvidenceVault({
+    evidenceCenter: {
+      evidenceCenterLoading,
+      evidenceCenterError,
+      evidenceQuery,
+      setEvidenceQuery,
+      evidenceScope,
+      setEvidenceScope,
+      evidenceSmuId,
+      setEvidenceSmuId,
+      evidenceFilter,
+      setEvidenceFilter,
+      smuOptions,
+      filteredEvidenceItems,
+      filteredDocs,
+      evidenceCompletenessScore,
+      settlementRiskScore,
+      evidenceGraphNodes,
+      ledgerSnapshot,
+      meshpegItems,
+      formulaItems,
+      gatewayItems,
+      assetOrigin,
+      assetOriginStatement,
+      didReputationScore,
+      didReputationGrade,
+      didSamplingMultiplier,
+      didHighRiskList,
+      sealingPatternId,
+      sealingScanHint,
+      sealingMicrotext,
+      sealingRows,
+      scanEntryActiveOnly,
+      evidenceItemsPaged,
+      evidencePageSafe,
+      setEvidencePage,
+      totalEvidencePages,
+      latestEvidenceNode,
+      utxoStatusText,
+      evidenceZipDownloading,
+      erpReceiptDoc,
+      docpegRisk,
+      docpegRiskScore,
+      loadEvidenceCenter,
+      downloadEvidenceCenterPackage,
+      exportEvidenceCenter,
+      exportEvidenceCenterCsv,
+      openEvidenceFocus,
+      openDocumentFocus,
+    },
+    dispute: {
+      consensusConflict,
+      consensusAllowedAbsText,
+      consensusAllowedPctText,
+      disputeConflict,
+      disputeDeviation,
+      disputeDeviationPct,
+      disputeAllowedAbsRaw: disputeAllowedAbs,
+      disputeAllowedPctRaw: disputeAllowedPct,
+      disputeValues,
+      disputeProof,
+      disputeOpen,
+      disputeProofShort,
+      setShowAdvancedConsensus,
+      setDisputeProofId,
+    },
+    erp: {
+      erpRetrying,
+      erpRetryMsg,
+      retryErpnextPush,
+    },
+    styles: {
+      btnBlueCls,
+    },
+    helpers: {
+      copyText,
+    },
+  })
+  const workbenchSecondaryTripFlowModal = buildSovereignWorkbenchSecondaryTripFlowModal({
+    sign: {
+      signOpen,
+      tripStage,
+      signStep,
+      signing,
+      executorDid,
+      supervisorDid,
+      ownerDid,
+      doSign,
+      setSignOpen,
+    },
+    consensus: {
+      consensusContractorValue,
+      setConsensusContractorValue,
+      consensusSupervisorValue,
+      setConsensusSupervisorValue,
+      consensusOwnerValue,
+      setConsensusOwnerValue,
+      consensusAllowedDeviation,
+      setConsensusAllowedDeviation,
+      consensusAllowedDeviationPct,
+      setConsensusAllowedDeviationPct,
+      consensusBaseValueText,
+      consensusConflict,
+      consensusMinValueText,
+      consensusMaxValueText,
+      consensusDeviationText,
+      consensusDeviationPercentText,
+      consensusAllowedAbsText,
+      consensusAllowedPctText,
+    },
+    lock: {
+      scanLockStage,
+      scanLockProofId,
+      closeScanLock,
+    },
+    delta: {
+      deltaModalOpen,
+      exceedTotalText,
+      setShowAdvancedExecution,
+      setDeltaModalOpen,
+    },
+    styles: {
+      inputBaseCls,
+      btnAmberCls,
+    },
+  })
+  const workbenchSecondaryEvidenceModal = buildSovereignWorkbenchSecondaryEvidenceModal({
+    evidencePreview: {
+      evidenceOpen,
+      evidenceFocus,
+      geoTemporalBlocked,
+      activeCode,
+      activeUri: activeUriText,
+      lat,
+      lng,
+      executorDid,
+      sampleId,
+      onCloseEvidencePreview: closeEvidencePreview,
+    },
+    evidenceCenter: {
+      evidenceCenterFocus,
+      evidenceCenterDocFocus,
+      onCloseEvidenceFocus: closeEvidenceFocus,
+      onCloseDocumentFocus: closeDocumentFocus,
+    },
+  })
+  const workbenchSecondaryOverlay = buildSovereignWorkbenchSecondaryOverlay({
+    arFocus,
+    arFullscreen,
+    lat,
+    lng,
+    arRadius,
+    arFilteredItems,
+    arItemsSortedCount: arItemsSorted.length,
+    arLoading,
+    arFilterMax,
+    overlayArStyles,
+    onArCopyText: handleArCopyText,
+    onArFilterMaxChange: setArFilterMax,
+    onArRefresh: handleArRefresh,
+    onArCloseFocus: closeArFocus,
+    onArJumpToItem: jumpToArItem,
+    onArCloseFullscreen: closeArFullscreen,
+    onArSelectFullscreenItem: selectArFullscreenItem,
+    fingerprintOpen,
+    evidenceSource: evidence,
+    onFingerprintClose: handleCloseFingerprint,
+    traceOpen,
+    traceNodes: traceOverlayNodes,
+    onTraceClose: handleCloseTrace,
+    executorDid,
+    supervisorDid,
+    ownerDid,
+    riskScore: effectiveRiskScore,
+    totalHash: String(totalHash || ''),
+  })
+  const workbenchSecondaryOfflineFooter = buildSovereignWorkbenchSecondaryOfflineFooter({
+    isOnline,
+    offlineCount,
+    offlineSyncConflicts,
+    offlineType,
+    inputXsCls,
+    btnBlueCls,
+    offlineImporting,
+    offlineImportName,
+    offlineReplay,
+    offlineImportRef,
+    onOfflineTypeChange: setOfflineType,
+    onSealOfflinePacket: sealOfflinePacket,
+    onTriggerImport: handleTriggerOfflineImport,
+    onExportOfflinePackets: exportOfflinePackets,
+    onClearOfflinePackets: clearOfflinePackets,
+    onImportOfflinePackets: importOfflinePackets,
+  })
+  const workbenchSecondary = buildSovereignWorkbenchSecondary({
+    auditShell: workbenchSecondaryAuditShell,
+    evidenceVault: workbenchSecondaryEvidenceVault,
+    tripFlowModal: workbenchSecondaryTripFlowModal,
+    evidenceModal: workbenchSecondaryEvidenceModal,
+    workbenchOverlay: workbenchSecondaryOverlay,
+    offlineFooter: workbenchSecondaryOfflineFooter,
+  })
+  const workbenchSectionsProps = buildWorkbenchSectionsProps({
+    shell: workbenchShell,
+    primary: workbenchPrimary,
+    secondary: workbenchSecondary,
   })
 
   return (

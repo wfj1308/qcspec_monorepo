@@ -414,6 +414,13 @@ type BuildAuditShellPropsArgs = {
   advancedOps: BuildAdvancedOpsPanelPropsArgs
 }
 
+function toFiniteNumberArray(values: unknown): number[] {
+  if (!Array.isArray(values)) return []
+  return values
+    .map((value) => Number(value))
+    .filter((value) => Number.isFinite(value))
+}
+
 export function buildConsensusAuditPanelProps({
   visibility,
   scan,
@@ -490,7 +497,7 @@ export function buildConsensusAuditPanelProps({
     onFillScanToken: () => scan.setScanPayload(scan.scanConfirmToken),
     onScanConfirm: () => void scan.doScanConfirm(),
     onToggleAcceptanceAdvanced: () => visibility.setShowAcceptanceAdvanced((value) => !value),
-    onCopyConflictSummary: () => void helpers.copyText('鍏辫瘑鍐茬獊鎽樿', JSON.stringify(consensus.consensusConflictSummary, null, 2)),
+    onCopyConflictSummary: () => void helpers.copyText('共识冲突摘要', JSON.stringify(consensus.consensusConflictSummary, null, 2)),
     onJumpToDispute: () => {
       visibility.setShowAdvancedConsensus(true)
       if (dispute.disputeProof) dispute.setDisputeProofId(dispute.disputeProof)
@@ -585,10 +592,10 @@ export function buildAdvancedOpsPanelProps({
     onFormulaExprChange: formula.setFormulaExpr,
     onRunFormulaPeg: () => void formula.runFormulaPeg(),
     onRunGatewaySync: () => void gateway.runGatewaySync(),
-    onCopyGatewayJson: () => void helpers.copyText('鐩戠鍚屾鎽樿', JSON.stringify(gateway.gatewayRes, null, 2)),
+    onCopyGatewayJson: () => void helpers.copyText('监管同步摘要', JSON.stringify(gateway.gatewayRes, null, 2)),
     onDownloadGatewayJson: () => helpers.downloadJson(`gateway-${Date.now()}.json`, gateway.gatewayRes),
     onBuildAssetAppraisal: () => void asset.buildAssetAppraisal(),
-    onCopyAssetAppraisalJson: () => void helpers.copyText('璧勪骇璇勪及 JSON', JSON.stringify(asset.assetAppraisal, null, 2)),
+    onCopyAssetAppraisalJson: () => void helpers.copyText('资产评估 JSON', JSON.stringify(asset.assetAppraisal, null, 2)),
     onDownloadAssetAppraisalJson: () => helpers.downloadJson(`asset-appraisal-${Date.now()}.json`, asset.assetAppraisal),
     onArRadiusChange: ar.setArRadius,
     onArLimitChange: ar.setArLimit,
@@ -658,7 +665,7 @@ export function buildEvidenceVaultProps({
     disputeDeviationPct: dispute.disputeDeviationPct,
     disputeAllowedAbs: dispute.disputeAllowedAbs,
     disputeAllowedPct: dispute.disputeAllowedPct,
-    disputeValues: dispute.disputeValues.map((value) => Number(value)).filter((value) => Number.isFinite(value)),
+    disputeValues: toFiniteNumberArray(dispute.disputeValues),
     disputeProof: dispute.disputeProof,
     disputeOpen: dispute.disputeOpen,
     disputeProofShort: dispute.disputeProofShort,
