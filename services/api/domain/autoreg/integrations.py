@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from services.api.autoreg_service import (
+from services.api.domain.autoreg.runtime.autoreg import (
     AutoRegisterProjectRequest,
     autoreg_project_flow,
     autoreg_projects_flow,

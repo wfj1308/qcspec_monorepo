@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from services.api.auth_service import (
+from services.api.domain.auth.runtime.auth import (
     get_enterprise_flow,
     get_me_flow,
     login_flow,

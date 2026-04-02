@@ -39,7 +39,7 @@ __all__ = [
 
 
 def _triprole_engine_module() -> Any:
-    return import_module("services.api.triprole_engine")
+    return import_module("services.api.domain.execution.runtime.triprole_engine")
 
 
 def execute_triprole_action(*args: Any, **kwargs: Any) -> dict[str, Any]:

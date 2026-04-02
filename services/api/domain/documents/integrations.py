@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from services.api.doc_governance_service import (
+from services.api.domain.documents.runtime.governance import (
     auto_classify_document,
     auto_generate_stake_nodes,
     create_node,

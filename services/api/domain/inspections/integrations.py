@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from services.api.inspections_service import (
+from services.api.domain.inspections.runtime.inspections import (
     create_inspection_flow,
     delete_inspection_flow,
     list_inspections_flow,

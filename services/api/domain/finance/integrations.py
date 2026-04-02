@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from services.api.boq_payment_audit_service import (
+from services.api.domain.finance.runtime.payment_audit import (
     audit_trace,
     finalize_docfinal_delivery,
     generate_payment_certificate,

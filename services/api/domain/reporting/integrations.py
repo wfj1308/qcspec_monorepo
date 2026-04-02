@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from services.api.reports_flow_service import (
+from services.api.domain.reporting.runtime.reports_flow import (
     export_report_by_proof_id_flow,
     export_report_flow,
     generate_report_flow,

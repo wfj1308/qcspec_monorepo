@@ -9,7 +9,7 @@ from fastapi import Depends
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from supabase import Client
 
-from services.api.auth_service import ensure_no_proxy_for_supabase, require_auth_user
+from services.api.domain.auth.runtime.auth import ensure_no_proxy_for_supabase, require_auth_user
 from services.api.core import DIDGuardService, NormRefResolverService, ProofUTXOService
 from services.api.domain import (
     AuthService,

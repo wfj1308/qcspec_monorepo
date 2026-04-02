@@ -10,7 +10,7 @@ from typing import Any
 
 from fastapi import HTTPException
 
-from services.api.boq_utxo_service import BoqItem
+from services.api.domain.boq.runtime.utxo import BoqItem
 from services.api.domain.smu.templates import HEADER_ALIASES
 
 ITEM_NO_PATTERN = re.compile(r"^\d{3}(?:-[0-9A-Za-z]+)*$")

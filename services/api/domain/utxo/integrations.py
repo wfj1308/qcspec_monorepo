@@ -2,6 +2,6 @@
 
 from __future__ import annotations
 
-from services.api.proof_utxo_engine import ProofUTXOEngine
+from services.api.domain.utxo.runtime.engine import ProofUTXOEngine
 
 __all__ = ["ProofUTXOEngine"]

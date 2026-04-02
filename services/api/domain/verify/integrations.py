@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from services.api.verify_public_flow_service import (
+from services.api.domain.verify.runtime.public_flow import (
     download_dsp_package_flow,
     get_public_verify_detail_flow,
     resolve_normpeg_threshold_public_flow,

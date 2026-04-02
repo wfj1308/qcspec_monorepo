@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from services.api.team_flow_service import (
+from services.api.domain.team.flows import (
     create_member_flow,
     list_members_flow,
     remove_member_flow,

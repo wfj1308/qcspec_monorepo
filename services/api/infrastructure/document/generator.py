@@ -5,8 +5,8 @@ from __future__ import annotations
 from functools import lru_cache
 from typing import Any
 
-from services.api.archive_service import create_dsp_package
-from services.api.docx_engine import DocxEngine
+from services.api.infrastructure.document.archive import create_dsp_package
+from services.api.infrastructure.document.engine import DocxEngine
 
 
 class DocumentGenerator:

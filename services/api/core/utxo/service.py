@@ -5,7 +5,7 @@ from __future__ import annotations
 from supabase import Client
 
 from services.api.core.base import BaseService
-from services.api.proof_utxo_engine import ProofUTXOEngine
+from services.api.domain.utxo.integrations import ProofUTXOEngine
 
 
 class ProofUTXOService(BaseService):

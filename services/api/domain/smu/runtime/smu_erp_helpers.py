@@ -7,8 +7,8 @@ import json
 from typing import Any
 
 from services.api.domain.utxo.integrations import ProofUTXOEngine
-from services.api.erpnext_http_utils import erp_request_sync
-from services.api.erpnext_service import load_erpnext_custom
+from services.api.domain.erpnext.runtime.http_utils import erp_request_sync
+from services.api.domain.erpnext.runtime.service import load_erpnext_custom
 from services.api.domain.smu.runtime.smu_primitives import (
     as_dict as _as_dict,
     to_text as _to_text,

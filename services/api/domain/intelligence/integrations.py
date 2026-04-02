@@ -2,20 +2,20 @@
 
 from __future__ import annotations
 
-from services.api.ar_anchor_service import get_ar_anchor_overlay
-from services.api.rwa_om_evolution_service import (
+from services.api.domain.intelligence.runtime.ar_anchor import get_ar_anchor_overlay
+from services.api.domain.intelligence.runtime.rwa_om_evolution import (
     convert_to_finance_asset,
     export_sovereign_om_bundle,
     generate_norm_evolution_report,
     register_om_event,
 )
-from services.api.spatial_ai_finance_service import (
+from services.api.domain.intelligence.runtime.spatial_ai_finance import (
     bind_utxo_to_spatial,
     export_finance_proof,
     get_spatial_dashboard,
     predictive_quality_analysis,
 )
-from services.api.specdict_evolution_service import (
+from services.api.domain.intelligence.runtime.specdict_evolution import (
     analyze_specdict_evolution,
     export_specdict_bundle,
 )

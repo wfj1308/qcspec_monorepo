@@ -15,7 +15,7 @@ from typing import Any
 
 from fastapi import HTTPException
 
-from services.api.supabase_provider import get_supabase_client
+from services.api.infrastructure.database.provider import get_supabase_client
 
 _JOBS: dict[str, dict[str, Any]] = {}
 _LOCK = threading.Lock()

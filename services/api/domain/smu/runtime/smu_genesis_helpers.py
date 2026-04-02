@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Callable
 
-from services.api.boq_utxo_service import initialize_boq_utxos
+from services.api.domain.boq.runtime.utxo import initialize_boq_utxos
 from services.api.domain.smu.runtime.smu_primitives import (
     as_dict as _as_dict,
     as_list as _as_list,

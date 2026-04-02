@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from services.api.erpnext_service import fetch_erpnext_project_basics
-from services.api.erpnext_flow_service import (
+from services.api.domain.erpnext.runtime.service import fetch_erpnext_project_basics
+from services.api.domain.erpnext.runtime.flow_helpers import (
     check_metering_gate_flow,
     get_metering_requests_flow,
     get_project_basics_flow,

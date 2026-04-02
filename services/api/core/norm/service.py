@@ -6,7 +6,7 @@ import json
 from typing import Any
 
 from services.api.core.base import BaseService
-from services.api.specdict_gate_service import get_spec_dict, resolve_dynamic_threshold
+from services.api.domain.boq.runtime.specdict_gate import get_spec_dict, resolve_dynamic_threshold
 
 
 class NormRefResolverService(BaseService):
