@@ -7,16 +7,9 @@ from typing import Optional
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Query
 from pydantic import BaseModel
-from supabase import Client
 
-from services.api.dependencies import get_supabase
-from services.api.reports_flow_service import (
-    export_report_by_proof_id_flow,
-    export_report_flow,
-    generate_report_flow,
-    get_report_flow,
-    list_reports_flow,
-)
+from services.api.dependencies import get_reporting_service
+from services.api.domain import ReportingService
 
 router = APIRouter()
 
@@ -42,23 +35,22 @@ class ReportExportRequest(BaseModel):
 @router.post("/export")
 async def export_report(
     body: ReportExportRequest,
-    sb: Client = Depends(get_supabase),
+    reporting_service: ReportingService = Depends(get_reporting_service),
 ):
-    return await export_report_flow(body=body, sb=sb)
+    return await reporting_service.export(body=body)
 
 
 @router.get("/export")
 async def export_report_by_proof_id(
     proof_id: str = Query(..., description="Proof UTXO ID, e.g. GP-PROOF-XXXX"),
-    format: str = Query("docx", regex="^(docx|pdf)$"),
+    format: str = Query("docx", pattern="^(docx|pdf)$"),
     report_type: str = Query("inspection"),
-    sb: Client = Depends(get_supabase),
+    reporting_service: ReportingService = Depends(get_reporting_service),
 ):
-    return await export_report_by_proof_id_flow(
+    return await reporting_service.export_by_proof_id(
         proof_id=proof_id,
         format=format,
         report_type=report_type,
-        sb=sb,
     )
 
 
@@ -66,26 +58,25 @@ async def export_report_by_proof_id(
 async def generate_report(
     body: ReportRequest,
     background_tasks: BackgroundTasks,
-    sb: Client = Depends(get_supabase),
+    reporting_service: ReportingService = Depends(get_reporting_service),
 ):
-    return await generate_report_flow(
+    return await reporting_service.generate(
         body=body,
         background_tasks=background_tasks,
-        sb=sb,
     )
 
 
 @router.get("/")
 async def list_reports(
     project_id: str,
-    sb: Client = Depends(get_supabase),
+    reporting_service: ReportingService = Depends(get_reporting_service),
 ):
-    return list_reports_flow(project_id=project_id, sb=sb)
+    return await reporting_service.list(project_id=project_id)
 
 
 @router.get("/{report_id}")
 async def get_report(
     report_id: str,
-    sb: Client = Depends(get_supabase),
+    reporting_service: ReportingService = Depends(get_reporting_service),
 ):
-    return get_report_flow(report_id=report_id, sb=sb)
+    return await reporting_service.get(report_id=report_id)

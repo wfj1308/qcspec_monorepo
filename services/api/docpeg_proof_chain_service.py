@@ -22,47 +22,20 @@ from docx import Document
 from docx.shared import Mm
 from docxtpl import DocxTemplate, InlineImage
 from services.api.archive_pdf_utils import pdf_report_bytes
+from services.api.boq_audit_common import (
+    as_dict as _as_dict,
+    as_list as _as_list,
+    chain_root_hash as _chain_root_hash,
+    to_float as _common_to_float,
+    to_text as _to_text,
+)
 from services.api.proof_utxo_engine import ProofUTXOEngine
 from services.api.reports_generation_service import _try_convert_docx_to_pdf
 from services.api.verify_service import get_proof_ancestry, get_proof_descendants
 
 
-def _to_text(value: Any, default: str = "") -> str:
-    if value is None:
-        return default
-    if isinstance(value, bytes):
-        return value.decode("utf-8", errors="replace")
-    return str(value)
-
-
-def _as_dict(value: Any) -> dict[str, Any]:
-    if isinstance(value, dict):
-        return value
-    return {}
-
-
-def _as_list(value: Any) -> list[Any]:
-    if isinstance(value, list):
-        return value
-    return []
-
-
 def _to_float(value: Any) -> float | None:
-    if value is None:
-        return None
-    try:
-        return float(value)
-    except Exception:
-        text = _to_text(value).strip()
-        if not text:
-            return None
-        match = re.search(r"[-+]?\d+(?:\.\d+)?", text)
-        if not match:
-            return None
-        try:
-            return float(match.group(0))
-        except Exception:
-            return None
+    return _common_to_float(value, regex_fallback=True)
 
 
 def _parse_dt(value: Any) -> datetime:
@@ -296,11 +269,6 @@ def _qr_inline(tpl: DocxTemplate, uri: str, *, size_mm: int = 24) -> InlineImage
     img.save(buf, format="PNG")
     buf.seek(0)
     return InlineImage(tpl, buf, width=Mm(size_mm))
-
-
-def _chain_root_hash(fingerprints: list[dict[str, Any]]) -> str:
-    canonical = json.dumps(fingerprints, ensure_ascii=False, sort_keys=True, default=str)
-    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
 def _scan_confirm_secret() -> str:

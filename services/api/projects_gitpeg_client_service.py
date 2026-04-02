@@ -1,255 +1,70 @@
-"""
-GitPeg registrar client helpers for projects flow.
-services/api/projects_gitpeg_client_service.py
+"""Compatibility shim for legacy projects GitPeg client imports.
+
+Prefer importing from ``services.api.domain.projects.gitpeg_client`` directly.
 """
 
 from __future__ import annotations
 
-import json
-import os
-import re
-from typing import Any, Callable, Optional
-from urllib.parse import parse_qsl, quote, urlencode, urlparse, urlunparse
-
-import httpx
-from fastapi import HTTPException
+from services.api.domain.projects import gitpeg_client as _gitpeg_client
 
 
-def _to_bool(value: Any) -> bool:
-    if isinstance(value, bool):
-        return value
-    return str(value or "").strip().lower() in {"1", "true", "yes", "on"}
+def _ordered_unique(items: list[str]) -> list[str]:
+    out: list[str] = []
+    for item in items:
+        if item not in out:
+            out.append(item)
+    return out
 
 
-def _normalize_registration_mode(value: Any) -> str:
-    mode = str(value or "DOMAIN").strip().upper()
-    return mode if mode in {"DOMAIN", "SHELL"} else "DOMAIN"
+to_bool = _gitpeg_client.to_bool
+normalize_registration_mode = _gitpeg_client.normalize_registration_mode
+gitpeg_registrar_config = _gitpeg_client.gitpeg_registrar_config
+append_query_params = _gitpeg_client.append_query_params
+gitpeg_registrar_ready = _gitpeg_client.gitpeg_registrar_ready
+gitpeg_create_registration_session = _gitpeg_client.gitpeg_create_registration_session
+gitpeg_exchange_token = _gitpeg_client.gitpeg_exchange_token
+gitpeg_get_registration_result = _gitpeg_client.gitpeg_get_registration_result
+gitpeg_get_registration_session = _gitpeg_client.gitpeg_get_registration_session
 
+_to_bool = _gitpeg_client._to_bool
+_normalize_registration_mode = _gitpeg_client._normalize_registration_mode
+_gitpeg_registrar_config = _gitpeg_client._gitpeg_registrar_config
+_append_query_params = _gitpeg_client._append_query_params
+_gitpeg_registrar_ready = _gitpeg_client._gitpeg_registrar_ready
+_gitpeg_create_registration_session = _gitpeg_client._gitpeg_create_registration_session
+_gitpeg_exchange_token = _gitpeg_client._gitpeg_exchange_token
+_gitpeg_get_registration_result = _gitpeg_client._gitpeg_get_registration_result
+_gitpeg_get_registration_session = _gitpeg_client._gitpeg_get_registration_session
 
-def _gitpeg_registrar_config(custom: dict[str, Any]) -> dict[str, Any]:
-    modules = custom.get("gitpeg_module_candidates")
-    if not isinstance(modules, list) or not modules:
-        raw_modules = str(
-            custom.get("gitpeg_module_candidates_csv")
-            or os.getenv("GITPEG_MODULE_CANDIDATES")
-            or "proof,utrip,openapi"
-        ).strip()
-        modules = [item.strip() for item in raw_modules.split(",") if item.strip()]
+# Additional compatibility aliases for older helper names.
+create_registration_session = gitpeg_create_registration_session
+exchange_token = gitpeg_exchange_token
+get_registration_result = gitpeg_get_registration_result
+get_registration_session = gitpeg_get_registration_session
+registrar_config = gitpeg_registrar_config
+registrar_ready = gitpeg_registrar_ready
 
-    base_url = str(
-        custom.get("gitpeg_registrar_base_url")
-        or os.getenv("GITPEG_REGISTRAR_BASE_URL")
-        or "https://gitpeg.cn"
-    ).strip().rstrip("/")
+_create_registration_session = _gitpeg_create_registration_session
+_exchange_token = _gitpeg_exchange_token
+_get_registration_result = _gitpeg_get_registration_result
+_get_registration_session = _gitpeg_get_registration_session
+_registrar_config = _gitpeg_registrar_config
+_registrar_ready = _gitpeg_registrar_ready
 
-    return {
-        "enabled": _to_bool(custom.get("gitpeg_enabled")),
-        "base_url": base_url,
-        "partner_code": str(
-            custom.get("gitpeg_partner_code")
-            or os.getenv("GITPEG_PARTNER_CODE")
-            or ""
-        ).strip(),
-        "industry_code": str(
-            custom.get("gitpeg_industry_code")
-            or os.getenv("GITPEG_INDUSTRY_CODE")
-            or ""
-        ).strip(),
-        "client_id": str(
-            custom.get("gitpeg_client_id")
-            or os.getenv("GITPEG_CLIENT_ID")
-            or ""
-        ).strip(),
-        "client_secret": str(
-            custom.get("gitpeg_client_secret")
-            or custom.get("gitpeg_token")
-            or os.getenv("GITPEG_CLIENT_SECRET")
-            or ""
-        ).strip(),
-        "registration_mode": _normalize_registration_mode(
-            custom.get("gitpeg_registration_mode")
-            or os.getenv("GITPEG_REGISTRATION_MODE")
-            or "DOMAIN"
-        ),
-        "return_url": str(
-            custom.get("gitpeg_return_url")
-            or os.getenv("GITPEG_RETURN_URL")
-            or ""
-        ).strip(),
-        "webhook_url": str(
-            custom.get("gitpeg_webhook_url")
-            or os.getenv("GITPEG_WEBHOOK_URL")
-            or ""
-        ).strip(),
-        "webhook_secret": str(
-            custom.get("gitpeg_webhook_secret")
-            or os.getenv("GITPEG_WEBHOOK_SECRET")
-            or ""
-        ).strip(),
-        "modules": modules,
-        "timeout_s": 15.0,
-    }
-
-
-def _append_query_params(url: str, params: dict[str, Any]) -> str:
-    raw = str(url or "").strip()
-    if not raw:
-        return raw
-    parsed = urlparse(raw)
-    existing = dict(parse_qsl(parsed.query, keep_blank_values=True))
-    for key, value in params.items():
-        k = str(key or "").strip()
-        v = str(value or "").strip()
-        if not k or not v:
-            continue
-        existing.setdefault(k, v)
-    next_query = urlencode(existing, doseq=True)
-    return urlunparse(parsed._replace(query=next_query))
-
-
-def _gitpeg_registrar_ready(cfg: dict[str, Any]) -> bool:
-    return all(
-        [
-            cfg.get("base_url"),
-            cfg.get("partner_code"),
-            cfg.get("industry_code"),
-            cfg.get("client_id"),
-            cfg.get("client_secret"),
-        ]
-    )
-
-
-async def _gitpeg_create_registration_session(
-    cfg: dict[str, Any],
-    *,
-    project: dict[str, Any],
-    enterprise: dict[str, Any],
-    slugify_fn: Optional[Callable[[str], str]] = None,
-) -> dict[str, Any]:
-    if not _gitpeg_registrar_ready(cfg):
-        raise HTTPException(400, "gitpeg registrar config incomplete")
-
-    project_name = str(project.get("name") or "").strip() or "项目"
-    if slugify_fn:
-        slug = str(slugify_fn(project_name) or "").strip()
-    else:
-        raw = str(project_name or "").strip().lower()
-        compact = re.sub(r"\s+", "", raw, flags=re.UNICODE)
-        slug = re.sub(r"[^\w-]+", "", compact, flags=re.UNICODE)[:20] or "project"
-    prefill_domain = f"{slug or 'project'}.local"
-    body: dict[str, Any] = {
-        "partner_code": cfg["partner_code"],
-        "industry_code": cfg["industry_code"],
-        "registration_mode": cfg["registration_mode"] or "DOMAIN",
-        "prefill_data": {
-            "organization_name": str(enterprise.get("name") or project.get("owner_unit") or project_name).strip(),
-            "domain": prefill_domain,
-        },
-        "module_candidates": cfg.get("modules") or ["proof", "utrip", "openapi"],
-        "external_reference": f"qcspec-proj-{project.get('id')}",
-    }
-    if cfg.get("return_url"):
-        body["return_url"] = _append_query_params(
-            cfg["return_url"],
-            {
-                "project_id": project.get("id"),
-                "enterprise_id": project.get("enterprise_id") or enterprise.get("id"),
-            },
-        )
-    if cfg.get("webhook_url"):
-        body["webhook_url"] = cfg["webhook_url"]
-
-    endpoint = f"{cfg['base_url']}/api/v1/partner/registration-sessions"
-    try:
-        async with httpx.AsyncClient(timeout=float(cfg.get("timeout_s") or 15.0), follow_redirects=True) as client:
-            res = await client.post(endpoint, json=body, headers={"Content-Type": "application/json"})
-    except httpx.HTTPError as exc:
-        raise HTTPException(502, f"gitpeg session create failed (network): {exc.__class__.__name__}") from exc
-    if res.status_code >= 400:
-        detail = ""
-        try:
-            detail = json.dumps(res.json(), ensure_ascii=False)
-        except Exception:
-            detail = res.text
-        raise HTTPException(502, f"gitpeg session create failed ({res.status_code}): {detail[:300]}")
-    payload = res.json() if res.content else {}
-    return payload if isinstance(payload, dict) else {}
-
-
-async def _gitpeg_exchange_token(cfg: dict[str, Any], code: str) -> dict[str, Any]:
-    endpoint = f"{cfg['base_url']}/api/v1/partner/token/exchange"
-    body = {
-        "client_id": cfg["client_id"],
-        "client_secret": cfg["client_secret"],
-        "code": code,
-    }
-    try:
-        async with httpx.AsyncClient(timeout=float(cfg.get("timeout_s") or 15.0), follow_redirects=True) as client:
-            res = await client.post(endpoint, json=body, headers={"Content-Type": "application/json"})
-    except httpx.HTTPError as exc:
-        raise HTTPException(502, f"gitpeg token exchange failed (network): {exc.__class__.__name__}") from exc
-    if res.status_code >= 400:
-        detail = ""
-        try:
-            detail = json.dumps(res.json(), ensure_ascii=False)
-        except Exception:
-            detail = res.text
-        raise HTTPException(502, f"gitpeg token exchange failed ({res.status_code}): {detail[:300]}")
-    payload = res.json() if res.content else {}
-    if not isinstance(payload, dict):
-        raise HTTPException(502, "gitpeg token exchange returned invalid payload")
-    return payload
-
-
-async def _gitpeg_get_registration_result(cfg: dict[str, Any], access_token: str, registration_id: str) -> dict[str, Any]:
-    reg_id = str(registration_id or "").strip()
-    if not reg_id:
-        raise HTTPException(400, "registration_id is required")
-
-    endpoint = f"{cfg['base_url']}/api/v1/registrations/{quote(reg_id, safe='')}/result"
-    headers = {
-        "Authorization": f"Bearer {access_token}",
-        "Accept": "application/json",
-    }
-    try:
-        async with httpx.AsyncClient(timeout=float(cfg.get("timeout_s") or 15.0), follow_redirects=True) as client:
-            res = await client.get(endpoint, headers=headers)
-    except httpx.HTTPError as exc:
-        raise HTTPException(502, f"gitpeg registration result failed (network): {exc.__class__.__name__}") from exc
-    if res.status_code >= 400:
-        detail = ""
-        try:
-            detail = json.dumps(res.json(), ensure_ascii=False)
-        except Exception:
-            detail = res.text
-        raise HTTPException(502, f"gitpeg registration result failed ({res.status_code}): {detail[:300]}")
-    payload = res.json() if res.content else {}
-    if not isinstance(payload, dict):
-        raise HTTPException(502, "gitpeg registration result returned invalid payload")
-    return payload
-
-
-async def _gitpeg_get_registration_session(
-    cfg: dict[str, Any],
-    session_id: str,
-    *,
-    access_token: Optional[str] = None,
-) -> dict[str, Any]:
-    sid = str(session_id or "").strip()
-    if not sid:
-        return {}
-
-    endpoint = f"{cfg['base_url']}/api/v1/registration-sessions/{quote(sid, safe='')}"
-    headers = {"Accept": "application/json"}
-    if access_token:
-        headers["Authorization"] = f"Bearer {access_token}"
-
-    try:
-        async with httpx.AsyncClient(timeout=float(cfg.get("timeout_s") or 15.0), follow_redirects=True) as client:
-            res = await client.get(endpoint, headers=headers)
-    except httpx.HTTPError:
-        return {}
-    if res.status_code >= 400:
-        return {}
-    payload = res.json() if res.content else {}
-    return payload if isinstance(payload, dict) else {}
+__all__ = _ordered_unique(
+    [
+        *_gitpeg_client.__all__,
+        "registrar_config",
+        "registrar_ready",
+        "create_registration_session",
+        "exchange_token",
+        "get_registration_result",
+        "get_registration_session",
+        "_registrar_config",
+        "_registrar_ready",
+        "_create_registration_session",
+        "_exchange_token",
+        "_get_registration_result",
+        "_get_registration_session",
+    ]
+)

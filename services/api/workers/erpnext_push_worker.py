@@ -6,8 +6,6 @@ from typing import Any
 
 from supabase import Client, create_client
 
-from services.api.smu_flow_service import retry_erpnext_push_queue
-
 
 def _to_text(value: Any) -> str:
     if value is None:
@@ -29,6 +27,12 @@ def _int_env(name: str, default: int) -> int:
         return default
 
 
+def _retry_erpnext_push_queue(*, sb: Client, limit: int) -> dict[str, Any]:
+    from services.api.domain.smu.flows import retry_erpnext_push_queue
+
+    return retry_erpnext_push_queue(sb=sb, limit=limit)
+
+
 class ERPNextPushWorker:
     def __init__(self) -> None:
         self.enabled = _bool_env("ERPNEXT_PUSH_WORKER_ENABLED", True)
@@ -47,7 +51,7 @@ class ERPNextPushWorker:
         sb = self._client()
         if sb is None:
             return {"ok": False, "reason": "supabase_not_configured"}
-        return retry_erpnext_push_queue(sb=sb, limit=self.batch_size)
+        return _retry_erpnext_push_queue(sb=sb, limit=self.batch_size)
 
     async def run_forever(self) -> None:
         if not self.enabled:

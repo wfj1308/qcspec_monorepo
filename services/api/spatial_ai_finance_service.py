@@ -14,9 +14,9 @@ from typing import Any
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from fastapi import HTTPException
 
+from services.api.domain.execution.flows import get_full_lineage
 from services.api.docpeg_proof_chain_service import get_proof_chain
 from services.api.proof_utxo_engine import ProofUTXOEngine
-from services.api.triprole_engine import get_full_lineage
 from services.api.workers.gitpeg_anchor_worker import GitPegAnchorWorker
 
 

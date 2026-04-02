@@ -15,13 +15,18 @@ from typing import Any
 
 from fastapi import HTTPException
 
-from services.api.smu_flow_service import import_genesis_trip
 from services.api.supabase_provider import get_supabase_client
 
 _JOBS: dict[str, dict[str, Any]] = {}
 _LOCK = threading.Lock()
 _MAX_BYTES = 60 * 1024 * 1024
 _MAX_JOB_RETENTION = 120
+
+
+def _import_genesis_trip(*, sb: Any, **kwargs: Any) -> dict[str, Any]:
+    from services.api.domain.smu.flows import import_genesis_trip
+
+    return import_genesis_trip(sb=sb, **kwargs)
 
 
 def _utc_iso() -> str:
@@ -156,7 +161,7 @@ def start_smu_import_job(
             hb = threading.Thread(target=_heartbeat, name=f"smu-import-heartbeat-{job_id}", daemon=True)
             hb.start()
 
-            payload = import_genesis_trip(
+            payload = _import_genesis_trip(
                 sb=sb,
                 project_uri=project_uri,
                 project_id=project_id,

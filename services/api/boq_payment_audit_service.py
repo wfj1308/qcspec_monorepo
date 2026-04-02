@@ -4,289 +4,41 @@ BOQ progress-payment and sovereign audit helpers.
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
-import hashlib
-import json
-import re
+from datetime import datetime, timezone
 from typing import Any
 
 from fastapi import HTTPException
 
-from services.api.docpeg_proof_chain_service import get_proof_chain
+from services.api.boq_audit_common import (
+    as_dict as _as_dict,
+    as_list as _as_list,
+    canonical_hash as _canonical_hash,
+    extract_boq_item_uri as _extract_boq_item_uri,
+    item_code_from_boq_uri as _item_no_from_uri,
+    to_text as _to_text,
+    verify_uri as _verify_uri,
+)
+from services.api.boq_payment_certificate_helpers import (
+    chapter_from_item_no as _chapter_from_item_no,
+    effective_design_quantity as _effective_design_quantity,
+    extract_settled_quantity as _extract_settled_quantity,
+    has_any_fail as _has_any_fail,
+    has_tripartite_consensus as _has_tripartite_consensus,
+    in_period as _in_period,
+    is_leaf_boq_row as _is_leaf_boq_row,
+    parse_period as _parse_period,
+    safe_period_token as _safe_period_token,
+    stage as _stage,
+    to_float as _to_float,
+)
+from services.api.domain.boq.integrations import docpeg_get_proof_chain
+from services.api.domain.execution.integrations import resolve_dual_pass_gate
 from services.api.labpeg_frequency_remediation_service import (
     generate_railpact_payment_instruction,
-    resolve_dual_pass_gate,
 )
-from services.api.proof_utxo_engine import ProofUTXOEngine
-from services.api.triprole_engine import export_doc_final, get_full_lineage
+from services.api.domain.execution.flows import export_doc_final, get_full_lineage
+from services.api.domain.utxo.integrations import ProofUTXOEngine
 from services.api.workers.gitpeg_anchor_worker import GitPegAnchorWorker
-
-
-REQUIRED_CONSENSUS_ROLES = ("contractor", "supervisor", "owner")
-
-
-def _to_text(value: Any, default: str = "") -> str:
-    if value is None:
-        return default
-    if isinstance(value, bytes):
-        return value.decode("utf-8", errors="replace")
-    return str(value)
-
-
-def _as_dict(value: Any) -> dict[str, Any]:
-    if isinstance(value, dict):
-        return value
-    return {}
-
-
-def _as_list(value: Any) -> list[Any]:
-    if isinstance(value, list):
-        return value
-    return []
-
-
-def _to_float(value: Any) -> float | None:
-    if value is None:
-        return None
-    try:
-        return float(value)
-    except Exception:
-        text = _to_text(value).strip()
-        if not text:
-            return None
-        match = re.search(r"[-+]?\d+(?:\.\d+)?", text)
-        if not match:
-            return None
-        try:
-            return float(match.group(0))
-        except Exception:
-            return None
-
-
-def _safe_period_token(period: str) -> str:
-    token = re.sub(r"[^a-zA-Z0-9_\-]+", "-", _to_text(period).strip()).strip("-")
-    return token[:60] or "all"
-
-
-def _parse_iso_dt(value: Any) -> datetime | None:
-    text = _to_text(value).strip()
-    if not text:
-        return None
-    normalized = text[:-1] + "+00:00" if text.endswith("Z") else text
-    try:
-        dt = datetime.fromisoformat(normalized)
-    except Exception:
-        return None
-    if dt.tzinfo is None:
-        return dt.replace(tzinfo=timezone.utc)
-    return dt.astimezone(timezone.utc)
-
-
-def _parse_period(period: str) -> tuple[datetime | None, datetime | None, str]:
-    text = _to_text(period).strip()
-    if not text:
-        return None, None, "all"
-
-    monthly = re.fullmatch(r"(\d{4})-(\d{2})", text)
-    if monthly:
-        year = int(monthly.group(1))
-        month = int(monthly.group(2))
-        if month < 1 or month > 12:
-            raise HTTPException(400, "period month must be 01-12")
-        start = datetime(year, month, 1, tzinfo=timezone.utc)
-        if month == 12:
-            end = datetime(year + 1, 1, 1, tzinfo=timezone.utc)
-        else:
-            end = datetime(year, month + 1, 1, tzinfo=timezone.utc)
-        return start, end, text
-
-    daily = re.fullmatch(r"(\d{4})-(\d{2})-(\d{2})", text)
-    if daily:
-        year = int(daily.group(1))
-        month = int(daily.group(2))
-        day = int(daily.group(3))
-        start = datetime(year, month, day, tzinfo=timezone.utc)
-        end = start + timedelta(days=1)
-        return start, end, text
-
-    ranged = re.fullmatch(r"(\d{4}-\d{2}-\d{2})\s*(?:~|to|,)\s*(\d{4}-\d{2}-\d{2})", text, flags=re.IGNORECASE)
-    if ranged:
-        start = datetime.fromisoformat(ranged.group(1)).replace(tzinfo=timezone.utc)
-        end = datetime.fromisoformat(ranged.group(2)).replace(tzinfo=timezone.utc) + timedelta(days=1)
-        if end <= start:
-            raise HTTPException(400, "period range must be ascending")
-        return start, end, text
-
-    raise HTTPException(400, "period must be YYYY-MM or YYYY-MM-DD or YYYY-MM-DD~YYYY-MM-DD")
-
-
-def _in_period(value: Any, start: datetime | None, end: datetime | None) -> bool:
-    if start is None or end is None:
-        return True
-    dt = _parse_iso_dt(value)
-    if dt is None:
-        return False
-    return start <= dt < end
-
-
-def _stage(row: dict[str, Any]) -> str:
-    sd = _as_dict(row.get("state_data"))
-    stage = _to_text(sd.get("lifecycle_stage") or sd.get("status") or "").strip().upper()
-    if stage:
-        return stage
-    if _to_text(row.get("proof_type")).strip().lower() == "zero_ledger":
-        return "INITIAL"
-    return ""
-
-
-def _extract_boq_item_uri(row: dict[str, Any]) -> str:
-    sd = _as_dict(row.get("state_data"))
-    for key in ("boq_item_uri", "item_uri", "boq_uri"):
-        uri = _to_text(sd.get(key) or "").strip()
-        if uri.startswith("v://"):
-            return uri
-    segment = _to_text(row.get("segment_uri") or "").strip()
-    if "/boq/" in segment:
-        return segment
-    return ""
-
-
-def _is_leaf_boq_row(row: dict[str, Any]) -> bool:
-    sd = _as_dict(row.get("state_data"))
-    if "is_leaf" in sd:
-        return bool(sd.get("is_leaf"))
-    tree = _as_dict(sd.get("hierarchy_tree"))
-    if "is_leaf" in tree:
-        return bool(tree.get("is_leaf"))
-    children = _as_list(tree.get("children")) or _as_list(tree.get("children_codes"))
-    if children:
-        return False
-    return True
-
-
-def _item_no_from_uri(boq_item_uri: str) -> str:
-    uri = _to_text(boq_item_uri).strip().rstrip("/")
-    if not uri:
-        return ""
-    return uri.split("/")[-1]
-
-
-def _extract_settled_quantity(row: dict[str, Any], *, fallback_design: float | None = None) -> float:
-    sd = _as_dict(row.get("state_data"))
-    settlement = _as_dict(sd.get("settlement"))
-    measurement = _as_dict(sd.get("measurement"))
-
-    for path in (
-        settlement.get("settled_quantity"),
-        settlement.get("quantity"),
-        settlement.get("confirmed_quantity"),
-        sd.get("settled_quantity"),
-        measurement.get("quantity"),
-        measurement.get("used_quantity"),
-        sd.get("quantity"),
-    ):
-        q = _to_float(path)
-        if q is not None:
-            return max(0.0, float(q))
-
-    values = _as_list(measurement.get("values"))
-    nums = [x for x in (_to_float(v) for v in values) if x is not None]
-    if nums:
-        return max(0.0, float(sum(nums) / len(nums)))
-
-    if fallback_design is not None:
-        return max(0.0, float(fallback_design))
-    return 0.0
-
-
-def _effective_design_quantity(genesis_row: dict[str, Any], bucket: list[dict[str, Any]]) -> float:
-    gsd = _as_dict(genesis_row.get("state_data"))
-    base_design = _to_float(gsd.get("design_quantity"))
-    if base_design is None:
-        base_design = _to_float(_as_dict(gsd.get("ledger")).get("initial_balance"))
-    if base_design is None:
-        base_design = 0.0
-
-    latest_merged_total: float | None = None
-    latest_delta_total: float | None = None
-    for row in sorted(bucket, key=lambda r: _to_text(r.get("created_at") or "")):
-        sd = _as_dict(row.get("state_data"))
-        ledger = _as_dict(sd.get("ledger"))
-        merged_total = _to_float(ledger.get("merged_total"))
-        if merged_total is not None:
-            latest_merged_total = float(merged_total)
-        delta_total = _to_float(ledger.get("delta_total"))
-        if delta_total is not None:
-            latest_delta_total = float(delta_total)
-
-    if latest_merged_total is not None:
-        return max(0.0, latest_merged_total)
-    if latest_delta_total is not None:
-        return max(0.0, float(base_design + latest_delta_total))
-    return max(0.0, float(base_design))
-
-
-def _has_tripartite_consensus(row: dict[str, Any]) -> tuple[bool, dict[str, Any]]:
-    sd = _as_dict(row.get("state_data"))
-    consensus = _as_dict(sd.get("consensus"))
-    signatures = _as_list(consensus.get("signatures"))
-
-    by_role: dict[str, dict[str, Any]] = {}
-    for sig in signatures:
-        if not isinstance(sig, dict):
-            continue
-        role = _to_text(sig.get("role") or "").strip().lower()
-        if role:
-            by_role[role] = sig
-
-    missing = [role for role in REQUIRED_CONSENSUS_ROLES if role not in by_role]
-    invalid: list[str] = []
-    for role in REQUIRED_CONSENSUS_ROLES:
-        sig = by_role.get(role)
-        if not sig:
-            continue
-        did = _to_text(sig.get("did") or "").strip()
-        sig_hash = _to_text(sig.get("signature_hash") or "").strip().lower()
-        if not did.startswith("did:"):
-            invalid.append(f"{role}:did_invalid")
-        if not re.fullmatch(r"[a-f0-9]{64}", sig_hash):
-            invalid.append(f"{role}:signature_hash_invalid")
-
-    ok = (not missing) and (not invalid)
-    return ok, {
-        "ok": ok,
-        "missing_roles": missing,
-        "invalid": invalid,
-        "consensus_complete": bool(consensus.get("consensus_complete")),
-        "signature_count": len(signatures),
-    }
-
-
-def _has_any_fail(chain_rows: list[dict[str, Any]]) -> bool:
-    for row in chain_rows:
-        result = _to_text((row or {}).get("result") or "").strip().upper()
-        if result == "FAIL":
-            return True
-    return False
-
-
-def _chapter_from_item_no(item_no: str) -> str:
-    text = _to_text(item_no).strip()
-    if not text:
-        return "misc"
-    return text.split("-")[0] if "-" in text else text.split(".")[0]
-
-
-def _canonical_hash(payload: Any) -> str:
-    raw = json.dumps(payload, ensure_ascii=False, sort_keys=True, default=str)
-    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
-
-
-def _verify_uri(verify_base_url: str, proof_id: str) -> str:
-    pid = _to_text(proof_id).strip()
-    if not pid:
-        return ""
-    return f"{verify_base_url.rstrip('/')}/v/{pid}?trace=true"
 
 
 def generate_payment_certificate(
@@ -385,7 +137,7 @@ def generate_payment_certificate(
                 if pid:
                     period_proof_ids.append(pid)
 
-        chain_rows = get_proof_chain(boq_item_uri, sb)
+        chain_rows = docpeg_get_proof_chain(boq_item_uri, sb)
         has_fail = _has_any_fail(chain_rows)
         overrun_locked = (design_qty > 0.0) and (cumulative_qty > design_qty + 1e-9)
         dual_gate = (

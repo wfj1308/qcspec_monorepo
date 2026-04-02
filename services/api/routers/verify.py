@@ -9,16 +9,9 @@ import hmac
 import os
 
 from fastapi import APIRouter, Depends, Header, HTTPException, status
-from supabase import Client
 
-from services.api.dependencies import get_supabase
-from services.api.verify_public_flow_service import (
-    download_dsp_package_flow,
-    get_public_verify_detail_flow,
-    resolve_normpeg_threshold_public_flow,
-    resolve_spec_rule_public_flow,
-    run_mock_anchor_once_flow,
-)
+from services.api.dependencies import get_public_verify_service
+from services.api.domain import PublicVerifyService
 
 router = APIRouter()
 public_router = APIRouter()
@@ -56,13 +49,12 @@ async def resolve_spec_rule_public(
     spec_uri: str,
     metric: str = "",
     component_type: str = "",
-    sb: Client = Depends(get_supabase),
+    verify_service: PublicVerifyService = Depends(get_public_verify_service),
 ):
-    return await resolve_spec_rule_public_flow(
+    return await verify_service.resolve_spec_rule_public(
         spec_uri=spec_uri,
         metric=metric,
         component_type=component_type,
-        sb=sb,
     )
 
 
@@ -72,20 +64,20 @@ async def resolve_normpeg_threshold_public(
     context: str = "",
     value: float | None = None,
     design: float | None = None,
-    sb: Client = Depends(get_supabase),
+    verify_service: PublicVerifyService = Depends(get_public_verify_service),
 ):
-    return await resolve_normpeg_threshold_public_flow(
+    return await verify_service.resolve_normpeg_threshold_public(
         spec_uri=spec_uri,
         context=context,
         value=value,
         design=design,
-        sb=sb,
     )
 
 
 @router.post("/anchor/mock-run")
 async def run_mock_anchor_once(
     x_internal_key: str | None = Header(default=None, alias="X-QCSPEC-Internal-Key"),
+    verify_service: PublicVerifyService = Depends(get_public_verify_service),
 ):
     if not _mock_anchor_enabled():
         # Default-off in all environments unless explicitly enabled.
@@ -103,19 +95,18 @@ async def run_mock_anchor_once(
             detail="forbidden",
         )
 
-    return await run_mock_anchor_once_flow()
+    return await verify_service.run_mock_anchor_once()
 
 
 @public_router.get("/{proof_id}")
 async def get_public_verify_detail(
     proof_id: str,
     lineage_depth: str = "item",
-    sb: Client = Depends(get_supabase),
+    verify_service: PublicVerifyService = Depends(get_public_verify_service),
 ):
-    return await get_public_verify_detail_flow(
+    return await verify_service.get_public_verify_detail(
         proof_id=proof_id,
         lineage_depth=lineage_depth,
-        sb=sb,
         verify_base_url=_verify_base_url(),
     )
 
@@ -123,10 +114,9 @@ async def get_public_verify_detail(
 @public_router.get("/{proof_id}/dsp")
 async def download_dsp_package(
     proof_id: str,
-    sb: Client = Depends(get_supabase),
+    verify_service: PublicVerifyService = Depends(get_public_verify_service),
 ):
-    return await download_dsp_package_flow(
+    return await verify_service.download_dsp_package(
         proof_id=proof_id,
-        sb=sb,
         verify_base_url=_verify_base_url(),
     )

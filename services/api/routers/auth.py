@@ -6,17 +6,9 @@ services/api/routers/auth.py
 from fastapi import APIRouter, Depends
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
-from supabase import Client
 
-from services.api.auth_service import (
-    get_enterprise_flow,
-    get_me_flow,
-    login_flow,
-    logout_flow,
-    register_enterprise_flow,
-    require_auth_user,
-)
-from services.api.dependencies import get_supabase_for_auth
+from services.api.dependencies import get_auth_service
+from services.api.domain import AuthService
 
 router = APIRouter()
 security = HTTPBearer()
@@ -45,48 +37,48 @@ class LoginResponse(BaseModel):
     v_uri: str
 
 
-def require_auth(
+async def require_auth(
     credentials: HTTPAuthorizationCredentials = Depends(security),
-    sb: Client = Depends(get_supabase_for_auth),
+    auth_service: AuthService = Depends(get_auth_service),
 ) -> dict:
-    return require_auth_user(token=credentials.credentials, sb=sb)
+    return await auth_service.require_auth_identity(token=credentials.credentials)
 
 
 @router.post("/register-enterprise", status_code=201)
 async def register_enterprise(
     body: RegisterEnterpriseRequest,
-    sb: Client = Depends(get_supabase_for_auth),
+    auth_service: AuthService = Depends(get_auth_service),
 ):
-    return register_enterprise_flow(body=body, sb=sb)
+    return await auth_service.register_enterprise(body=body)
 
 
 @router.post("/login", response_model=LoginResponse)
 async def login(
     body: LoginRequest,
-    sb: Client = Depends(get_supabase_for_auth),
+    auth_service: AuthService = Depends(get_auth_service),
 ):
-    return login_flow(body=body, sb=sb)
+    return await auth_service.login(body=body)
 
 
 @router.get("/me")
 async def get_me(
     credentials: HTTPAuthorizationCredentials = Depends(security),
-    sb: Client = Depends(get_supabase_for_auth),
+    auth_service: AuthService = Depends(get_auth_service),
 ):
-    return get_me_flow(token=credentials.credentials, sb=sb)
+    return await auth_service.get_me(token=credentials.credentials)
 
 
 @router.post("/logout")
 async def logout_auth(
     credentials: HTTPAuthorizationCredentials = Depends(security),
-    sb: Client = Depends(get_supabase_for_auth),
+    auth_service: AuthService = Depends(get_auth_service),
 ):
-    return logout_flow(token=credentials.credentials, sb=sb)
+    return await auth_service.logout(token=credentials.credentials)
 
 
 @router.get("/enterprise/{enterprise_id}")
 async def get_enterprise(
     enterprise_id: str,
-    sb: Client = Depends(get_supabase_for_auth),
+    auth_service: AuthService = Depends(get_auth_service),
 ):
-    return get_enterprise_flow(enterprise_id=enterprise_id, sb=sb)
+    return await auth_service.get_enterprise(enterprise_id=enterprise_id)

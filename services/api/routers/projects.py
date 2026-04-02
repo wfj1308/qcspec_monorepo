@@ -6,26 +6,10 @@ services/api/routers/projects.py
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Request
-from supabase import Client
 
-from services.api.projects_router_flow_service import (
-    complete_project_gitpeg_registration_router_flow,
-    create_project_router_flow,
-    delete_project_flow,
-    export_projects_csv_flow,
-    get_project_flow,
-    gitpeg_registrar_webhook_router_flow,
-    list_activity_flow,
-    list_projects_flow,
-    sync_project_autoreg_endpoint_flow,
-    update_project_flow,
-)
-from services.api.projects_schemas import (
-    ProjectAutoregSyncRequest,
-    ProjectCreate,
-    ProjectGitPegCompleteRequest,
-)
-from services.api.dependencies import get_supabase
+from services.api.dependencies import get_projects_service
+from services.api.domain import ProjectsService
+from services.api.projects_schemas import ProjectAutoregSyncRequest, ProjectCreate, ProjectGitPegCompleteRequest
 
 router = APIRouter()
 public_router = APIRouter()
@@ -36,13 +20,12 @@ async def list_projects(
     enterprise_id: str,
     status: Optional[str] = None,
     type: Optional[str] = None,
-    sb: Client = Depends(get_supabase),
+    projects_service: ProjectsService = Depends(get_projects_service),
 ):
-    return list_projects_flow(
+    return await projects_service.list_projects(
         enterprise_id=enterprise_id,
         status=status,
         project_type=type,
-        sb=sb,
     )
 
 
@@ -50,9 +33,9 @@ async def list_projects(
 async def list_activity(
     enterprise_id: str,
     limit: int = 20,
-    sb: Client = Depends(get_supabase),
+    projects_service: ProjectsService = Depends(get_projects_service),
 ):
-    return list_activity_flow(enterprise_id=enterprise_id, limit=limit, sb=sb)
+    return await projects_service.list_activity(enterprise_id=enterprise_id, limit=limit)
 
 
 @router.get("/export")
@@ -60,76 +43,74 @@ async def export_projects_csv(
     enterprise_id: str,
     status: Optional[str] = None,
     type: Optional[str] = None,
-    sb: Client = Depends(get_supabase),
+    projects_service: ProjectsService = Depends(get_projects_service),
 ):
-    return export_projects_csv_flow(
+    return await projects_service.export_projects_csv(
         enterprise_id=enterprise_id,
         status=status,
         project_type=type,
-        sb=sb,
     )
 
 
 @router.post("/", status_code=201)
 async def create_project(
     body: ProjectCreate,
-    sb: Client = Depends(get_supabase),
+    projects_service: ProjectsService = Depends(get_projects_service),
 ):
-    return await create_project_router_flow(body=body, sb=sb)
+    return await projects_service.create_project(body=body)
 
 
 @router.post("/{project_id}/autoreg-sync")
 async def sync_project_autoreg(
     project_id: str,
     body: Optional[ProjectAutoregSyncRequest] = None,
-    sb: Client = Depends(get_supabase),
+    projects_service: ProjectsService = Depends(get_projects_service),
 ):
     req = body or ProjectAutoregSyncRequest()
-    return await sync_project_autoreg_endpoint_flow(project_id=project_id, body=req, sb=sb)
+    return await projects_service.sync_project_autoreg(project_id=project_id, body=req)
 
 
 @router.post("/{project_id}/gitpeg/complete")
 async def complete_project_gitpeg_registration(
     project_id: str,
     body: ProjectGitPegCompleteRequest,
-    sb: Client = Depends(get_supabase),
+    projects_service: ProjectsService = Depends(get_projects_service),
 ):
-    return await complete_project_gitpeg_registration_router_flow(
+    return await projects_service.complete_project_gitpeg_registration(
         project_id=project_id,
         body=body,
-        sb=sb,
     )
 
 
 @public_router.post("/gitpeg/webhook")
 async def gitpeg_registrar_webhook(
     request: Request,
-    sb: Client = Depends(get_supabase),
+    projects_service: ProjectsService = Depends(get_projects_service),
 ):
-    return await gitpeg_registrar_webhook_router_flow(request=request, sb=sb)
+    return await projects_service.gitpeg_registrar_webhook(request=request)
 
 
 @router.get("/{project_id}")
 async def get_project(
     project_id: str,
-    sb: Client = Depends(get_supabase),
+    projects_service: ProjectsService = Depends(get_projects_service),
 ):
-    return get_project_flow(project_id=project_id, sb=sb)
+    return await projects_service.get_project(project_id=project_id)
 
 
 @router.patch("/{project_id}")
 async def update_project(
     project_id: str,
     updates: dict,
-    sb: Client = Depends(get_supabase),
+    projects_service: ProjectsService = Depends(get_projects_service),
 ):
-    return update_project_flow(project_id=project_id, updates=updates, sb=sb)
+    return await projects_service.update_project(project_id=project_id, updates=updates)
 
 
 @router.delete("/{project_id}")
 async def delete_project(
     project_id: str,
     enterprise_id: Optional[str] = None,
-    sb: Client = Depends(get_supabase),
+    projects_service: ProjectsService = Depends(get_projects_service),
 ):
-    return delete_project_flow(project_id=project_id, enterprise_id=enterprise_id, sb=sb)
+    return await projects_service.delete_project(project_id=project_id, enterprise_id=enterprise_id)

@@ -8,48 +8,36 @@ Implements:
 
 from __future__ import annotations
 
-import hashlib
-import json
 from typing import Any
 
 from fastapi import HTTPException
 
-from services.api.triprole_engine import _compute_docfinal_risk_audit
-
-
-def _to_text(value: Any, default: str = "") -> str:
-    if value is None:
-        return default
-    if isinstance(value, bytes):
-        return value.decode("utf-8", errors="replace")
-    return str(value)
+from services.api.boq_audit_common import (
+    as_dict as _as_dict,
+    as_list as _as_list,
+    canonical_hash as _canonical_hash,
+    chain_root_hash as _chain_root_hash,
+    extract_boq_item_uri as _extract_boq_item_uri,
+    to_float as _common_to_float,
+    to_text as _to_text,
+)
+from services.api.boq_item_history_helpers import (
+    extract_item_code as _extract_item_code,
+    extract_settled_quantity as _extract_settled_quantity,
+    extract_variation_delta as _extract_variation_delta,
+    is_document_row as _is_document_row,
+    is_initial_row as _is_initial_row,
+    is_settlement_row as _is_settlement_row,
+    is_variation_row as _is_variation_row,
+    source_utxo_refs as _source_utxo_refs,
+)
+from services.api.domain.execution.triprole_docfinal_audit import (
+    compute_docfinal_risk_audit as _compute_docfinal_risk_audit,
+)
 
 
 def _to_float(value: Any) -> float | None:
-    if value is None:
-        return None
-    try:
-        return float(value)
-    except Exception:
-        text = _to_text(value).strip().replace(",", "")
-        if not text:
-            return None
-        try:
-            return float(text)
-        except Exception:
-            return None
-
-
-def _as_dict(value: Any) -> dict[str, Any]:
-    if isinstance(value, dict):
-        return value
-    return {}
-
-
-def _as_list(value: Any) -> list[Any]:
-    if isinstance(value, list):
-        return value
-    return []
+    return _common_to_float(value, allow_commas=True)
 
 
 def _row_fingerprint(row: dict[str, Any]) -> dict[str, Any]:
@@ -75,8 +63,7 @@ def _row_fingerprint(row: dict[str, Any]) -> dict[str, Any]:
         "state_data": sd if isinstance(sd, dict) else {},
         "norm_uri": _to_text(row.get("norm_uri") or ""),
     }
-    canonical = json.dumps(payload, ensure_ascii=False, sort_keys=True, default=str)
-    row_hash = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+    row_hash = _canonical_hash(payload)
     return {
         "proof_id": payload["proof_id"],
         "proof_hash": payload["proof_hash"],
@@ -92,97 +79,6 @@ def _row_fingerprint(row: dict[str, Any]) -> dict[str, Any]:
         "server_timestamp_proof": _as_dict(sd.get("server_timestamp_proof")),
         "spatiotemporal_anchor_hash": _to_text(sd.get("spatiotemporal_anchor_hash") or "").strip(),
     }
-
-
-def _chain_root_hash(fingerprints: list[dict[str, Any]]) -> str:
-    canonical = json.dumps(fingerprints, ensure_ascii=False, sort_keys=True, default=str)
-    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
-
-
-def _item_code_from_boq_uri(boq_item_uri: str) -> str:
-    uri = _to_text(boq_item_uri).strip().rstrip("/")
-    if not uri:
-        return ""
-    return uri.split("/")[-1]
-
-
-def _extract_boq_item_uri(row: dict[str, Any]) -> str:
-    sd = _as_dict(row.get("state_data"))
-    for key in ("boq_item_uri", "item_uri", "boq_uri"):
-        candidate = _to_text(sd.get(key) or "").strip()
-        if candidate.startswith("v://"):
-            return candidate
-    segment_uri = _to_text(row.get("segment_uri") or "").strip()
-    if "/boq/" in segment_uri:
-        return segment_uri
-    return ""
-
-
-def _extract_item_code(row: dict[str, Any]) -> str:
-    sd = _as_dict(row.get("state_data"))
-    code = _to_text(sd.get("item_no") or "").strip()
-    if code:
-        return code
-    return _item_code_from_boq_uri(_extract_boq_item_uri(row))
-
-
-def _extract_settled_quantity(row: dict[str, Any]) -> float:
-    sd = _as_dict(row.get("state_data"))
-    settlement = _as_dict(sd.get("settlement"))
-    for candidate in (
-        settlement.get("settled_quantity"),
-        settlement.get("quantity"),
-        settlement.get("confirmed_quantity"),
-        settlement.get("approved_quantity"),
-        sd.get("settled_quantity"),
-    ):
-        v = _to_float(candidate)
-        if v is not None:
-            return float(v)
-    return 0.0
-
-
-def _extract_variation_delta(row: dict[str, Any]) -> float:
-    sd = _as_dict(row.get("state_data"))
-    delta = _to_float(_as_dict(sd.get("delta_utxo")).get("delta_amount"))
-    if delta is None:
-        delta = _to_float(_as_dict(sd.get("variation")).get("delta_amount"))
-    if delta is None:
-        delta = _to_float(_as_dict(sd.get("ledger")).get("last_delta_amount"))
-    return float(delta or 0.0)
-
-
-def _is_initial_row(row: dict[str, Any]) -> bool:
-    sd = _as_dict(row.get("state_data"))
-    lifecycle = _to_text(sd.get("lifecycle_stage") or "").strip().upper()
-    status = _to_text(sd.get("status") or "").strip().upper()
-    ptype = _to_text(row.get("proof_type") or "").strip().lower()
-    if lifecycle == "INITIAL" or status == "INITIAL":
-        return True
-    return ptype == "zero_ledger"
-
-
-def _is_variation_row(row: dict[str, Any]) -> bool:
-    sd = _as_dict(row.get("state_data"))
-    action = _to_text(sd.get("trip_action") or "").strip().lower()
-    lifecycle = _to_text(sd.get("lifecycle_stage") or "").strip().upper()
-    return action == "variation.delta.apply" or lifecycle == "VARIATION" or bool(_as_dict(sd.get("delta_utxo")))
-
-
-def _is_settlement_row(row: dict[str, Any]) -> bool:
-    sd = _as_dict(row.get("state_data"))
-    ptype = _to_text(row.get("proof_type") or "").strip().lower()
-    action = _to_text(sd.get("trip_action") or "").strip().lower()
-    lifecycle = _to_text(sd.get("lifecycle_stage") or "").strip().upper()
-    return ptype == "payment" or action == "settlement.confirm" or lifecycle == "SETTLEMENT"
-
-
-def _is_document_row(row: dict[str, Any]) -> bool:
-    ptype = _to_text(row.get("proof_type") or "").strip().lower()
-    if ptype in {"document", "photo", "erpnext_receipt"}:
-        return True
-    sd = _as_dict(row.get("state_data"))
-    return bool(_to_text(sd.get("doc_type") or "").strip())
 
 
 def _load_project_rows(*, sb: Any, project_uri: str, max_rows: int = 50000) -> list[dict[str, Any]]:
@@ -202,17 +98,6 @@ def _load_project_rows(*, sb: Any, project_uri: str, max_rows: int = 50000) -> l
     return [row for row in rows if isinstance(row, dict)]
 
 
-def _source_utxo_refs(row: dict[str, Any]) -> list[str]:
-    sd = _as_dict(row.get("state_data"))
-    refs: list[str] = []
-    direct = _to_text(sd.get("source_utxo_id") or "").strip()
-    if direct:
-        refs.append(direct)
-    refs.extend([_to_text(x).strip() for x in _as_list(sd.get("source_utxo_ids")) if _to_text(x).strip()])
-    refs.extend([_to_text(x).strip() for x in _as_list(sd.get("compensates")) if _to_text(x).strip()])
-    return sorted(set(refs))
-
-
 def get_item_sovereign_history(
     *,
     sb: Any,
@@ -225,11 +110,7 @@ def get_item_sovereign_history(
         raise HTTPException(400, "subitem_code is required")
 
     rows = _load_project_rows(sb=sb, project_uri=project_uri, max_rows=max_rows)
-    target = [
-        row
-        for row in rows
-        if _extract_item_code(row) == code or _item_code_from_boq_uri(_extract_boq_item_uri(row)) == code
-    ]
+    target = [row for row in rows if _extract_item_code(row) == code]
     if not target:
         raise HTTPException(404, f"no BOQ proof found for subitem_code={code}")
 

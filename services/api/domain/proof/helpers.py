@@ -7,8 +7,12 @@ from typing import Any
 
 from fastapi.responses import StreamingResponse
 
-from services.api.boq_payment_audit_service import finalize_docfinal_delivery
-from services.api.triprole_engine import build_docfinal_package_for_boq, export_doc_final, replay_offline_packets
+from services.api.domain.execution.flows import (
+    build_docfinal_package_for_boq,
+    export_doc_final,
+    replay_offline_packets,
+)
+from services.api.domain.finance.payment_audit import finalize_docfinal_delivery
 
 
 def replay_offline_packets_payload(*, body: Any, sb: Any) -> dict[str, Any]:

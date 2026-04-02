@@ -32,20 +32,22 @@ from services.api.boq_utxo_service import (
     BoqItem,
     initialize_boq_utxos,
 )
-from services.api.labpeg_frequency_remediation_service import resolve_dual_pass_gate
-from services.api.doc_governance_service import register_document
+from services.api.domain.boq.integrations import (
+    build_did_reputation_summary,
+    build_unit_merkle_snapshot,
+    resolve_dynamic_threshold,
+)
+from services.api.domain.documents.integrations import register_document
+from services.api.domain.execution.integrations import resolve_dual_pass_gate
 from services.api.erpnext_service import load_erpnext_custom
 from services.api.erpnext_http_utils import erp_request_sync
-from services.api.proof_utxo_engine import ProofUTXOEngine
+from services.api.domain.utxo.integrations import ProofUTXOEngine
 from services.api.reports_generation_service import REPORTS_BUCKET
-from services.api.specdict_gate_service import resolve_dynamic_threshold
-from services.api.did_reputation_service import build_did_reputation_summary
-from services.api.triprole_engine import (
+from services.api.domain.execution.flows import (
     build_docfinal_package_for_boq,
     execute_triprole_action,
     get_boq_realtime_status,
 )
-from services.api.unit_merkle_service import build_unit_merkle_snapshot
 
 
 ITEM_NO_PATTERN = re.compile(r"^\d{3}(?:-[0-9A-Za-z]+)*$")

@@ -9,16 +9,9 @@ from typing import Any, Optional
 
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
-from supabase import Client
 
-from services.api.dependencies import get_supabase
-from services.api.erpnext_flow_service import (
-    check_metering_gate_flow,
-    get_metering_requests_flow,
-    get_project_basics_flow,
-    notify_erpnext_flow,
-    probe_erpnext_flow,
-)
+from services.api.dependencies import get_erpnext_integration_service
+from services.api.domain import ERPNextIntegrationService
 
 router = APIRouter()
 
@@ -42,16 +35,15 @@ async def check_metering_gate(
     result: str = "pass",
     project_id: Optional[str] = None,
     project_code: Optional[str] = None,
-    sb: Client = Depends(get_supabase),
+    erpnext_service: ERPNextIntegrationService = Depends(get_erpnext_integration_service),
 ):
-    return await check_metering_gate_flow(
+    return await erpnext_service.check_metering_gate(
         enterprise_id=enterprise_id,
         stake=stake,
         subitem=subitem,
         result=result,
         project_id=project_id,
         project_code=project_code,
-        sb=sb,
     )
 
 
@@ -60,13 +52,12 @@ async def get_project_basics(
     enterprise_id: str,
     project_code: Optional[str] = None,
     project_name: Optional[str] = None,
-    sb: Client = Depends(get_supabase),
+    erpnext_service: ERPNextIntegrationService = Depends(get_erpnext_integration_service),
 ):
-    return await get_project_basics_flow(
+    return await erpnext_service.get_project_basics(
         enterprise_id=enterprise_id,
         project_code=project_code,
         project_name=project_name,
-        sb=sb,
     )
 
 
@@ -77,24 +68,23 @@ async def get_metering_requests(
     stake: Optional[str] = None,
     subitem: Optional[str] = None,
     status: Optional[str] = None,
-    sb: Client = Depends(get_supabase),
+    erpnext_service: ERPNextIntegrationService = Depends(get_erpnext_integration_service),
 ):
-    return await get_metering_requests_flow(
+    return await erpnext_service.get_metering_requests(
         enterprise_id=enterprise_id,
         project_code=project_code,
         stake=stake,
         subitem=subitem,
         status=status,
-        sb=sb,
     )
 
 
 @router.post("/notify")
 async def notify_erpnext(
     body: ERPNextNotifyRequest,
-    sb: Client = Depends(get_supabase),
+    erpnext_service: ERPNextIntegrationService = Depends(get_erpnext_integration_service),
 ):
-    return await notify_erpnext_flow(body=body, sb=sb)
+    return await erpnext_service.notify_erpnext(body=body)
 
 
 @router.get("/probe")
@@ -103,12 +93,11 @@ async def probe_erpnext(
     sample_project_name: str = "QCSpec sample project",
     sample_stake: str = "K22+500",
     sample_subitem: str = "compaction",
-    sb: Client = Depends(get_supabase),
+    erpnext_service: ERPNextIntegrationService = Depends(get_erpnext_integration_service),
 ):
-    return await probe_erpnext_flow(
+    return await erpnext_service.probe_erpnext(
         enterprise_id=enterprise_id,
         sample_project_name=sample_project_name,
         sample_stake=sample_stake,
         sample_subitem=sample_subitem,
-        sb=sb,
     )

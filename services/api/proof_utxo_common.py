@@ -1,49 +1,43 @@
-﻿"""
-Common utilities for proof UTXO operations.
+"""
+Compatibility shim for legacy proof UTXO common imports.
+
+Prefer importing from ``services.api.domain.utxo.common`` directly.
 """
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
-import hashlib
-import uuid
-
-PROOF_TYPES = {
-    "inspection",
-    "lab",
-    "photo",
-    "approval",
-    "payment",
-    "payment_instruction",
-    "archive",
-    "remediation",
-    "node",
-    "document",
-    "ordosign",
-    "zero_ledger",
-}
-
-PROOF_RESULTS = {"PASS", "FAIL", "OBSERVE", "PENDING", "CANCELLED"}
+from services.api.domain.utxo import common as _utxo_common
 
 
-def utc_now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat()
+def _ordered_unique(items: list[str]) -> list[str]:
+    out: list[str] = []
+    for item in items:
+        if item not in out:
+            out.append(item)
+    return out
 
 
-def gen_tx_id() -> str:
-    return f"TX-{datetime.now(timezone.utc).strftime('%Y%m%d')}-{uuid.uuid4().hex[:6].upper()}"
+PROOF_TYPES = _utxo_common.PROOF_TYPES
+PROOF_RESULTS = _utxo_common.PROOF_RESULTS
+utc_now_iso = _utxo_common.utc_now_iso
+gen_tx_id = _utxo_common.gen_tx_id
+ordosign = _utxo_common.ordosign
+normalize_result = _utxo_common.normalize_result
+normalize_type = _utxo_common.normalize_type
 
+_gen_tx_id = gen_tx_id
+_normalize_result = normalize_result
+_normalize_type = normalize_type
+_ordosign = ordosign
+_utc_now_iso = utc_now_iso
 
-def ordosign(target_id: str, signer_uri: str) -> str:
-    payload = f"{target_id}:{signer_uri}:{utc_now_iso()}"
-    return hashlib.sha256(payload.encode("utf-8")).hexdigest()[:24]
-
-
-def normalize_result(value: str) -> str:
-    t = str(value or "").strip().upper()
-    return t if t in PROOF_RESULTS else "PENDING"
-
-
-def normalize_type(value: str) -> str:
-    t = str(value or "").strip().lower()
-    return t if t in PROOF_TYPES else "inspection"
+__all__ = _ordered_unique(
+    [
+        *_utxo_common.__all__,
+        "_utc_now_iso",
+        "_gen_tx_id",
+        "_ordosign",
+        "_normalize_result",
+        "_normalize_type",
+    ]
+)

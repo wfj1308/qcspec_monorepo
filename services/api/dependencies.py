@@ -12,14 +12,24 @@ from supabase import Client
 from services.api.auth_service import ensure_no_proxy_for_supabase, require_auth_user
 from services.api.core import DIDGuardService, NormRefResolverService, ProofUTXOService
 from services.api.domain import (
+    AuthService,
+    AutoregService,
     BOQService,
+    BOQSpecificationService,
     DocumentGovernanceService,
+    ERPNextIntegrationService,
     ExecutionService,
     FinanceAuditService,
+    InspectionsService,
     IntelligenceService,
+    PhotosService,
     ProofApplicationService,
+    ProjectsService,
+    PublicVerifyService,
     ReportingService,
+    SettingsService,
     SMUService,
+    TeamService,
     UTXOService,
 )
 from services.api.infrastructure.database import get_supabase_client
@@ -35,9 +45,21 @@ def get_supabase() -> Client:
     return get_supabase_client()
 
 
+def get_autoreg_supabase() -> Client:
+    return get_supabase_client(
+        url_envs=("GITPEG_SUPABASE_URL", "SUPABASE_URL"),
+        key_envs=("GITPEG_SUPABASE_SERVICE_ROLE_KEY", "SUPABASE_SERVICE_ROLE_KEY", "SUPABASE_SERVICE_KEY"),
+        error_detail="supabase not configured for autoreg",
+    )
+
+
 def get_supabase_for_auth() -> Client:
     ensure_no_proxy_for_supabase()
     return get_supabase_client()
+
+
+def get_auth_service(sb: Client = Depends(get_supabase_for_auth)) -> AuthService:
+    return AuthService(sb=sb)
 
 
 def get_utxo_service(sb: Client = Depends(get_supabase)) -> ProofUTXOService:
@@ -60,6 +82,22 @@ def get_boq_service(sb: Client = Depends(get_supabase)) -> BOQService:
     return BOQService(sb=sb)
 
 
+def get_autoreg_service(sb: Client = Depends(get_autoreg_supabase)) -> AutoregService:
+    return AutoregService(sb=sb)
+
+
+def get_boq_specification_service(sb: Client = Depends(get_supabase)) -> BOQSpecificationService:
+    return BOQSpecificationService(sb=sb)
+
+
+def get_erpnext_integration_service(sb: Client = Depends(get_supabase)) -> ERPNextIntegrationService:
+    return ERPNextIntegrationService(sb=sb)
+
+
+def get_inspections_service(sb: Client = Depends(get_supabase)) -> InspectionsService:
+    return InspectionsService(sb=sb)
+
+
 def get_utxo_application_service(sb: Client = Depends(get_supabase)) -> UTXOService:
     return UTXOService(sb=sb)
 
@@ -78,6 +116,26 @@ def get_reporting_service(sb: Client = Depends(get_supabase)) -> ReportingServic
 
 def get_finance_audit_service(sb: Client = Depends(get_supabase)) -> FinanceAuditService:
     return FinanceAuditService(sb=sb)
+
+
+def get_photos_service(sb: Client = Depends(get_supabase)) -> PhotosService:
+    return PhotosService(sb=sb)
+
+
+def get_settings_service(sb: Client = Depends(get_supabase)) -> SettingsService:
+    return SettingsService(sb=sb)
+
+
+def get_team_service(sb: Client = Depends(get_supabase)) -> TeamService:
+    return TeamService(sb=sb)
+
+
+def get_public_verify_service(sb: Client = Depends(get_supabase)) -> PublicVerifyService:
+    return PublicVerifyService(sb=sb)
+
+
+def get_projects_service(sb: Client = Depends(get_supabase)) -> ProjectsService:
+    return ProjectsService(sb=sb)
 
 
 @lru_cache(maxsize=1)

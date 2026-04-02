@@ -7,16 +7,10 @@ from __future__ import annotations
 from typing import Optional
 
 from fastapi import APIRouter, Depends
-from pydantic import BaseModel
-from supabase import Client
+from pydantic import BaseModel, Field
 
-from services.api.dependencies import get_supabase
-from services.api.team_flow_service import (
-    create_member_flow,
-    list_members_flow,
-    remove_member_flow,
-    update_member_flow,
-)
+from services.api.dependencies import get_team_service
+from services.api.domain import TeamService
 
 router = APIRouter()
 
@@ -27,7 +21,7 @@ class MemberCreate(BaseModel):
     email: str
     dto_role: str = "AI"
     title: Optional[str] = None
-    project_ids: list[str] = []
+    project_ids: list[str] = Field(default_factory=list)
 
 
 class MemberUpdate(BaseModel):
@@ -43,21 +37,21 @@ class MemberUpdate(BaseModel):
 async def list_members(
     enterprise_id: str,
     include_inactive: bool = False,
-    sb: Client = Depends(get_supabase),
+    team_service: TeamService = Depends(get_team_service),
 ):
-    return list_members_flow(enterprise_id=enterprise_id, include_inactive=include_inactive, sb=sb)
+    return await team_service.list_members(enterprise_id=enterprise_id, include_inactive=include_inactive)
 
 
 @router.post("/members", status_code=201)
-async def create_member(body: MemberCreate, sb: Client = Depends(get_supabase)):
-    return create_member_flow(body=body, sb=sb)
+async def create_member(body: MemberCreate, team_service: TeamService = Depends(get_team_service)):
+    return await team_service.create_member(body=body)
 
 
 @router.patch("/members/{user_id}")
-async def update_member(user_id: str, body: MemberUpdate, sb: Client = Depends(get_supabase)):
-    return update_member_flow(user_id=user_id, body=body, sb=sb)
+async def update_member(user_id: str, body: MemberUpdate, team_service: TeamService = Depends(get_team_service)):
+    return await team_service.update_member(user_id=user_id, body=body)
 
 
 @router.delete("/members/{user_id}")
-async def remove_member(user_id: str, sb: Client = Depends(get_supabase)):
-    return remove_member_flow(user_id=user_id, sb=sb)
+async def remove_member(user_id: str, team_service: TeamService = Depends(get_team_service)):
+    return await team_service.remove_member(user_id=user_id)

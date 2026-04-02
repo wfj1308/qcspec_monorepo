@@ -8,16 +8,10 @@ from __future__ import annotations
 from typing import Any, List, Optional
 
 from fastapi import APIRouter, Depends, Query
-from pydantic import BaseModel
-from supabase import Client
+from pydantic import BaseModel, Field
 
-from services.api.dependencies import get_supabase
-from services.api.inspections_service import (
-    create_inspection_flow,
-    delete_inspection_flow,
-    list_inspections_flow,
-    project_stats_flow,
-)
+from services.api.dependencies import get_inspections_service
+from services.api.domain import InspectionsService
 
 router = APIRouter()
 
@@ -34,7 +28,7 @@ class InspectionCreate(BaseModel):
     person: Optional[str] = None
     remark: Optional[str] = None
     inspected_at: Optional[str] = None
-    photo_ids: Optional[List[str]] = []
+    photo_ids: Optional[List[str]] = Field(default_factory=list)
     # Live rebar fields (Proof UTXO compatible state_data payload).
     design: Optional[float] = None
     limit: Optional[str] = None
@@ -61,41 +55,40 @@ async def list_inspections(
     type: Optional[str] = None,
     limit: int = Query(50, le=200),
     offset: int = 0,
-    sb: Client = Depends(get_supabase),
+    inspections_service: InspectionsService = Depends(get_inspections_service),
 ):
     """List inspections by project."""
-    return await list_inspections_flow(
+    return await inspections_service.list_inspections(
         project_id=project_id,
         result=result,
         kind=type,
         limit=limit,
         offset=offset,
-        sb=sb,
     )
 
 
 @router.post("/", status_code=201)
 async def create_inspection(
     body: InspectionCreate,
-    sb: Client = Depends(get_supabase),
+    inspections_service: InspectionsService = Depends(get_inspections_service),
 ):
     """Create an inspection and append proof-chain record."""
-    return await create_inspection_flow(body=body, sb=sb)
+    return await inspections_service.create_inspection(body=body)
 
 
 @router.get("/stats/{project_id}")
 async def project_stats(
     project_id: str,
-    sb: Client = Depends(get_supabase),
+    inspections_service: InspectionsService = Depends(get_inspections_service),
 ):
     """Inspection stats for a project."""
-    return await project_stats_flow(project_id=project_id, sb=sb)
+    return await inspections_service.project_stats(project_id=project_id)
 
 
 @router.delete("/{inspection_id}")
 async def delete_inspection(
     inspection_id: str,
-    sb: Client = Depends(get_supabase),
+    inspections_service: InspectionsService = Depends(get_inspections_service),
 ):
     """Delete inspection."""
-    return await delete_inspection_flow(inspection_id=inspection_id, sb=sb)
+    return await inspections_service.delete_inspection(inspection_id=inspection_id)

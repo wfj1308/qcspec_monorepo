@@ -8,7 +8,7 @@ from __future__ import annotations
 from typing import Any, Dict, List, Optional, Tuple
 
 from supabase import Client
-from services.api.proof_utxo_common import (
+from services.api.domain.utxo.common import (
     gen_tx_id as _gen_tx_id,
     normalize_result as _normalize_result,
     normalize_type as _normalize_type,

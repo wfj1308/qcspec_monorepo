@@ -18,7 +18,7 @@ from services.api.domain.proof.helpers import (
     get_docfinal_context,
     replay_offline_packets_payload,
 )
-from services.api.proof_utxo_engine import ProofUTXOEngine
+from services.api.domain.utxo.integrations import ProofUTXOEngine
 
 
 class ProofApplicationService(BaseService):
@@ -56,47 +56,52 @@ class ProofApplicationService(BaseService):
         )
 
     async def replay_offline_packets(self, *, body: Any) -> Any:
+        supabase = self.require_supabase()
         return await self.run_guarded(
             "replay_offline_packets",
             replay_offline_packets_payload,
             body=body,
-            sb=self.require_supabase(),
+            sb=supabase,
         )
 
     async def get_docfinal_context(self, **kwargs: Any) -> Any:
+        supabase = self.require_supabase()
         return await self.run_guarded(
             "get_docfinal_context",
             get_docfinal_context,
-            sb=self.require_supabase(),
+            sb=supabase,
             **kwargs,
         )
 
     async def download_docfinal(self, **kwargs: Any) -> Any:
+        supabase = self.require_supabase()
         return await self.run_guarded(
             "download_docfinal",
             download_docfinal_zip,
-            sb=self.require_supabase(),
+            sb=supabase,
             **kwargs,
         )
 
     async def export_doc_final(self, *, body: Any) -> Any:
+        supabase = self.require_supabase()
         return await self.run_guarded(
             "export_doc_final",
             export_doc_final_package,
             body=body,
-            sb=self.require_supabase(),
+            sb=supabase,
         )
 
     async def finalize_docfinal_delivery(self, *, body: Any) -> Any:
+        supabase = self.require_supabase()
         return await self.run_guarded(
             "finalize_docfinal_delivery",
             finalize_docfinal_delivery_package,
             body=body,
-            sb=self.require_supabase(),
+            sb=supabase,
         )
 
-    def _engine(self) -> ProofUTXOEngine:
-        return ProofUTXOEngine(self.require_supabase())
+    def _engine(self, *, sb: Client | None = None) -> ProofUTXOEngine:
+        return ProofUTXOEngine(sb or self.require_supabase())
 
     @staticmethod
     def _is_uuid(value: str) -> bool:
@@ -153,7 +158,7 @@ class ProofApplicationService(BaseService):
                 if project_rows:
                     rows = [
                         self._utxo_to_legacy_row(row)
-                        for row in self._engine().get_unspent(project_uri=project_rows[0]["v_uri"], limit=limit)
+                        for row in self._engine(sb=sb).get_unspent(project_uri=project_rows[0]["v_uri"], limit=limit)
                     ]
                 return {"data": rows, "count": len(rows)}
             except Exception as fallback_exc:
@@ -170,7 +175,7 @@ class ProofApplicationService(BaseService):
 
         utxo = None
         try:
-            utxo = self._engine().get_by_id(proof_id)
+            utxo = self._engine(sb=sb).get_by_id(proof_id)
         except Exception:
             utxo = None
 
@@ -234,9 +239,10 @@ class ProofApplicationService(BaseService):
         }
 
     def _get_node_tree(self, *, root_uri: str) -> dict[str, Any]:
+        sb = self.require_supabase()
         try:
             rows = (
-                self.require_supabase()
+                sb
                 .table("v_nodes")
                 .select("uri,parent_uri,node_type,peg_count,status")
                 .like("uri", f"{root_uri}%")
@@ -253,9 +259,10 @@ class ProofApplicationService(BaseService):
         if not self._is_uuid(project_id):
             raise HTTPException(400, "Invalid project_id format. UUID expected.")
 
+        sb = self.require_supabase()
         try:
             rows = (
-                self.require_supabase()
+                sb
                 .table("proof_chain")
                 .select("object_type, action")
                 .eq("project_id", project_id)

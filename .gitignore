@@ -22,3 +22,11 @@ Thumbs.db
 __pycache__/
 *.pyc
 services/api/tmp_*.docx
+
+# local runtime/cache artifacts
+.pytest_cache/
+.runtime-logs/
+.npm-temp-cache/
+
+# local smoke artifacts
+tmp/docpeg_smoke/
