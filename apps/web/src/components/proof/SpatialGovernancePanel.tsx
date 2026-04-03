@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react'
+﻿import React, { useEffect, useMemo, useState } from 'react'
 import { Button, Card } from '../ui'
 
 interface SpatialGovernancePanelProps {
@@ -77,17 +77,17 @@ export default function SpatialGovernancePanel({
   return (
     <Card title="空间孪生与智能治理" icon="🛰️">
       <div style={{ fontSize: 12, color: '#64748B', marginBottom: 8, wordBreak: 'break-all' }}>
-        空间位置 = 资产地址 · 项目 URI: {projectUri}
+        项目 URI：{projectUri}
       </div>
 
       <div style={{ border: '1px solid #E2E8F0', borderRadius: 10, padding: 10, marginBottom: 10 }}>
-        <div style={{ fontSize: 12, fontWeight: 700, color: '#0F172A', marginBottom: 8 }}>Spatial-Ledger Alignment</div>
+        <div style={{ fontSize: 12, fontWeight: 700, color: '#0F172A', marginBottom: 8 }}>空间绑定（UTXO ↔ BIM）</div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,minmax(0,1fr))', gap: 8, marginBottom: 8 }}>
-          <input value={utxoId} onChange={(e) => setUtxoId(e.target.value)} placeholder="UTXO / Proof ID" style={{ padding: 8, border: '1px solid #CBD5E1', borderRadius: 8 }} />
-          <input value={bimId} onChange={(e) => setBimId(e.target.value)} placeholder="BIM ID (e.g. 403-pier)" style={{ padding: 8, border: '1px solid #CBD5E1', borderRadius: 8 }} />
-          <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="构件名称" style={{ padding: 8, border: '1px solid #CBD5E1', borderRadius: 8 }} />
-          <input value={lat} onChange={(e) => setLat(e.target.value)} placeholder="lat" style={{ padding: 8, border: '1px solid #CBD5E1', borderRadius: 8 }} />
-          <input value={lng} onChange={(e) => setLng(e.target.value)} placeholder="lng" style={{ padding: 8, border: '1px solid #CBD5E1', borderRadius: 8 }} />
+          <input value={utxoId} onChange={(e) => setUtxoId(e.target.value)} placeholder="UTXO / Proof ID" style={{ padding: 8, border: '1px solid #CBD5E1', borderRadius: 8, fontFamily: 'var(--sans)' }} />
+          <input value={bimId} onChange={(e) => setBimId(e.target.value)} placeholder="BIM ID（例如 403-pier）" style={{ padding: 8, border: '1px solid #CBD5E1', borderRadius: 8, fontFamily: 'var(--sans)' }} />
+          <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="构件名称" style={{ padding: 8, border: '1px solid #CBD5E1', borderRadius: 8, fontFamily: 'var(--sans)' }} />
+          <input value={lat} onChange={(e) => setLat(e.target.value)} placeholder="纬度 lat" style={{ padding: 8, border: '1px solid #CBD5E1', borderRadius: 8, fontFamily: 'var(--sans)' }} />
+          <input value={lng} onChange={(e) => setLng(e.target.value)} placeholder="经度 lng" style={{ padding: 8, border: '1px solid #CBD5E1', borderRadius: 8, fontFamily: 'var(--sans)' }} />
           <div style={{ display: 'flex', gap: 8 }}>
             <Button
               size="sm"
@@ -103,7 +103,7 @@ export default function SpatialGovernancePanel({
               绑定空间指纹
             </Button>
             <Button size="sm" variant="secondary" onClick={onRefreshSpatial} disabled={spatialLoading}>
-              {spatialLoading ? '刷新中...' : '刷新孪生看板'}
+              {spatialLoading ? '刷新中...' : '刷新看板'}
             </Button>
           </div>
         </div>
@@ -114,15 +114,15 @@ export default function SpatialGovernancePanel({
             <div style={{ fontSize: 18, fontWeight: 800, color: '#0F172A' }}>{Number(summary.asset_count || 0)}</div>
           </div>
           <div style={{ border: '1px solid #DCFCE7', borderRadius: 8, padding: 8, background: '#F0FDF4' }}>
-            <div style={{ fontSize: 11, color: '#166534' }}>已结算(绿)</div>
+            <div style={{ fontSize: 11, color: '#166534' }}>已结算（绿）</div>
             <div style={{ fontSize: 18, fontWeight: 800, color: '#166534' }}>{Number(summary.green_count || 0)}</div>
           </div>
           <div style={{ border: '1px solid #FEF9C3', borderRadius: 8, padding: 8, background: '#FEFCE8' }}>
-            <div style={{ fontSize: 11, color: '#854D0E' }}>质检中(黄)</div>
+            <div style={{ fontSize: 11, color: '#854D0E' }}>质检中（黄）</div>
             <div style={{ fontSize: 18, fontWeight: 800, color: '#854D0E' }}>{Number(summary.yellow_count || 0)}</div>
           </div>
           <div style={{ border: '1px solid #FECACA', borderRadius: 8, padding: 8, background: '#FEF2F2' }}>
-            <div style={{ fontSize: 11, color: '#991B1B' }}>失败(红)</div>
+            <div style={{ fontSize: 11, color: '#991B1B' }}>失败（红）</div>
             <div style={{ fontSize: 18, fontWeight: 800, color: '#991B1B' }}>{Number(summary.red_count || 0)}</div>
           </div>
         </div>
@@ -134,28 +134,22 @@ export default function SpatialGovernancePanel({
                 <div style={{ fontSize: 12, fontWeight: 700, color: '#0F172A' }}>
                   {asset.item_no || '-'} {asset.item_name || ''}
                 </div>
-                <span style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 4,
-                  fontSize: 11,
-                  color: '#334155',
-                }}>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#334155' }}>
                   <span style={{ width: 8, height: 8, borderRadius: 999, background: asset.color || '#CBD5E1', display: 'inline-block' }} />
                   {asset.status || '-'}
                 </span>
               </div>
               <div style={{ marginTop: 2, fontSize: 12, color: '#64748B' }}>
-                BIM: {asset.bim_id || '-'} · 坐标: {asset.coordinate?.lat ?? '-'}, {asset.coordinate?.lng ?? '-'} · 支付: {asset.payment_status || '-'}
+                BIM：{asset.bim_id || '-'} | 坐标：{asset.coordinate?.lat ?? '-'}, {asset.coordinate?.lng ?? '-'} | 支付：{asset.payment_status || '-'}
               </div>
               <div style={{ marginTop: 2, fontSize: 12, color: '#475569' }}>
-                Norm: {asset.norm_snapshot?.spec_uri || '-'} · 偏差: {asset.norm_snapshot?.deviation_percent ?? '-'}
+                规范：{asset.norm_snapshot?.spec_uri || '-'} | 偏差：{asset.norm_snapshot?.deviation_percent ?? '-'}
               </div>
               {!!asset.proof_id && onOpenVerifyNode && (
                 <button
                   type="button"
                   onClick={() => onOpenVerifyNode(String(asset.proof_id))}
-                  style={{ marginTop: 4, border: 'none', background: 'transparent', padding: 0, color: '#1A56DB', fontSize: 12, cursor: 'pointer' }}
+                  style={{ marginTop: 4, border: 'none', background: 'transparent', padding: 0, color: '#1A56DB', fontSize: 12, cursor: 'pointer', fontFamily: 'var(--sans)' }}
                 >
                   打开 NormPeg 判定报告
                 </button>
@@ -166,11 +160,11 @@ export default function SpatialGovernancePanel({
       </div>
 
       <div style={{ border: '1px solid #E2E8F0', borderRadius: 10, padding: 10, marginBottom: 10 }}>
-        <div style={{ fontSize: 12, fontWeight: 700, color: '#0F172A', marginBottom: 8 }}>Proactive AI Rules</div>
+        <div style={{ fontSize: 12, fontWeight: 700, color: '#0F172A', marginBottom: 8 }}>主动预警规则</div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,minmax(0,1fr))', gap: 8, marginBottom: 8 }}>
-          <input value={nearRatio} onChange={(e) => setNearRatio(e.target.value)} placeholder="near ratio" style={{ padding: 8, border: '1px solid #CBD5E1', borderRadius: 8 }} />
-          <input value={minSamples} onChange={(e) => setMinSamples(e.target.value)} placeholder="min samples" style={{ padding: 8, border: '1px solid #CBD5E1', borderRadius: 8 }} />
-          <input value={criticalThreshold} onChange={(e) => setCriticalThreshold(e.target.value)} placeholder="critical threshold" style={{ padding: 8, border: '1px solid #CBD5E1', borderRadius: 8 }} />
+          <input value={nearRatio} onChange={(e) => setNearRatio(e.target.value)} placeholder="临界比（near ratio）" style={{ padding: 8, border: '1px solid #CBD5E1', borderRadius: 8, fontFamily: 'var(--sans)' }} />
+          <input value={minSamples} onChange={(e) => setMinSamples(e.target.value)} placeholder="最小样本数" style={{ padding: 8, border: '1px solid #CBD5E1', borderRadius: 8, fontFamily: 'var(--sans)' }} />
+          <input value={criticalThreshold} onChange={(e) => setCriticalThreshold(e.target.value)} placeholder="临界阈值" style={{ padding: 8, border: '1px solid #CBD5E1', borderRadius: 8, fontFamily: 'var(--sans)' }} />
           <Button
             size="sm"
             onClick={() => onRunPredictive({
@@ -185,17 +179,17 @@ export default function SpatialGovernancePanel({
           </Button>
         </div>
         <div style={{ fontSize: 12, color: '#64748B', marginBottom: 6 }}>
-          预警数: {Number(aiResult?.warning_count || 0)} · 自动门控更新: {Array.isArray(aiResult?.gate_updates) ? aiResult.gate_updates.length : 0}
+          预警数：{Number(aiResult?.warning_count || 0)} | 自动门控更新：{Array.isArray(aiResult?.gate_updates) ? aiResult.gate_updates.length : 0}
         </div>
         {!!warnings.length && (
           <div style={{ maxHeight: 180, overflowY: 'auto', display: 'grid', gap: 6 }}>
             {warnings.slice(0, 30).map((w: any, idx: number) => (
               <div key={`${w.group_key || 'warn'}-${idx}`} style={{ border: '1px solid #FEF3C7', background: '#FFFBEB', borderRadius: 8, padding: 8 }}>
                 <div style={{ fontSize: 12, color: '#92400E', fontWeight: 700 }}>
-                  {w.boq_item_uri || '-'} · {w.team_uri || '-'} · {w.risk_level || '-'}
+                  {w.boq_item_uri || '-'} | {w.team_uri || '-'} | {w.risk_level || '-'}
                 </div>
                 <div style={{ marginTop: 2, fontSize: 12, color: '#B45309' }}>
-                  偏差均值 {w.mean_abs_deviation} / 临界 {w.critical_threshold} · near ratio {w.near_ratio}
+                  均值偏差 {w.mean_abs_deviation} / 临界 {w.critical_threshold} | near ratio {w.near_ratio}
                 </div>
               </div>
             ))}
@@ -204,11 +198,11 @@ export default function SpatialGovernancePanel({
       </div>
 
       <div style={{ border: '1px solid #E2E8F0', borderRadius: 10, padding: 10 }}>
-        <div style={{ fontSize: 12, fontWeight: 700, color: '#0F172A', marginBottom: 8 }}>Finance Gateway Proof</div>
+        <div style={{ fontSize: 12, fontWeight: 700, color: '#0F172A', marginBottom: 8 }}>金融网关凭证</div>
         <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr auto', gap: 8 }}>
-          <input value={paymentId} onChange={(e) => setPaymentId(e.target.value)} placeholder="Payment Proof ID" style={{ padding: 8, border: '1px solid #CBD5E1', borderRadius: 8 }} />
-          <input value={bankCode} onChange={(e) => setBankCode(e.target.value)} placeholder="Bank Code" style={{ padding: 8, border: '1px solid #CBD5E1', borderRadius: 8 }} />
-          <input value={runAnchorRounds} onChange={(e) => setRunAnchorRounds(e.target.value)} placeholder="anchor rounds" style={{ padding: 8, border: '1px solid #CBD5E1', borderRadius: 8 }} />
+          <input value={paymentId} onChange={(e) => setPaymentId(e.target.value)} placeholder="支付凭证 ID" style={{ padding: 8, border: '1px solid #CBD5E1', borderRadius: 8, fontFamily: 'var(--sans)' }} />
+          <input value={bankCode} onChange={(e) => setBankCode(e.target.value)} placeholder="银行编码" style={{ padding: 8, border: '1px solid #CBD5E1', borderRadius: 8, fontFamily: 'var(--sans)' }} />
+          <input value={runAnchorRounds} onChange={(e) => setRunAnchorRounds(e.target.value)} placeholder="锚定轮数" style={{ padding: 8, border: '1px solid #CBD5E1', borderRadius: 8, fontFamily: 'var(--sans)' }} />
           <Button
             size="sm"
             onClick={() => onExportFinanceProof({

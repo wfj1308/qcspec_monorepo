@@ -136,6 +136,9 @@ export function useProjectDetailController({
       contract_no: detailProjectDraft.contract_no || '',
       start_date: detailProjectDraft.start_date || '',
       end_date: detailProjectDraft.end_date || '',
+      erp_project_code: detailProjectDraft.erp_project_code || '',
+      erp_project_name: detailProjectDraft.erp_project_name || '',
+      description: detailProjectDraft.description || '',
       seg_type: detailDraft.segType,
       seg_start: detailDraft.segStart || '',
       seg_end: detailDraft.segEnd || '',
@@ -209,3 +212,4 @@ export function useProjectDetailController({
     cancelDetailEdit: clearDetailDrafts,
   }
 }
+

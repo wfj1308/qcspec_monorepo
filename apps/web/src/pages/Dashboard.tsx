@@ -26,8 +26,8 @@ const FALLBACK_ACTIVITY_ITEMS: ActivityItem[] = [
 const DEMO_ENTERPRISE_ID = '11111111-1111-4111-8111-111111111111'
 
 export default function Dashboard() {
-  const { enterprise, token } = useAuthStore()
-  const { projects, setProjects } = useProjectStore()
+  const { enterprise, token, user } = useAuthStore()
+  const { currentProject, projects, setProjects, setCurrentProject } = useProjectStore()
   const { stats } = useInspectionStore()
   const { photos } = usePhotoStore()
   const { setActiveTab, showToast } = useUIStore()
@@ -87,6 +87,74 @@ export default function Dashboard() {
   const totalProjects = projects.length
   const activeProjects = projects.filter((p) => p.status === 'active').length
   const totalPhotos = photos.length
+  const currentDtoRole = String(user?.dto_role || 'PUBLIC').toUpperCase()
+  const quickAllowedTabs = currentDtoRole === 'AI'
+    ? ['dashboard', 'inspection', 'photos', 'proof', 'projects']
+    : currentDtoRole === 'SUPERVISOR'
+      ? ['dashboard', 'inspection', 'photos', 'proof', 'reports', 'projects', 'register']
+      : currentDtoRole === 'OWNER'
+        ? ['dashboard', 'inspection', 'photos', 'proof', 'reports', 'projects', 'register', 'team', 'permissions', 'settings']
+        : ['dashboard', 'proof', 'reports', 'projects']
+
+  const canQuickRegister = quickAllowedTabs.includes('register')
+  const canQuickInspection = quickAllowedTabs.includes('inspection')
+  const canQuickReports = quickAllowedTabs.includes('reports')
+  const canQuickProof = quickAllowedTabs.includes('proof')
+  const canQuickTeam = quickAllowedTabs.includes('team')
+
+  const ensureProjectSelected = () => {
+    const selected = currentProject || projects[0]
+    if (selected) {
+      setCurrentProject(selected)
+      return true
+    }
+    showToast('请先注册项目')
+    setActiveTab(canQuickRegister ? 'register' : 'projects')
+    return false
+  }
+
+  const handleQuickRegister = () => {
+    if (!canQuickRegister) {
+      showToast('当前角色无项目注册权限')
+      return
+    }
+    setActiveTab('register')
+  }
+
+  const handleQuickInspection = () => {
+    if (!canQuickInspection) {
+      showToast('当前角色无质检录入权限')
+      return
+    }
+    if (!ensureProjectSelected()) return
+    setActiveTab('inspection')
+  }
+
+  const handleQuickReports = () => {
+    if (!canQuickReports) {
+      showToast('当前角色无报告生成功能权限')
+      return
+    }
+    if (!ensureProjectSelected()) return
+    setActiveTab('reports')
+  }
+
+  const handleQuickProof = () => {
+    if (!canQuickProof) {
+      showToast('当前角色无 Proof 工作台权限')
+      return
+    }
+    if (!ensureProjectSelected()) return
+    setActiveTab('proof')
+  }
+
+  const handleQuickTeam = () => {
+    if (!canQuickTeam) {
+      showToast('当前角色无团队管理权限')
+      return
+    }
+    setActiveTab('team')
+  }
 
   const downloadProjectCsv = async () => {
     if (!enterprise?.id) {
@@ -165,13 +233,19 @@ export default function Dashboard() {
           <div style={{ background: 'var(--white)', border: '1px solid var(--border)', borderRadius: 14, padding: 20, marginBottom: 14 }}>
             <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--dark)', marginBottom: 14 }}>快捷操作</div>
             <div className="quick-actions">
-              <button className="quick-btn" onClick={() => setActiveTab('register')}>
+              <button className="quick-btn" onClick={handleQuickRegister} disabled={!canQuickRegister} title={canQuickRegister ? '注册新项目' : '当前角色无项目注册权限'}>
                 <div className="quick-btn-icon">📑</div>注册新项目
               </button>
-              <button className="quick-btn" onClick={() => setActiveTab('inspection')}>
-                <div className="quick-btn-icon">📷</div>录入质检
+              <button className="quick-btn" onClick={handleQuickInspection} disabled={!canQuickInspection} title={canQuickInspection ? '开始质检' : '当前角色无质检录入权限'}>
+                <div className="quick-btn-icon">📷</div>开始质检
               </button>
-              <button className="quick-btn" onClick={() => setActiveTab('team')}>
+              <button className="quick-btn" onClick={handleQuickReports} disabled={!canQuickReports} title={canQuickReports ? '生成报告' : '当前角色无报告生成功能权限'}>
+                <div className="quick-btn-icon">🧾</div>生成报告
+              </button>
+              <button className="quick-btn" onClick={handleQuickProof} disabled={!canQuickProof} title={canQuickProof ? '进入 Proof 工作台' : '当前角色无 Proof 工作台权限'}>
+                <div className="quick-btn-icon">🔒</div>Proof 工作台
+              </button>
+              <button className="quick-btn" onClick={handleQuickTeam} disabled={!canQuickTeam} title={canQuickTeam ? '团队成员管理' : '当前角色无团队管理权限'}>
                 <div className="quick-btn-icon">👥</div>邀请成员
               </button>
               <button className="quick-btn" onClick={downloadProjectCsv}>

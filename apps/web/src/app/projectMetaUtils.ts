@@ -117,4 +117,7 @@ export const buildProjectEditDraft = (project: Project): ProjectEditDraft => ({
   contract_no: project.contract_no || '',
   start_date: project.start_date || '',
   end_date: project.end_date || '',
+  erp_project_code: project.erp_project_code || '',
+  erp_project_name: project.erp_project_name || '',
+  description: project.description || '',
 })

@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useState } from 'react'
 import type { ComponentProps } from 'react'
 
 import Dashboard from '../pages/Dashboard'
@@ -62,6 +62,8 @@ export default function AppWorkspaceContent({
   teamWorkspace,
   settingsWorkspace,
 }: Props) {
+  const [proofSection, setProofSection] = useState<'overview' | 'pay' | 'spatial' | 'rwa' | 'docs'>('overview')
+
   return (
     <>
       {activeTab === 'dashboard' && <Dashboard />}
@@ -71,11 +73,61 @@ export default function AppWorkspaceContent({
 
       {activeTab === 'proof' && (
         <>
-          <ProofPanel {...proofWorkspace.proofPanelProps} />
-          <PaymentAuditPanel {...proofWorkspace.paymentAuditPanelProps} />
-          <SpatialGovernancePanel {...proofWorkspace.spatialGovernancePanelProps} />
-          <RwaOmEvolutionPanel {...proofWorkspace.rwaOmEvolutionPanelProps} />
-          <DocumentGovernancePanel projectUri={proofWorkspace.projectUri} />
+          <div
+            style={{
+              display: 'flex',
+              gap: 8,
+              flexWrap: 'wrap',
+              marginBottom: 12,
+              position: 'sticky',
+              top: 56,
+              zIndex: 90,
+              background: '#F0F4F8',
+              paddingBottom: 8,
+            }}
+          >
+            <button
+              type="button"
+              className={`act-btn ${proofSection === 'overview' ? 'act-enter' : 'act-detail'}`}
+              onClick={() => setProofSection('overview')}
+            >
+              总览存证链
+            </button>
+            <button
+              type="button"
+              className={`act-btn ${proofSection === 'pay' ? 'act-enter' : 'act-detail'}`}
+              onClick={() => setProofSection('pay')}
+            >
+              支付审计
+            </button>
+            <button
+              type="button"
+              className={`act-btn ${proofSection === 'spatial' ? 'act-enter' : 'act-detail'}`}
+              onClick={() => setProofSection('spatial')}
+            >
+              空间孪生
+            </button>
+            <button
+              type="button"
+              className={`act-btn ${proofSection === 'rwa' ? 'act-enter' : 'act-detail'}`}
+              onClick={() => setProofSection('rwa')}
+            >
+              RWA + 运维
+            </button>
+            <button
+              type="button"
+              className={`act-btn ${proofSection === 'docs' ? 'act-enter' : 'act-detail'}`}
+              onClick={() => setProofSection('docs')}
+            >
+              文档治理
+            </button>
+          </div>
+
+          {proofSection === 'overview' && <ProofPanel {...proofWorkspace.proofPanelProps} />}
+          {proofSection === 'pay' && <PaymentAuditPanel {...proofWorkspace.paymentAuditPanelProps} />}
+          {proofSection === 'spatial' && <SpatialGovernancePanel {...proofWorkspace.spatialGovernancePanelProps} />}
+          {proofSection === 'rwa' && <RwaOmEvolutionPanel {...proofWorkspace.rwaOmEvolutionPanelProps} />}
+          {proofSection === 'docs' && <DocumentGovernancePanel projectUri={proofWorkspace.projectUri} />}
         </>
       )}
 

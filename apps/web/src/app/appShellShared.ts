@@ -154,6 +154,9 @@ export interface ProjectEditDraft {
   contract_no: string
   start_date: string
   end_date: string
+  erp_project_code: string
+  erp_project_name: string
+  description: string
 }
 
 export interface PermissionRow {

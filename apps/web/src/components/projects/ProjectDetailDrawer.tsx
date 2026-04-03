@@ -229,6 +229,9 @@ export default function ProjectDetailDrawer({
               <span style={{ color: '#64748B' }}>监理单位</span><span>{detailProject.supervisor || '-'}</span>
               <span style={{ color: '#64748B' }}>合同编号</span><span>{detailProject.contract_no || '-'}</span>
               <span style={{ color: '#64748B' }}>工期</span><span>{detailProject.start_date || '-'} ~ {detailProject.end_date || '-'}</span>
+              <span style={{ color: '#64748B' }}>ERP 编号</span><span>{detailProject.erp_project_code || '-'}</span>
+              <span style={{ color: '#64748B' }}>ERP 名称</span><span>{detailProject.erp_project_name || '-'}</span>
+              <span style={{ color: '#64748B' }}>项目描述</span><span>{detailProject.description || '-'}</span>
               <span style={{ color: '#64748B' }}>v:// URI</span><code style={{ color: '#1A56DB', wordBreak: 'break-all' }}>{detailProject.v_uri}</code>
             </div>
           </Card>
@@ -247,6 +250,20 @@ export default function ProjectDetailDrawer({
               <input value={detailProjectDraft.owner_unit || ''} onChange={(e) => onDetailProjectDraftChange({ ...detailProjectDraft, owner_unit: e.target.value })} style={{ border: '1px solid #E2E8F0', borderRadius: 6, padding: 8 }} />
               <span style={{ color: '#64748B' }}>施工单位</span>
               <input value={detailProjectDraft.contractor || ''} onChange={(e) => onDetailProjectDraftChange({ ...detailProjectDraft, contractor: e.target.value })} style={{ border: '1px solid #E2E8F0', borderRadius: 6, padding: 8 }} />
+              <span style={{ color: '#64748B' }}>监理单位</span>
+              <input value={detailProjectDraft.supervisor || ''} onChange={(e) => onDetailProjectDraftChange({ ...detailProjectDraft, supervisor: e.target.value })} style={{ border: '1px solid #E2E8F0', borderRadius: 6, padding: 8 }} />
+              <span style={{ color: '#64748B' }}>合同编号</span>
+              <input value={detailProjectDraft.contract_no || ''} onChange={(e) => onDetailProjectDraftChange({ ...detailProjectDraft, contract_no: e.target.value })} style={{ border: '1px solid #E2E8F0', borderRadius: 6, padding: 8 }} />
+              <span style={{ color: '#64748B' }}>开始日期</span>
+              <input type="date" value={detailProjectDraft.start_date || ''} onChange={(e) => onDetailProjectDraftChange({ ...detailProjectDraft, start_date: e.target.value })} style={{ border: '1px solid #E2E8F0', borderRadius: 6, padding: 8 }} />
+              <span style={{ color: '#64748B' }}>结束日期</span>
+              <input type="date" value={detailProjectDraft.end_date || ''} onChange={(e) => onDetailProjectDraftChange({ ...detailProjectDraft, end_date: e.target.value })} style={{ border: '1px solid #E2E8F0', borderRadius: 6, padding: 8 }} />
+              <span style={{ color: '#64748B' }}>ERP 编号</span>
+              <input value={detailProjectDraft.erp_project_code || ''} onChange={(e) => onDetailProjectDraftChange({ ...detailProjectDraft, erp_project_code: e.target.value })} style={{ border: '1px solid #E2E8F0', borderRadius: 6, padding: 8 }} />
+              <span style={{ color: '#64748B' }}>ERP 名称</span>
+              <input value={detailProjectDraft.erp_project_name || ''} onChange={(e) => onDetailProjectDraftChange({ ...detailProjectDraft, erp_project_name: e.target.value })} style={{ border: '1px solid #E2E8F0', borderRadius: 6, padding: 8 }} />
+              <span style={{ color: '#64748B' }}>项目描述</span>
+              <textarea value={detailProjectDraft.description || ''} onChange={(e) => onDetailProjectDraftChange({ ...detailProjectDraft, description: e.target.value })} rows={3} style={{ border: '1px solid #E2E8F0', borderRadius: 6, padding: 8, resize: 'vertical', fontFamily: 'var(--sans)' }} />
             </div>
           </Card>
         )}

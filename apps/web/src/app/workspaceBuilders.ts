@@ -27,6 +27,8 @@ type BuildProofWorkspaceArgs = {
   projectUri?: string
   paymentId: string
   proofDashboard: ProofDashboardController
+  onGoInspection?: () => void
+  onGoReports?: () => void
 }
 
 type BuildProjectsWorkspaceArgs = {
@@ -42,7 +44,11 @@ type BuildProjectsWorkspaceArgs = {
   typeLabel: ProjectsWorkspaceProps['projectsPanelProps']['typeLabel']
   normalizeKmInterval: ProjectsWorkspaceProps['projectDetailDrawerProps']['normalizeKmInterval']
   toggleInspectionType: ProjectsWorkspaceProps['projectDetailDrawerProps']['toggleInspectionType']
+  onCreateProject: () => void
+  onGoInspection: () => void
+  onGoProof: () => void
   onEnterInspection: (project: ProjectInspectionTarget) => void
+  onEnterProof: (project: ProjectInspectionTarget) => void
 }
 
 type BuildRegisterWorkspaceArgs = {
@@ -75,6 +81,8 @@ export function buildProofWorkspace({
   projectUri,
   paymentId,
   proofDashboard,
+  onGoInspection,
+  onGoReports,
 }: BuildProofWorkspaceArgs): ProofWorkspaceProps {
   return {
     projectUri,
@@ -86,6 +94,8 @@ export function buildProofWorkspace({
       proofRows: proofDashboard.proofRows,
       proofVerifying: proofDashboard.proofVerifying,
       onVerifyProof: proofDashboard.handleVerifyProof,
+      onGoInspection,
+      onGoReports,
     },
     paymentAuditPanelProps: {
       projectUri,
@@ -148,7 +158,11 @@ export function buildProjectsWorkspace({
   typeLabel,
   normalizeKmInterval,
   toggleInspectionType,
+  onCreateProject,
+  onGoInspection,
+  onGoProof,
   onEnterInspection,
+  onEnterProof,
 }: BuildProjectsWorkspaceArgs): ProjectsWorkspaceProps {
   return {
     projectsPanelProps: {
@@ -166,7 +180,11 @@ export function buildProjectsWorkspace({
       onSearchTextChange: projectCatalog.setSearchText,
       onStatusFilterChange: projectCatalog.setStatusFilter,
       onTypeFilterChange: projectCatalog.setTypeFilter,
+      onCreateProject,
+      onGoInspection,
+      onGoProof,
       onEnterInspection,
+      onEnterProof,
       onRetryAutoreg: projectCatalog.retryProjectAutoreg,
       onDirectAutoreg: projectCatalog.directProjectAutoreg,
       onEditProject: (projectId) => projectDetailController.openProjectDetail(projectId, true),

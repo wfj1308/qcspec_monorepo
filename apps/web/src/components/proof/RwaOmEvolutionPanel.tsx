@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react'
+﻿import React, { useEffect, useMemo, useState } from 'react'
 import { Button, Card } from '../ui'
 
 interface RwaOmEvolutionPanelProps {
@@ -56,31 +56,31 @@ export default function RwaOmEvolutionPanel({
   }, [normResult])
 
   return (
-    <Card title="资产金融化与长效主权" icon="R">
+    <Card title="资产金融化与运维主权" icon="R">
       <div style={{ fontSize: 12, color: '#64748B', marginBottom: 10, wordBreak: 'break-all' }}>
-        项目 URI: {projectUri} {lastPaymentId ? `· 最近支付单 ${lastPaymentId}` : ''}
+        项目 URI：{projectUri} {lastPaymentId ? `| 最近支付单 ${lastPaymentId}` : ''}
       </div>
 
       <div style={{ border: '1px solid #E2E8F0', borderRadius: 10, padding: 10, marginBottom: 10 }}>
-        <div style={{ fontSize: 12, fontWeight: 700, color: '#0F172A', marginBottom: 8 }}>RWA Transformer</div>
+        <div style={{ fontSize: 12, fontWeight: 700, color: '#0F172A', marginBottom: 8 }}>RWA 转换</div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr auto', gap: 8 }}>
           <input
             value={boqGroupId}
             onChange={(e) => setBoqGroupId(e.target.value)}
-            placeholder="boq group, e.g. 403"
-            style={{ padding: 8, border: '1px solid #CBD5E1', borderRadius: 8 }}
+            placeholder="BOQ 分组（如 403）"
+            style={{ padding: 8, border: '1px solid #CBD5E1', borderRadius: 8, fontFamily: 'var(--sans)' }}
           />
           <input
             value={bankCode}
             onChange={(e) => setBankCode(e.target.value)}
-            placeholder="bank code"
-            style={{ padding: 8, border: '1px solid #CBD5E1', borderRadius: 8 }}
+            placeholder="银行编码"
+            style={{ padding: 8, border: '1px solid #CBD5E1', borderRadius: 8, fontFamily: 'var(--sans)' }}
           />
           <input
             value={rwaAnchorRounds}
             onChange={(e) => setRwaAnchorRounds(e.target.value)}
-            placeholder="anchor rounds"
-            style={{ padding: 8, border: '1px solid #CBD5E1', borderRadius: 8 }}
+            placeholder="锚定轮数"
+            style={{ padding: 8, border: '1px solid #CBD5E1', borderRadius: 8, fontFamily: 'var(--sans)' }}
           />
           <Button
             size="sm"
@@ -93,19 +93,19 @@ export default function RwaOmEvolutionPanel({
       </div>
 
       <div style={{ border: '1px solid #E2E8F0', borderRadius: 10, padding: 10, marginBottom: 10 }}>
-        <div style={{ fontSize: 12, fontWeight: 700, color: '#0F172A', marginBottom: 8 }}>Sovereign O&amp;M Handover</div>
+        <div style={{ fontSize: 12, fontWeight: 700, color: '#0F172A', marginBottom: 8 }}>主权运维移交</div>
         <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr auto', gap: 8, marginBottom: 8 }}>
           <input
             value={omOwnerUri}
             onChange={(e) => setOmOwnerUri(e.target.value)}
-            placeholder="om owner uri"
-            style={{ padding: 8, border: '1px solid #CBD5E1', borderRadius: 8 }}
+            placeholder="运维方 URI"
+            style={{ padding: 8, border: '1px solid #CBD5E1', borderRadius: 8, fontFamily: 'var(--sans)' }}
           />
           <input
             value={omAnchorRounds}
             onChange={(e) => setOmAnchorRounds(e.target.value)}
-            placeholder="anchor rounds"
-            style={{ padding: 8, border: '1px solid #CBD5E1', borderRadius: 8 }}
+            placeholder="锚定轮数"
+            style={{ padding: 8, border: '1px solid #CBD5E1', borderRadius: 8, fontFamily: 'var(--sans)' }}
           />
           <Button
             size="sm"
@@ -119,20 +119,20 @@ export default function RwaOmEvolutionPanel({
           <input
             value={omRootProofId}
             onChange={(e) => setOmRootProofId(e.target.value)}
-            placeholder="OM root proof id"
-            style={{ padding: 8, border: '1px solid #CBD5E1', borderRadius: 8 }}
+            placeholder="运维根证明 ID"
+            style={{ padding: 8, border: '1px solid #CBD5E1', borderRadius: 8, fontFamily: 'var(--sans)' }}
           />
           <input
             value={omEventTitle}
             onChange={(e) => setOmEventTitle(e.target.value)}
-            placeholder="event title"
-            style={{ padding: 8, border: '1px solid #CBD5E1', borderRadius: 8 }}
+            placeholder="事件标题"
+            style={{ padding: 8, border: '1px solid #CBD5E1', borderRadius: 8, fontFamily: 'var(--sans)' }}
           />
           <input
             value={omEventType}
             onChange={(e) => setOmEventType(e.target.value)}
-            placeholder="event type"
-            style={{ padding: 8, border: '1px solid #CBD5E1', borderRadius: 8 }}
+            placeholder="事件类型"
+            style={{ padding: 8, border: '1px solid #CBD5E1', borderRadius: 8, fontFamily: 'var(--sans)' }}
           />
           <Button
             size="sm"
@@ -140,25 +140,25 @@ export default function RwaOmEvolutionPanel({
             onClick={() => onRegisterOmEvent({ omRootProofId, title: omEventTitle, eventType: omEventType })}
             disabled={omEventSubmitting || !omRootProofId || !omEventTitle}
           >
-            {omEventSubmitting ? '挂载中...' : '挂载运维事件'}
+            {omEventSubmitting ? '登记中...' : '登记运维事件'}
           </Button>
         </div>
       </div>
 
       <div style={{ border: '1px solid #E2E8F0', borderRadius: 10, padding: 10 }}>
-        <div style={{ fontSize: 12, fontWeight: 700, color: '#0F172A', marginBottom: 8 }}>Standard Feedback Engine</div>
+        <div style={{ fontSize: 12, fontWeight: 700, color: '#0F172A', marginBottom: 8 }}>规范反馈引擎</div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto auto', gap: 8, marginBottom: 8 }}>
           <input
             value={minSamples}
             onChange={(e) => setMinSamples(e.target.value)}
-            placeholder="min samples"
-            style={{ padding: 8, border: '1px solid #CBD5E1', borderRadius: 8 }}
+            placeholder="最小样本数"
+            style={{ padding: 8, border: '1px solid #CBD5E1', borderRadius: 8, fontFamily: 'var(--sans)' }}
           />
           <input
             value={nearThresholdRatio}
             onChange={(e) => setNearThresholdRatio(e.target.value)}
-            placeholder="near threshold ratio"
-            style={{ padding: 8, border: '1px solid #CBD5E1', borderRadius: 8 }}
+            placeholder="临界比 near ratio"
+            style={{ padding: 8, border: '1px solid #CBD5E1', borderRadius: 8, fontFamily: 'var(--sans)' }}
           />
           <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#475569' }}>
             <input type="checkbox" checked={anonymize} onChange={(e) => setAnonymize(e.target.checked)} />
@@ -173,20 +173,20 @@ export default function RwaOmEvolutionPanel({
           </Button>
         </div>
         <div style={{ fontSize: 12, color: '#64748B', marginBottom: 6 }}>
-          发现数: {Number(normResult?.report?.finding_count || 0)} · 样本总数: {Number(normResult?.report?.total_samples || 0)}
+          发现数：{Number(normResult?.report?.finding_count || 0)} | 样本总数：{Number(normResult?.report?.total_samples || 0)}
         </div>
         {!!findings.length && (
           <div style={{ maxHeight: 220, overflowY: 'auto', display: 'grid', gap: 6 }}>
             {findings.slice(0, 20).map((item: any, idx: number) => (
               <div key={`${item.norm_uri || 'norm'}-${idx}`} style={{ border: '1px solid #E2E8F0', borderRadius: 8, padding: 8 }}>
                 <div style={{ fontSize: 12, fontWeight: 700, color: '#0F172A' }}>
-                  {item.norm_uri || '-'} · {item.context_key || '-'}
+                  {item.norm_uri || '-'} | {item.context_key || '-'}
                 </div>
                 <div style={{ marginTop: 2, fontSize: 12, color: '#475569' }}>
-                  样本 {item.sample_count} · near {item.near_share} · fail {item.fail_share}
+                  样本 {item.sample_count} | near {item.near_share} | fail {item.fail_share}
                 </div>
                 <div style={{ marginTop: 2, fontSize: 12, color: '#1A56DB' }}>
-                  建议: {item.suggestion} ({item.rationale})
+                  建议：{item.suggestion}（{item.rationale}）
                 </div>
               </div>
             ))}

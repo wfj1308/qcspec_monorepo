@@ -1,4 +1,4 @@
-import React from 'react'
+﻿import React from 'react'
 import { Card } from '../ui'
 
 interface ProjectTypeOption {
@@ -43,7 +43,11 @@ interface ProjectsPanelProps {
   onSearchTextChange: (value: string) => void
   onStatusFilterChange: (value: string) => void
   onTypeFilterChange: (value: string) => void
+  onCreateProject: () => void
+  onGoInspection: () => void
+  onGoProof: () => void
   onEnterInspection: (project: any) => void
+  onEnterProof: (project: any) => void
   onRetryAutoreg: (projectId: string, projectName: string) => void
   onDirectAutoreg: (projectId: string, projectName: string) => void
   onEditProject: (projectId: string) => void
@@ -67,7 +71,11 @@ export default function ProjectsPanel({
   onSearchTextChange,
   onStatusFilterChange,
   onTypeFilterChange,
+  onCreateProject,
+  onGoInspection,
+  onGoProof,
   onEnterInspection,
+  onEnterProof,
   onRetryAutoreg,
   onDirectAutoreg,
   onEditProject,
@@ -78,6 +86,18 @@ export default function ProjectsPanel({
   return (
     <div>
       <Card title="项目列表" icon="🏗️">
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
+          <button type="button" className="act-btn act-detail" onClick={onCreateProject}>
+            ＋ 注册项目
+          </button>
+          <button type="button" className="act-btn act-enter" onClick={onGoInspection}>
+            开始质检
+          </button>
+          <button type="button" className="act-btn act-proof" onClick={onGoProof}>
+            Proof 工作台
+          </button>
+        </div>
+
         <div className="toolbar">
           <input
             className="search-input"
@@ -108,6 +128,7 @@ export default function ProjectsPanel({
             ))}
           </select>
         </div>
+
         <div style={{ border: '1px solid #E2E8F0', borderRadius: 10, overflow: 'hidden' }}>
           <table className="proj-table">
             <thead>
@@ -128,7 +149,7 @@ export default function ProjectsPanel({
                       ? `合同段 ${meta.contractSegs.length} 个`
                       : `结构物 ${meta.structures.length} 个`
                 const permLabel = meta
-                  ? `${meta.permTemplate} / ${meta.memberCount}人 / 检测${(meta.inspectionTypes || []).length}类`
+                  ? `${meta.permTemplate} / ${meta.memberCount}人 / 检测 ${(meta.inspectionTypes || []).length}类`
                   : '-'
                 const statusClass = project.status === 'active' ? 'pill-active' : project.status === 'pending' ? 'pill-pending' : 'pill-closed'
 
@@ -151,7 +172,7 @@ export default function ProjectsPanel({
                       <div style={{ fontSize: 12, color: '#94A3B8', marginTop: 2 }}>{permLabel}</div>
                     </td>
                     <td style={{ fontFamily: 'monospace', color: '#1A56DB' }}>{project.v_uri}</td>
-                    <td>📝 {project.record_count} | 📷 {project.photo_count}</td>
+                    <td>🧾 {project.record_count} | 📷 {project.photo_count}</td>
                     <td>
                       <span className={`status-pill ${statusClass}`}>
                         {project.status === 'active' ? '进行中' : project.status === 'pending' ? '待开始' : '已完成'}
@@ -159,11 +180,15 @@ export default function ProjectsPanel({
                     </td>
                     <td>
                       <div className="action-btns">
-                        <button className="act-btn act-enter" onClick={() => onEnterInspection(project)}>
+                        <button type="button" className="act-btn act-enter" onClick={() => onEnterInspection(project)}>
                           进入质检
+                        </button>
+                        <button type="button" className="act-btn act-proof" onClick={() => onEnterProof(project)}>
+                          Proof 链
                         </button>
                         {canUseEnterpriseApi && (
                           <button
+                            type="button"
                             className="act-btn act-detail"
                             onClick={() => onRetryAutoreg(project.id, project.name)}
                             disabled={syncingProjectId === project.id}
@@ -173,6 +198,7 @@ export default function ProjectsPanel({
                         )}
                         {canUseEnterpriseApi && (
                           <button
+                            type="button"
                             className="act-btn act-detail"
                             onClick={() => onDirectAutoreg(project.id, project.name)}
                             disabled={syncingProjectId === project.id}
@@ -180,13 +206,13 @@ export default function ProjectsPanel({
                             {syncingProjectId === project.id ? '登记中...' : '直连登记'}
                           </button>
                         )}
-                        <button className="act-btn act-edit" onClick={() => onEditProject(project.id)}>
+                        <button type="button" className="act-btn act-edit" onClick={() => onEditProject(project.id)}>
                           编辑
                         </button>
-                        <button className="act-btn act-detail" onClick={() => onOpenProjectDetail(project.id)}>
+                        <button type="button" className="act-btn act-detail" onClick={() => onOpenProjectDetail(project.id)}>
                           详情
                         </button>
-                        <button className="act-btn act-del" onClick={() => onDeleteProject(project.id, project.name)}>
+                        <button type="button" className="act-btn act-del" onClick={() => onDeleteProject(project.id, project.name)}>
                           删除
                         </button>
                       </div>
@@ -197,6 +223,7 @@ export default function ProjectsPanel({
             </tbody>
           </table>
         </div>
+
         {canUseEnterpriseApi && (
           <div
             style={{
@@ -209,7 +236,7 @@ export default function ProjectsPanel({
           >
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
               <div style={{ fontSize: 13, fontWeight: 700, color: '#0F172A' }}>自动登记记录</div>
-              <button className="act-btn act-detail" onClick={() => onRefreshAutoreg()}>
+              <button type="button" className="act-btn act-detail" onClick={() => onRefreshAutoreg()}>
                 刷新
               </button>
             </div>
@@ -240,10 +267,10 @@ export default function ProjectsPanel({
                       {row.project_uri || '-'}
                     </div>
                     <div style={{ fontSize: 12, color: '#64748B', marginTop: 2 }}>
-                      site: {row.site_uri || '-'} | 来源：{row.source_system || '-'}
+                      site: {row.site_uri || '-'} | 来源: {row.source_system || '-'}
                     </div>
                     <div style={{ fontSize: 12, color: '#94A3B8', marginTop: 4 }}>
-                      更新：{row.updated_at ? new Date(row.updated_at).toLocaleString('zh-CN') : '-'}
+                      更新: {row.updated_at ? new Date(row.updated_at).toLocaleString('zh-CN') : '-'}
                     </div>
                   </div>
                 ))}

@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react'
+﻿import React, { useMemo, useState } from 'react'
 import { Button, Card } from '../ui'
 
 interface PaymentAuditPanelProps {
@@ -62,22 +62,23 @@ export default function PaymentAuditPanel({
   }, [frequencyResult])
 
   return (
-    <Card title="Payment + Audit + Frequency" icon="PAY">
+    <Card title="支付 + 审计 + 频率" icon="PAY">
       <div style={{ fontSize: 12, color: '#64748B', marginBottom: 8, wordBreak: 'break-all' }}>
-        Project URI: {projectUri}
+        项目 URI：{projectUri}
       </div>
 
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10 }}>
         <input
           value={period}
           onChange={(e) => setPeriod(e.target.value)}
-          placeholder="YYYY-MM"
+          placeholder="结算周期（YYYY-MM）"
           style={{
             flex: 1,
             padding: '8px 10px',
             border: '1px solid #CBD5E1',
             borderRadius: 8,
             fontSize: 13,
+            fontFamily: 'var(--sans)',
           }}
         />
         <Button
@@ -85,7 +86,7 @@ export default function PaymentAuditPanel({
           onClick={() => onGeneratePaymentCertificate(period)}
           disabled={paymentGenerating || !period}
         >
-          {paymentGenerating ? 'Generating...' : 'Generate Payment Certificate'}
+          {paymentGenerating ? '生成中...' : '生成支付凭证'}
         </Button>
         <Button
           size="sm"
@@ -93,29 +94,29 @@ export default function PaymentAuditPanel({
           onClick={onFinalizeDelivery}
           disabled={deliveryFinalizing}
         >
-          {deliveryFinalizing ? 'Finalizing...' : 'Finalize DocFinal'}
+          {deliveryFinalizing ? '归档中...' : '完成 DocFinal'}
         </Button>
       </div>
 
       <div style={{ border: '1px solid #E2E8F0', borderRadius: 8, padding: 10, marginBottom: 10 }}>
         <div style={{ fontSize: 12, fontWeight: 700, color: '#0F172A', marginBottom: 6 }}>
-          Inspection Frequency Dashboard
+          质检频率看板
         </div>
         {frequencyLoading ? (
-          <div style={{ fontSize: 12, color: '#64748B' }}>Loading...</div>
+          <div style={{ fontSize: 12, color: '#64748B' }}>加载中...</div>
         ) : (
           <>
             <div style={{ fontSize: 12, color: '#475569', display: 'grid', gap: 2 }}>
-              <div>Should Check: {Number(frequencySummary.should_check_total || 0).toLocaleString()}</div>
-              <div>Already Checked: {Number(frequencySummary.already_check_total || 0).toLocaleString()}</div>
-              <div>Missed Check: {Number(frequencySummary.missed_check_total || 0).toLocaleString()}</div>
-              <div>Red Items: {Number(frequencySummary.red_items || 0).toLocaleString()}</div>
+              <div>应检：{Number(frequencySummary.should_check_total || 0).toLocaleString()}</div>
+              <div>已检：{Number(frequencySummary.already_check_total || 0).toLocaleString()}</div>
+              <div>漏检：{Number(frequencySummary.missed_check_total || 0).toLocaleString()}</div>
+              <div>红项：{Number(frequencySummary.red_items || 0).toLocaleString()}</div>
             </div>
             {!!frequencyItems.length && (
               <div style={{ marginTop: 6, maxHeight: 120, overflowY: 'auto', display: 'grid', gap: 4 }}>
                 {frequencyItems.slice(0, 8).map((row: any) => (
                   <div key={String(row.boq_item_uri || row.item_no)} style={{ fontSize: 12, color: '#334155' }}>
-                    {row.item_no || '-'} | should {Number(row.expected_tests || 0)} | done {Number(row.dual_pass_done || 0)} | missed {Number(row.missing_dual_pass || 0)}
+                    {row.item_no || '-'} | 应检 {Number(row.expected_tests || 0)} | 已检 {Number(row.dual_pass_done || 0)} | 漏检 {Number(row.missing_dual_pass || 0)}
                   </div>
                 ))}
               </div>
@@ -127,19 +128,19 @@ export default function PaymentAuditPanel({
       {paymentResult && (
         <div style={{ border: '1px solid #E2E8F0', borderRadius: 8, padding: 10, marginBottom: 10 }}>
           <div style={{ fontSize: 12, color: '#0F172A', fontWeight: 700, marginBottom: 6 }}>
-            Payment ID: {paymentId || '-'}
+            支付单号：{paymentId || '-'}
           </div>
           <div style={{ fontSize: 12, color: '#475569', display: 'grid', gap: 2 }}>
-            <div>Payable Quantity: {Number(summary.payable_quantity_total || 0).toLocaleString()}</div>
-            <div>Payable Amount: {Number(summary.payable_amount_total || 0).toLocaleString()}</div>
-            <div>Status: {summary.locked ? 'LOCKED' : 'READY'}</div>
-            <div>Excluded Items: {Number(summary.excluded_count || 0)}</div>
-            <div>Dual-Pass Blocked: {Number(summary.dual_pass_blocked_count || 0)}</div>
+            <div>可支付工程量：{Number(summary.payable_quantity_total || 0).toLocaleString()}</div>
+            <div>可支付金额：{Number(summary.payable_amount_total || 0).toLocaleString()}</div>
+            <div>状态：{summary.locked ? '已锁定' : '可结算'}</div>
+            <div>排除项：{Number(summary.excluded_count || 0)}</div>
+            <div>双签阻断项：{Number(summary.dual_pass_blocked_count || 0)}</div>
           </div>
           {!!paymentId && (
-            <div style={{ marginTop: 8, display: 'flex', gap: 8 }}>
+            <div style={{ marginTop: 8, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               <Button size="sm" variant="secondary" onClick={() => onOpenAuditTrace(paymentId)} disabled={auditLoading}>
-                {auditLoading ? 'Tracing...' : 'Open Audit Trace'}
+                {auditLoading ? '加载中...' : '查看审计链路'}
               </Button>
               <Button
                 size="sm"
@@ -147,18 +148,18 @@ export default function PaymentAuditPanel({
                 onClick={() => onGenerateRailPactInstruction(paymentId)}
                 disabled={railpactSubmitting}
               >
-                {railpactSubmitting ? 'Generating...' : 'Generate RailPact Instruction'}
+                {railpactSubmitting ? '生成中...' : '生成 RailPact 指令'}
               </Button>
               {onOpenVerifyNode && (
                 <Button size="sm" variant="secondary" onClick={() => onOpenVerifyNode(paymentId)}>
-                  Open Verify
+                  打开校验节点
                 </Button>
               )}
             </div>
           )}
           {!!railpactResult?.instruction_id && (
             <div style={{ marginTop: 6, fontSize: 12, color: '#334155' }}>
-              RailPact Instruction: {String(railpactResult.instruction_id || '-')}
+              RailPact 指令：{String(railpactResult.instruction_id || '-')}
             </div>
           )}
         </div>
@@ -166,13 +167,13 @@ export default function PaymentAuditPanel({
 
       {!!chapters.length && (
         <div style={{ marginBottom: 10 }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: '#0F172A', marginBottom: 6 }}>Chapter Summary</div>
+          <div style={{ fontSize: 12, fontWeight: 700, color: '#0F172A', marginBottom: 6 }}>章节汇总</div>
           <div style={{ display: 'grid', gap: 6 }}>
             {chapters.map((row: any) => (
               <div key={`chapter-${row.chapter}`} style={{ border: '1px solid #E2E8F0', borderRadius: 8, padding: 8, fontSize: 12 }}>
-                <div style={{ fontWeight: 700, color: '#0F172A' }}>Chapter {row.chapter}</div>
+                <div style={{ fontWeight: 700, color: '#0F172A' }}>章节 {row.chapter}</div>
                 <div style={{ color: '#475569', marginTop: 2 }}>
-                  Items {Number(row.item_count || 0)} | Qty {Number(row.payable_quantity || 0).toLocaleString()} | Amount {Number(row.payable_amount || 0).toLocaleString()}
+                  条目 {Number(row.item_count || 0)} | 量 {Number(row.payable_quantity || 0).toLocaleString()} | 金额 {Number(row.payable_amount || 0).toLocaleString()}
                 </div>
               </div>
             ))}
@@ -193,11 +194,11 @@ export default function PaymentAuditPanel({
                   {line.item_no || '-'} {line.item_name || ''}
                 </div>
                 <div style={{ marginTop: 2, fontSize: 12, color: excluded ? '#B45309' : '#475569' }}>
-                  Payable {Number(line.payable_amount || 0).toLocaleString()} | Settled {Number(line.period_settled_quantity || 0).toLocaleString()} {line.unit || ''}
+                  应付 {Number(line.payable_amount || 0).toLocaleString()} | 已计量 {Number(line.period_settled_quantity || 0).toLocaleString()} {line.unit || ''}
                 </div>
                 {excluded && (
                   <div style={{ marginTop: 2, fontSize: 12, color: '#B45309' }}>
-                    Excluded: {(line.excluded_reasons || []).join(', ')}
+                    排除原因：{(line.excluded_reasons || []).join(', ')}
                   </div>
                 )}
                 {!!settlementProofId && onOpenVerifyNode && (
@@ -212,9 +213,10 @@ export default function PaymentAuditPanel({
                         color: '#1A56DB',
                         fontSize: 12,
                         cursor: 'pointer',
+                        fontFamily: 'var(--sans)',
                       }}
                     >
-                      Open Settlement Verify
+                      打开结算校验节点
                     </button>
                   </div>
                 )}
@@ -227,7 +229,7 @@ export default function PaymentAuditPanel({
       {!!auditResult?.nodes?.length && (
         <div style={{ marginTop: 10 }}>
           <div style={{ fontSize: 12, fontWeight: 700, color: '#0F172A', marginBottom: 6 }}>
-            Audit Trace Tree
+            审计追溯树
           </div>
           <div style={{ maxHeight: 240, overflowY: 'auto', display: 'grid', gap: 6 }}>
             {(auditResult.nodes as any[]).slice(0, 80).map((node) => (
@@ -252,9 +254,10 @@ export default function PaymentAuditPanel({
                       color: '#1A56DB',
                       fontSize: 12,
                       cursor: 'pointer',
+                      fontFamily: 'var(--sans)',
                     }}
                   >
-                    Open Verify Node
+                    打开校验节点
                   </button>
                 )}
               </div>

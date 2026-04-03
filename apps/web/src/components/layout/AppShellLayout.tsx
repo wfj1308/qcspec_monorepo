@@ -1,4 +1,4 @@
-import React from 'react'
+﻿import React from 'react'
 
 type NavItem = {
   key: string
@@ -28,6 +28,12 @@ interface AppShellLayoutProps {
   onToggleSidebar: () => void
   onNavigate: (tab: string) => void
   onSelectProject: (projectId: string) => void
+  canQuickRegister?: boolean
+  canQuickInspection?: boolean
+  canQuickProof?: boolean
+  onQuickRegister?: () => void
+  onQuickInspection?: () => void
+  onQuickProof?: () => void
   onLogout: () => void
   children: React.ReactNode
 }
@@ -44,9 +50,17 @@ export default function AppShellLayout({
   onToggleSidebar,
   onNavigate,
   onSelectProject,
+  canQuickRegister = true,
+  canQuickInspection = true,
+  canQuickProof = true,
+  onQuickRegister,
+  onQuickInspection,
+  onQuickProof,
   onLogout,
   children,
 }: AppShellLayoutProps) {
+  const hasProjects = projects.length > 0
+
   return (
     <div className="app-shell visible">
       <div
@@ -93,7 +107,7 @@ export default function AppShellLayout({
               <div className="user-role">{currentUserTitle}</div>
             </div>
             <div className="logout-btn" onClick={onLogout} title="退出登录">
-              ⏻
+              ⎋
             </div>
           </div>
         </div>
@@ -103,6 +117,7 @@ export default function AppShellLayout({
         <div className="topbar">
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <button
+              type="button"
               onClick={onToggleSidebar}
               style={{
                 background: 'none',
@@ -119,10 +134,12 @@ export default function AppShellLayout({
               {navItems.find((item) => item.key === activeTab)?.label || '控制台'}
             </div>
           </div>
+
           <div className="topbar-right">
             <select
-              value={currentProjectId}
+              value={hasProjects ? currentProjectId : ''}
               onChange={(e) => onSelectProject(e.target.value)}
+              disabled={!hasProjects}
               style={{
                 background: '#F0F4F8',
                 border: '1px solid #E2E8F0',
@@ -131,21 +148,45 @@ export default function AppShellLayout({
                 fontSize: 13,
                 fontFamily: 'var(--sans)',
                 outline: 'none',
+                minWidth: 220,
               }}
             >
+              {!hasProjects && <option value="">暂无项目</option>}
               {projects.map((project) => (
                 <option key={project.id} value={project.id}>
                   {project.name}
                 </option>
               ))}
             </select>
-            <button className="topbar-btn btn-outline" onClick={() => onNavigate('register')}>
+
+            <button
+              type="button"
+              className="topbar-btn btn-outline"
+              onClick={onQuickRegister || (() => onNavigate('register'))}
+              disabled={!canQuickRegister}
+              title={canQuickRegister ? '注册项目' : '当前角色无项目注册权限'}
+            >
               ＋ 注册项目
             </button>
-            <button className="topbar-btn btn-blue" onClick={() => onNavigate('inspection')}>
+            <button
+              type="button"
+              className="topbar-btn btn-blue"
+              onClick={onQuickInspection || (() => onNavigate('inspection'))}
+              disabled={!canQuickInspection}
+              title={canQuickInspection ? '开始质检' : '当前角色无质检录入权限'}
+            >
               📷 开始质检
             </button>
-            <button className="topbar-btn btn-logout" onClick={onLogout}>
+            <button
+              type="button"
+              className="topbar-btn btn-outline"
+              onClick={onQuickProof || (() => onNavigate('proof'))}
+              disabled={!canQuickProof}
+              title={canQuickProof ? '进入 Proof 工作台' : '当前角色无 Proof 工作台权限'}
+            >
+              🔒 Proof
+            </button>
+            <button type="button" className="topbar-btn btn-logout" onClick={onLogout}>
               退出登录
             </button>
           </div>

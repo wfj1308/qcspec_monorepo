@@ -345,11 +345,11 @@ export default function App() {
 
   const currentDtoRole = String(user?.dto_role || 'PUBLIC').toUpperCase()
   const globalAllowedNavKeys = currentDtoRole === 'AI'
-    ? ['dashboard', 'inspection', 'photos', 'projects']
+    ? ['dashboard', 'inspection', 'photos', 'proof', 'projects']
     : currentDtoRole === 'SUPERVISOR'
-      ? ['dashboard', 'proof', 'reports', 'projects']
+      ? ['dashboard', 'inspection', 'photos', 'proof', 'reports', 'projects', 'register']
       : currentDtoRole === 'OWNER'
-        ? ['dashboard', 'proof', 'reports', 'projects', 'team', 'settings']
+        ? ['dashboard', 'inspection', 'photos', 'proof', 'reports', 'projects', 'register', 'team', 'permissions', 'settings']
         : ['dashboard', 'proof', 'reports', 'projects']
   const roleAwareNavItems = NAV.filter((item) => globalAllowedNavKeys.includes(item.key))
   const roleAwareNavSections = NAV_SECTIONS
@@ -470,12 +470,57 @@ export default function App() {
   }
 
   const quickLoginOptions = getQuickLoginOptions()
+  const canQuickRegister = globalAllowedNavKeys.includes('register')
+  const canQuickInspection = globalAllowedNavKeys.includes('inspection')
+  const canQuickProof = globalAllowedNavKeys.includes('proof')
+  const canQuickReports = globalAllowedNavKeys.includes('reports')
+
+  const openRegisterWorkspace = () => {
+    if (!canQuickRegister) {
+      showToast('当前角色无项目注册权限')
+      return
+    }
+    setActiveTab('register')
+  }
+
+  const openInspectionWorkspace = (targetProject?: typeof projects[number]) => {
+    if (!canQuickInspection) {
+      showToast('当前角色无质检录入权限')
+      return
+    }
+    const selected = targetProject || currentProject || projects[0]
+    if (!selected) {
+      showToast('请先注册项目')
+      setActiveTab(canQuickRegister ? 'register' : 'projects')
+      return
+    }
+    setCurrentProject(selected)
+    setActiveTab('inspection')
+  }
+
+  const openProofWorkspace = (targetProject?: typeof projects[number]) => {
+    if (!canQuickProof) {
+      showToast('当前角色无 Proof 工作台权限')
+      return
+    }
+    const selected = targetProject || currentProject || projects[0]
+    if (!selected) {
+      showToast('请先注册项目')
+      setActiveTab(canQuickRegister ? 'register' : 'projects')
+      return
+    }
+    setCurrentProject(selected)
+    setActiveTab('proof')
+  }
+
   const workspaceContentProps = useAppWorkspaceProps({
     activeTab,
     proofWorkspace: buildProofWorkspace({
       projectUri: proj.v_uri,
       paymentId: String(proofDashboard.paymentResult?.payment_id || ''),
       proofDashboard,
+      onGoInspection: () => openInspectionWorkspace(),
+      onGoReports: canQuickReports ? () => setActiveTab('reports') : undefined,
     }),
     projectsWorkspace: buildProjectsWorkspace({
       canUseEnterpriseApi,
@@ -490,10 +535,11 @@ export default function App() {
       typeLabel: TYPE_LABEL,
       normalizeKmInterval,
       toggleInspectionType: registerController.toggleInspectionType,
-      onEnterInspection: (project) => {
-        setCurrentProject(project)
-        setActiveTab('inspection')
-      },
+      onCreateProject: openRegisterWorkspace,
+      onGoInspection: () => openInspectionWorkspace(),
+      onGoProof: () => openProofWorkspace(),
+      onEnterInspection: (project) => openInspectionWorkspace(project),
+      onEnterProof: (project) => openProofWorkspace(project),
     }),
     registerWorkspace: buildRegisterWorkspace({
       projects,
@@ -557,6 +603,12 @@ export default function App() {
           const selected = projects.find((p) => p.id === projectId)
           if (selected) setCurrentProject(selected)
         }}
+        canQuickRegister={canQuickRegister}
+        canQuickInspection={canQuickInspection}
+        canQuickProof={canQuickProof}
+        onQuickRegister={openRegisterWorkspace}
+        onQuickInspection={() => openInspectionWorkspace()}
+        onQuickProof={() => openProofWorkspace()}
         onLogout={doLogout}
       >
         <AppWorkspaceContent {...workspaceContentProps} />

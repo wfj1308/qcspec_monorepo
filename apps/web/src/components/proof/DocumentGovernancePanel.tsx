@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
+﻿import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { Button, Card, VPathDisplay } from '../ui'
 import { useProof } from '../../hooks/api/proof'
 import { useUIStore } from '../../store'
@@ -50,6 +50,10 @@ function formatSize(bytes: number): string {
   if (n >= 1024 * 1024) return `${(n / 1024 / 1024).toFixed(2)} MB`
   if (n >= 1024) return `${(n / 1024).toFixed(1)} KB`
   return `${n} B`
+}
+
+function sectionTitle(text: string) {
+  return <div style={{ fontSize: 13, fontWeight: 700, color: '#0F172A' }}>{text}</div>
 }
 
 export default function DocumentGovernancePanel({ projectUri }: DocumentGovernancePanelProps) {
@@ -125,7 +129,7 @@ export default function DocumentGovernancePanel({ projectUri }: DocumentGovernan
         setNodes([])
       }
     } catch {
-      showToast('Document tree load failed')
+      showToast('文档节点树加载失败')
     } finally {
       setTreeLoading(false)
     }
@@ -149,7 +153,7 @@ export default function DocumentGovernancePanel({ projectUri }: DocumentGovernan
         setCards([])
       }
     } catch {
-      showToast('Document search failed')
+      showToast('文档检索失败')
     } finally {
       setDocsLoading(false)
     }
@@ -170,9 +174,9 @@ export default function DocumentGovernancePanel({ projectUri }: DocumentGovernan
       setSummary(String(suggestion.summary || summary))
       const tags = Array.isArray(suggestion.tags) ? suggestion.tags.map((x) => String(x)) : []
       if (tags.length) setUploadTagsInput(tags.join(', '))
-      showToast('AI metadata ready')
+      showToast('AI 已完成文档预分类')
     } catch {
-      showToast('AI classify failed')
+      showToast('AI 预分类失败')
     } finally {
       setClassifying(false)
     }
@@ -180,11 +184,11 @@ export default function DocumentGovernancePanel({ projectUri }: DocumentGovernan
 
   const handleUpload = useCallback(async () => {
     if (!uploadFile) {
-      showToast('Please choose a file')
+      showToast('请先选择文件')
       return
     }
     if (!sourceUtxoId.trim()) {
-      showToast('source_utxo_id is required')
+      showToast('来源 UTXO ID 必填')
       return
     }
     setUploading(true)
@@ -207,16 +211,16 @@ export default function DocumentGovernancePanel({ projectUri }: DocumentGovernan
         auto_classify: false,
       }) as { ok?: boolean; proof_id?: string } | null
       if (!payload?.ok) {
-        showToast('Document register failed')
+        showToast('文档登记失败')
         return
       }
-      showToast(`Registered: ${String(payload.proof_id || '-')}`)
+      showToast(`文档登记成功：${String(payload.proof_id || '-')}`)
       setUploadFile(null)
       setSourceUtxoId('')
       setExcerpt('')
       await Promise.all([loadTree(), loadCards()])
     } catch {
-      showToast('Document register failed')
+      showToast('文档登记失败')
     } finally {
       setUploading(false)
     }
@@ -239,7 +243,7 @@ export default function DocumentGovernancePanel({ projectUri }: DocumentGovernan
 
   const handleCreateNode = useCallback(async () => {
     if (!newNodeName.trim()) {
-      showToast('Node name required')
+      showToast('请输入节点名称')
       return
     }
     const parent = newNodeParentUri.trim() || selectedNode || projectUri
@@ -253,27 +257,38 @@ export default function DocumentGovernancePanel({ projectUri }: DocumentGovernan
       setNewNodeParentUri('')
       setSelectedNodeUri(String(payload.node_uri || parent))
       await loadTree()
-      showToast('Node created')
+      showToast('节点创建成功')
       return
     }
-    showToast('Create node failed')
+    showToast('节点创建失败')
   }, [docCreateNode, loadTree, newNodeName, newNodeParentUri, projectUri, selectedNode, showToast])
 
   const handleAutoGenerate = useCallback(async () => {
+    const start = Number(kmStart || 0)
+    const end = Number(kmEnd || 0)
+    const step = Number(kmStep || 1)
+    if (!Number.isFinite(start) || !Number.isFinite(end) || !Number.isFinite(step) || step <= 0) {
+      showToast('里程参数不合法')
+      return
+    }
+    if (end < start) {
+      showToast('结束里程不能小于开始里程')
+      return
+    }
     const payload = await docAutoGenerateNodes({
       project_uri: projectUri,
       parent_uri: selectedNode || projectUri,
-      start_km: Number(kmStart || 0),
-      end_km: Number(kmEnd || 0),
-      step_km: Number(kmStep || 1),
+      start_km: start,
+      end_km: end,
+      step_km: step,
       leaf_name: kmLeafName || 'inspection',
     }) as { ok?: boolean; created_count?: number } | null
     if (payload?.ok) {
       await loadTree()
-      showToast(`Generated ${Number(payload.created_count || 0)} nodes`)
+      showToast(`已生成 ${Number(payload.created_count || 0)} 个节点`)
       return
     }
-    showToast('Auto-generate failed')
+    showToast('自动生成节点失败')
   }, [docAutoGenerateNodes, kmEnd, kmLeafName, kmStart, kmStep, loadTree, projectUri, selectedNode, showToast])
 
   useEffect(() => {
@@ -317,69 +332,71 @@ export default function DocumentGovernancePanel({ projectUri }: DocumentGovernan
   }, [nodeMap, selectedNode])
 
   return (
-    <Card title="Sovereign Document Governance" icon="🗂️">
+    <Card title="Proof 文档治理" icon="📁">
       <VPathDisplay uri={projectUri} />
+
       <div style={{ display: 'grid', gridTemplateColumns: '320px minmax(0,1fr)', gap: 12 }}>
         <div style={{ border: '1px solid #E2E8F0', borderRadius: 10, padding: 10, display: 'grid', gap: 10 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: '#0F172A' }}>v:// Node Tree</div>
+            {sectionTitle('v:// 节点树')}
             <Button size="sm" variant="secondary" onClick={() => void loadTree()} disabled={treeLoading}>
-              {treeLoading ? 'Loading...' : 'Refresh'}
+              {treeLoading ? '刷新中...' : '刷新'}
             </Button>
           </div>
           <div style={{ maxHeight: 260, overflowY: 'auto', border: '1px solid #E2E8F0', borderRadius: 8, padding: 6 }}>
-            {treeLoading && <div style={{ fontSize: 12, color: '#64748B' }}>Loading tree...</div>}
-            {!treeLoading && !nodes.length && <div style={{ fontSize: 12, color: '#94A3B8' }}>No nodes yet</div>}
+            {treeLoading && <div style={{ fontSize: 12, color: '#64748B' }}>节点树加载中...</div>}
+            {!treeLoading && !nodes.length && <div style={{ fontSize: 12, color: '#94A3B8' }}>暂无节点</div>}
             {!treeLoading && !!nodes.length && renderTree(rootUri, 0)}
           </div>
 
           <div style={{ borderTop: '1px dashed #E2E8F0', paddingTop: 8, display: 'grid', gap: 6 }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: '#0F172A' }}>Create Node</div>
+            {sectionTitle('新建节点')}
             <input
               value={newNodeName}
               onChange={(e) => setNewNodeName(e.target.value)}
-              placeholder="node name"
+              placeholder="节点名称"
               style={{ padding: 8, border: '1px solid #CBD5E1', borderRadius: 8 }}
             />
             <input
               value={newNodeParentUri}
               onChange={(e) => setNewNodeParentUri(e.target.value)}
-              placeholder={`parent uri (default: ${selectedNode})`}
+              placeholder={`父节点 URI（默认当前节点）`}
               style={{ padding: 8, border: '1px solid #CBD5E1', borderRadius: 8 }}
             />
-            <Button size="sm" onClick={() => void handleCreateNode()}>Create</Button>
+            <Button size="sm" onClick={() => void handleCreateNode()}>创建节点</Button>
           </div>
 
           <div style={{ borderTop: '1px dashed #E2E8F0', paddingTop: 8, display: 'grid', gap: 6 }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: '#0F172A' }}>Auto Stake Nodes</div>
+            {sectionTitle('按里程自动生成节点')}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,minmax(0,1fr))', gap: 6 }}>
-              <input value={kmStart} onChange={(e) => setKmStart(e.target.value)} placeholder="K start" style={{ padding: 8, border: '1px solid #CBD5E1', borderRadius: 8 }} />
-              <input value={kmEnd} onChange={(e) => setKmEnd(e.target.value)} placeholder="K end" style={{ padding: 8, border: '1px solid #CBD5E1', borderRadius: 8 }} />
-              <input value={kmStep} onChange={(e) => setKmStep(e.target.value)} placeholder="step" style={{ padding: 8, border: '1px solid #CBD5E1', borderRadius: 8 }} />
+              <input value={kmStart} onChange={(e) => setKmStart(e.target.value)} placeholder="起始里程 km" style={{ padding: 8, border: '1px solid #CBD5E1', borderRadius: 8 }} />
+              <input value={kmEnd} onChange={(e) => setKmEnd(e.target.value)} placeholder="结束里程 km" style={{ padding: 8, border: '1px solid #CBD5E1', borderRadius: 8 }} />
+              <input value={kmStep} onChange={(e) => setKmStep(e.target.value)} placeholder="步长 km" style={{ padding: 8, border: '1px solid #CBD5E1', borderRadius: 8 }} />
             </div>
-            <input value={kmLeafName} onChange={(e) => setKmLeafName(e.target.value)} placeholder="leaf name" style={{ padding: 8, border: '1px solid #CBD5E1', borderRadius: 8 }} />
-            <Button size="sm" variant="secondary" onClick={() => void handleAutoGenerate()}>Generate K Nodes</Button>
+            <input value={kmLeafName} onChange={(e) => setKmLeafName(e.target.value)} placeholder="叶子节点名（默认 inspection）" style={{ padding: 8, border: '1px solid #CBD5E1', borderRadius: 8 }} />
+            <Button size="sm" variant="secondary" onClick={() => void handleAutoGenerate()}>生成里程节点</Button>
           </div>
         </div>
 
         <div style={{ border: '1px solid #E2E8F0', borderRadius: 10, padding: 10, display: 'grid', gap: 10 }}>
           <div style={{ display: 'grid', gap: 8, borderBottom: '1px dashed #E2E8F0', paddingBottom: 8 }}>
+            {sectionTitle('检索文档')}
             <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) 180px 120px auto', gap: 8 }}>
-              <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search text" style={{ padding: 8, border: '1px solid #CBD5E1', borderRadius: 8 }} />
-              <input value={tagsInput} onChange={(e) => setTagsInput(e.target.value)} placeholder="tags: drawing,bridge" style={{ padding: 8, border: '1px solid #CBD5E1', borderRadius: 8 }} />
+              <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="搜索关键词（标题/摘要/类型）" style={{ padding: 8, border: '1px solid #CBD5E1', borderRadius: 8 }} />
+              <input value={tagsInput} onChange={(e) => setTagsInput(e.target.value)} placeholder="标签，如 drawing,bridge" style={{ padding: 8, border: '1px solid #CBD5E1', borderRadius: 8 }} />
               <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#475569' }}>
                 <input type="checkbox" checked={includeDescendants} onChange={(e) => setIncludeDescendants(e.target.checked)} />
-                include children
+                包含子节点
               </label>
-              <Button size="sm" onClick={() => void loadCards()} disabled={docsLoading}>{docsLoading ? 'Searching...' : 'Search'}</Button>
+              <Button size="sm" onClick={() => void loadCards()} disabled={docsLoading}>{docsLoading ? '检索中...' : '检索'}</Button>
             </div>
             <div style={{ fontSize: 12, color: '#64748B', wordBreak: 'break-all' }}>
-              Current node: {selectedNode}
+              当前节点：{selectedNode}
             </div>
           </div>
 
           <div style={{ borderBottom: '1px dashed #E2E8F0', paddingBottom: 8, display: 'grid', gap: 8 }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: '#0F172A' }}>Upload + AI Pre-review</div>
+            {sectionTitle('上传并登记文档')}
             <input
               type="file"
               onChange={async (e) => {
@@ -397,40 +414,44 @@ export default function DocumentGovernancePanel({ projectUri }: DocumentGovernan
             <textarea
               value={excerpt}
               onChange={(e) => setExcerpt(e.target.value)}
-              placeholder="text excerpt (optional)"
+              placeholder="文档片段（可选，用于 AI 预分类）"
               style={{ minHeight: 68, border: '1px solid #CBD5E1', borderRadius: 8, padding: 8, resize: 'vertical' }}
             />
             <input
               value={sourceUtxoId}
               onChange={(e) => setSourceUtxoId(e.target.value)}
-              placeholder="source UTXO ID (required)"
+              placeholder="来源 UTXO ID（必填）"
               style={{ padding: 8, border: '1px solid #CBD5E1', borderRadius: 8 }}
             />
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,minmax(0,1fr))', gap: 8 }}>
-              <input value={docType} onChange={(e) => setDocType(e.target.value)} placeholder="doc_type" style={{ padding: 8, border: '1px solid #CBD5E1', borderRadius: 8 }} />
-              <input value={discipline} onChange={(e) => setDiscipline(e.target.value)} placeholder="discipline" style={{ padding: 8, border: '1px solid #CBD5E1', borderRadius: 8 }} />
-              <input value={uploadTagsInput} onChange={(e) => setUploadTagsInput(e.target.value)} placeholder="tags comma separated" style={{ padding: 8, border: '1px solid #CBD5E1', borderRadius: 8 }} />
+              <input value={docType} onChange={(e) => setDocType(e.target.value)} placeholder="文档类型（doc_type）" style={{ padding: 8, border: '1px solid #CBD5E1', borderRadius: 8 }} />
+              <input value={discipline} onChange={(e) => setDiscipline(e.target.value)} placeholder="专业（discipline）" style={{ padding: 8, border: '1px solid #CBD5E1', borderRadius: 8 }} />
+              <input value={uploadTagsInput} onChange={(e) => setUploadTagsInput(e.target.value)} placeholder="标签，逗号分隔" style={{ padding: 8, border: '1px solid #CBD5E1', borderRadius: 8 }} />
             </div>
-            <input value={summary} onChange={(e) => setSummary(e.target.value)} placeholder="summary" style={{ padding: 8, border: '1px solid #CBD5E1', borderRadius: 8 }} />
+            <input value={summary} onChange={(e) => setSummary(e.target.value)} placeholder="摘要（summary）" style={{ padding: 8, border: '1px solid #CBD5E1', borderRadius: 8 }} />
             <textarea
               value={customMetadataRaw}
               onChange={(e) => setCustomMetadataRaw(e.target.value)}
-              placeholder='custom metadata JSON, e.g. {"rev":"A1","drawing_no":"D-403"}'
+              placeholder='自定义 JSON 元数据，例如 {"rev":"A1","drawing_no":"D-403"}'
               style={{ minHeight: 54, border: '1px solid #CBD5E1', borderRadius: 8, padding: 8, resize: 'vertical', fontFamily: 'monospace', fontSize: 12 }}
             />
             <div style={{ display: 'flex', gap: 8 }}>
               <Button size="sm" variant="secondary" onClick={() => void handleAutoClassify()} disabled={!uploadFile || classifying}>
-                {classifying ? 'Classifying...' : 'AI Suggest'}
+                {classifying ? 'AI 分析中...' : 'AI 预填元数据'}
               </Button>
               <Button size="sm" onClick={() => void handleUpload()} disabled={!uploadFile || uploading}>
-                {uploading ? 'Registering...' : 'Register Document'}
+                {uploading ? '登记中...' : '登记文档'}
               </Button>
             </div>
           </div>
 
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            {sectionTitle('文档列表')}
+            <div style={{ fontSize: 12, color: '#64748B' }}>共 {cards.length} 条</div>
+          </div>
           <div style={{ maxHeight: 420, overflowY: 'auto', display: 'grid', gap: 8 }}>
-            {docsLoading && <div style={{ fontSize: 12, color: '#64748B' }}>Loading documents...</div>}
-            {!docsLoading && !cards.length && <div style={{ fontSize: 12, color: '#94A3B8' }}>No documents in this node scope</div>}
+            {docsLoading && <div style={{ fontSize: 12, color: '#64748B' }}>文档加载中...</div>}
+            {!docsLoading && !cards.length && <div style={{ fontSize: 12, color: '#94A3B8' }}>当前节点范围暂无文档</div>}
             {!docsLoading && cards.map((card, idx) => (
               <div key={String(card.proof_id || `${card.file_name || 'doc'}-${idx}`)} style={{ border: '1px solid #E2E8F0', borderRadius: 8, padding: 10, background: '#F8FAFC' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
@@ -444,7 +465,7 @@ export default function DocumentGovernancePanel({ projectUri }: DocumentGovernan
                 </div>
                 <div style={{ marginTop: 2, fontSize: 12, color: '#64748B' }}>{card.summary || '-'}</div>
                 <div style={{ marginTop: 4, fontSize: 12, color: '#334155', wordBreak: 'break-all' }}>
-                  Node: {card.node_uri || '-'}
+                  节点：{card.node_uri || '-'}
                 </div>
                 <div style={{ marginTop: 4, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                   {(card.tags || []).map((tag) => (
@@ -461,10 +482,10 @@ export default function DocumentGovernancePanel({ projectUri }: DocumentGovernan
                     onClick={() => {
                       const text = String(card.proof_hash || '')
                       if (!text) return
-                      navigator.clipboard.writeText(text).then(() => showToast('Proof hash copied')).catch(() => showToast('Copy failed'))
+                      navigator.clipboard.writeText(text).then(() => showToast('Proof Hash 已复制')).catch(() => showToast('复制失败'))
                     }}
                   >
-                    Copy Hash
+                    复制 Hash
                   </Button>
                   <Button
                     size="sm"
@@ -475,7 +496,7 @@ export default function DocumentGovernancePanel({ projectUri }: DocumentGovernan
                     }}
                     disabled={!card.storage_url}
                   >
-                    Open File
+                    打开文件
                   </Button>
                 </div>
               </div>
