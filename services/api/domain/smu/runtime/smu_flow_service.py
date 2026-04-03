@@ -191,6 +191,23 @@ def _emit_progress(
         progress_hook(stage, percent, message)
 
 
+def _prepare_genesis_input(
+    *,
+    project_uri: str,
+    upload_file_name: str,
+    upload_content: bytes,
+    boq_root_uri: str,
+    norm_context_root_uri: str,
+) -> tuple[list[Any], str, str]:
+    items = parse_boq_upload(upload_file_name, upload_content)
+    root_uri, norm_root = _resolve_genesis_roots(
+        project_uri=project_uri,
+        boq_root_uri=boq_root_uri,
+        norm_context_root_uri=norm_context_root_uri,
+    )
+    return items, root_uri, norm_root
+
+
 def import_genesis_trip(
     *,
     sb: Any,
@@ -208,13 +225,14 @@ def import_genesis_trip(
     if not p_uri:
         raise HTTPException(400, "project_uri is required")
     _emit_progress(progress_hook, "parsing", 12, "解析上传文件")
-    items = parse_boq_upload(upload_file_name, upload_content)
-    _emit_progress(progress_hook, "parsed", 22, f"解析完成：识别细目 {len(items)} 条")
-    root_uri, norm_root = _resolve_genesis_roots(
+    items, root_uri, norm_root = _prepare_genesis_input(
         project_uri=p_uri,
+        upload_file_name=upload_file_name,
+        upload_content=upload_content,
         boq_root_uri=boq_root_uri,
         norm_context_root_uri=norm_context_root_uri,
     )
+    _emit_progress(progress_hook, "parsed", 22, f"解析完成：识别细目 {len(items)} 条")
     _emit_progress(progress_hook, "writing_chain", 38, "初始化主权树并写链")
     result = _initialize_genesis_chain(
         sb=sb,
@@ -279,9 +297,10 @@ def preview_genesis_tree(
     p_uri = _to_text(project_uri).strip()
     if not p_uri:
         raise HTTPException(400, "project_uri is required")
-    items = parse_boq_upload(upload_file_name, upload_content)
-    root_uri, norm_root = _resolve_genesis_roots(
+    items, root_uri, norm_root = _prepare_genesis_input(
         project_uri=p_uri,
+        upload_file_name=upload_file_name,
+        upload_content=upload_content,
         boq_root_uri=boq_root_uri,
         norm_context_root_uri=norm_context_root_uri,
     )
@@ -551,6 +570,23 @@ def sign_smu_approval(
     signatures = _as_list(sign_inputs_values.get("signatures"))
     biometric = _as_dict(sign_inputs_values.get("biometric"))
     payload = _as_dict(sign_inputs_values.get("payload"))
+    sm2_summary = {
+        "required": bool(biometric.get("sm2_required")),
+        "attached_roles": [
+            _to_text(sig.get("role") or "").strip()
+            for sig in signatures
+            if _to_text(sig.get("sm2_verify_mode") or "").strip() not in {"", "not_provided"}
+        ],
+        "verified_roles": [
+            _to_text(sig.get("role") or "").strip()
+            for sig in signatures
+            if bool(sig.get("sm2_verified"))
+        ],
+        "verify_modes": {
+            _to_text(sig.get("role") or "").strip(): _to_text(sig.get("sm2_verify_mode") or "").strip()
+            for sig in signatures
+        },
+    }
 
     settle = run_settlement_confirm(
         sb=sb,
@@ -617,6 +653,7 @@ def sign_smu_approval(
         item_uri=item_uri,
         input_smu_id=input_smu_id,
         docpeg=docpeg,
+        sm2_summary=sm2_summary,
     )
 
 

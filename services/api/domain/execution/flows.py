@@ -22,6 +22,7 @@ __all__ = [
     "trace_asset_origin",
     "get_boq_realtime_status",
     "build_docfinal_package_for_boq",
+    "verify_component_utxo",
     "export_doc_final",
     "compute_did_reputation",
     "transfer_asset",
@@ -84,6 +85,10 @@ def get_boq_realtime_status(*args: Any, **kwargs: Any) -> dict[str, Any]:
 
 def build_docfinal_package_for_boq(*args: Any, **kwargs: Any) -> dict[str, Any]:
     return _triprole_engine_module().build_docfinal_package_for_boq(*args, **kwargs)
+
+
+def verify_component_utxo(*args: Any, **kwargs: Any) -> dict[str, Any]:
+    return _triprole_engine_module().verify_component_utxo(*args, **kwargs)
 
 
 def export_doc_final(*args: Any, **kwargs: Any) -> dict[str, Any]:

@@ -1,0 +1,35 @@
+name: component-utxo-gate
+
+on:
+  pull_request:
+    paths:
+      - "services/api/**"
+      - "tools/acceptance/**"
+      - "docs/utxo-component-smu-remediation-plan.md"
+      - ".github/workflows/component-utxo-gate.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "services/api/**"
+      - "tools/acceptance/**"
+      - "docs/utxo-component-smu-remediation-plan.md"
+      - ".github/workflows/component-utxo-gate.yml"
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install API dependencies
+        run: pip install -r services/api/requirements.txt
+
+      - name: Run ComponentUTXO gate
+        run: python tools/acceptance/component_utxo_gate.py --skip-demo

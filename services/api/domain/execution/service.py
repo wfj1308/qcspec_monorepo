@@ -24,6 +24,7 @@ from services.api.domain.execution.helpers import (
     scan_confirm_signature_flow,
     trace_asset_origin_flow,
     transfer_asset_flow,
+    verify_component_utxo_flow,
 )
 
 
@@ -90,6 +91,15 @@ class ExecutionService(BaseService):
     async def transfer_asset(self, *, body: Any) -> Any:
         supabase = self.require_supabase()
         return await self.run_guarded("transfer_asset", transfer_asset_flow, body=body, sb=supabase)
+
+    async def verify_component_utxo(self, *, body: Any) -> Any:
+        supabase = self.require_supabase()
+        return await self.run_guarded(
+            "verify_component_utxo",
+            verify_component_utxo_flow,
+            body=body,
+            sb=supabase,
+        )
 
     async def apply_variation(self, *, body: Any) -> Any:
         supabase = self.require_supabase()

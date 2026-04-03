@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends
 from services.api.core import NormRefResolverService
 from services.api.dependencies import get_boq_specification_service, get_normref_resolver
 from services.api.domain import BOQSpecificationService
-from services.api.proof_schemas import GateRuleGenerateBody, GateRuleNormImportBody, GateRuleRollbackBody, GateRuleSaveBody, SpecDictSaveBody
+from services.api.domain.proof.schemas import GateRuleGenerateBody, GateRuleNormImportBody, GateRuleRollbackBody, GateRuleSaveBody, SpecDictSaveBody
 
 router = APIRouter()
 

@@ -168,7 +168,6 @@ export interface PermissionRow {
 
 export interface SettingsState {
   emailNotify: boolean
-  wechatNotify: boolean
   autoGenerateReport: boolean
   strictProof: boolean
   reportTemplate: string
@@ -188,7 +187,6 @@ export interface SettingsState {
   gitpegWebhookSecret: string
   gitpegModuleCandidates: string[]
   erpnextSync: boolean
-  wechatMiniapp: boolean
   droneImport: boolean
 }
 

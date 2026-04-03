@@ -30,8 +30,8 @@ if str(ROOT) not in sys.path:
 load_dotenv(ROOT / ".env", override=False)
 load_dotenv(ROOT / "services" / "api" / ".env", override=False)
 
+from services.api.domain.execution.flows import aggregate_provenance_chain, execute_triprole_action  # noqa: E402
 from services.api.supabase_provider import get_supabase_client  # noqa: E402
-from services.api.triprole_engine import aggregate_provenance_chain, execute_triprole_action  # noqa: E402
 
 
 def _to_text(value: Any, default: str = "") -> str:

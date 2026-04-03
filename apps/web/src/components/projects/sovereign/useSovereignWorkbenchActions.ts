@@ -1,1 +1,1 @@
-export * from './workbench/useSovereignWorkbenchActions'
+export * from './workbench/actions/useSovereignWorkbenchActions'

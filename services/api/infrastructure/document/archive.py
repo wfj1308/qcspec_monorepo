@@ -247,7 +247,7 @@ def create_dsp_package(
     spec_snapshot = _clean_no_qmark(spec_bundle.get("primary_snapshot_text"), fallback="无可用规范摘要")
     generated_at = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
     matches = bool((verify_detail.get("hash_verification") or {}).get("matches"))
-    trust_label = "鍙俊鏉ユ簮" if matches else "鐤戜技绡℃敼"
+    trust_label = "可信来源" if matches else "疑似篡改"
     evidence_count = len(evidence_manifest) if evidence_manifest else len(evidence)
 
     report_lines = [

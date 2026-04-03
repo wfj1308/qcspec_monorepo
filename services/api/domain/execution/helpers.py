@@ -23,6 +23,7 @@ from services.api.domain.execution.flows import (
     scan_to_confirm_signature,
     trace_asset_origin,
     transfer_asset,
+    verify_component_utxo,
 )
 
 
@@ -80,6 +81,10 @@ def transfer_asset_flow(*, body: Any, sb: Client) -> dict[str, Any]:
         docpeg_hash=str(body.docpeg_hash or ""),
         metadata=dict(body.metadata or {}),
     )
+
+
+def verify_component_utxo_flow(*, body: Any, sb: Client) -> dict[str, Any]:
+    return verify_component_utxo(sb=sb, body=body)
 
 
 def apply_variation_flow(*, body: Any, sb: Client) -> dict[str, Any]:

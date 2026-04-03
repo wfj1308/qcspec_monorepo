@@ -14,7 +14,6 @@ class SettingsUpdate(BaseModel):
     enterpriseVUri: Optional[str] = None
     enterpriseCreditCode: Optional[str] = None
     emailNotify: Optional[bool] = None
-    wechatNotify: Optional[bool] = None
     autoGenerateReport: Optional[bool] = None
     strictProof: Optional[bool] = None
     reportTemplate: Optional[str] = None
@@ -51,7 +50,6 @@ class SettingsUpdate(BaseModel):
     erpnextGitpegShellUriField: Optional[str] = None
     erpnextGitpegProofHashField: Optional[str] = None
     erpnextGitpegIndustryProfileIdField: Optional[str] = None
-    wechatMiniapp: Optional[bool] = None
     droneImport: Optional[bool] = None
     permissionMatrix: Optional[list[dict]] = None
 

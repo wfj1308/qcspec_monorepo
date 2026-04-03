@@ -12,6 +12,7 @@ from services.api.domain.smu.runtime.smu_primitives import (
     to_text as _to_text,
     utc_iso as _utc_iso,
 )
+from services.api.domain.smu.runtime.smu_state_helpers import canonical_smu_status, legacy_smu_status
 
 
 def _sha(payload: Any) -> str:
@@ -44,9 +45,12 @@ def build_freeze_state_data(
     merkle: dict[str, Any],
     executor_uri: str,
 ) -> dict[str, Any]:
+    canonical_status = canonical_smu_status("Frozen" if status == "PASS" else "Blocked")
+    legacy_status = legacy_smu_status("Frozen" if status == "PASS" else "Blocked")
     return {
         "asset_type": "smu_freeze",
         "status": "SMU_FROZEN" if status == "PASS" else "SMU_FREEZE_REJECTED",
+        "smu_status": canonical_status,
         "lifecycle_stage": "SMU_FREEZE",
         "smu_id": smu_id,
         "risk_score": risk_score,
@@ -57,7 +61,8 @@ def build_freeze_state_data(
         "leaf_count": merkle.get("leaf_count"),
         "total_proof_hash": total_proof_hash,
         "container": {
-            "status": "Frozen" if status == "PASS" else "Blocked",
+            "status": canonical_status,
+            "status_legacy": legacy_status,
             "stage": "SMU & Risk Audit",
             "boq_item_uri": "",
             "smu_id": smu_id,
@@ -97,6 +102,8 @@ def build_freeze_response(
     merkle: dict[str, Any],
     state_data: dict[str, Any],
 ) -> dict[str, Any]:
+    canonical_status = canonical_smu_status("Frozen" if status == "PASS" else "Blocked")
+    legacy_status = legacy_smu_status("Frozen" if status == "PASS" else "Blocked")
     return {
         "ok": True,
         "phase": "SMU & Risk Audit",
@@ -111,7 +118,8 @@ def build_freeze_response(
             "min_risk_score": min_risk_score,
         },
         "container": {
-            "status": "Frozen" if status == "PASS" else "Blocked",
+            "status": canonical_status,
+            "status_legacy": legacy_status,
             "stage": "SMU & Risk Audit",
             "smu_id": smu_id,
         },

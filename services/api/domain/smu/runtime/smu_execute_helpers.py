@@ -12,6 +12,7 @@ from services.api.domain.smu.runtime.smu_primitives import (
     to_float as _to_float,
     to_text as _to_text,
 )
+from services.api.domain.smu.runtime.smu_state_helpers import canonical_smu_status, legacy_smu_status
 
 
 def _round4(value: float | None) -> float | None:
@@ -148,6 +149,8 @@ def build_execute_state_patch(
     executor_did: str,
     captured_at: str,
 ) -> dict[str, Any]:
+    canonical_status = canonical_smu_status("Reviewing")
+    legacy_status = legacy_smu_status("Reviewing")
     return {
         "snappeg": {
             "hash": snappeg_hash,
@@ -158,7 +161,8 @@ def build_execute_state_patch(
             "captured_at": captured_at,
         },
         "container": {
-            "status": "Reviewing",
+            "status": canonical_status,
+            "status_legacy": legacy_status,
             "stage": "Execution & SnapPeg",
             "boq_item_uri": item_uri,
             "smu_id": smu_id,

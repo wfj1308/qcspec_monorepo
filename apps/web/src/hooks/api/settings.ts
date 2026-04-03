@@ -17,7 +17,6 @@ export function useSettings() {
     enterpriseVUri?: string
     enterpriseCreditCode?: string
     emailNotify?: boolean
-    wechatNotify?: boolean
     autoGenerateReport?: boolean
     strictProof?: boolean
     reportTemplate?: string
@@ -54,7 +53,6 @@ export function useSettings() {
     erpnextGitpegShellUriField?: string
     erpnextGitpegProofHashField?: string
     erpnextGitpegIndustryProfileIdField?: string
-    wechatMiniapp?: boolean
     droneImport?: boolean
     permissionMatrix?: Array<{
       role: string

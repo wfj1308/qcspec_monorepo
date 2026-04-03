@@ -32,7 +32,6 @@ export function useSettingsController({
 }: UseSettingsControllerArgs) {
   const [settings, setSettings] = useState<SettingsState>({
     emailNotify: true,
-    wechatNotify: true,
     autoGenerateReport: false,
     strictProof: true,
     reportTemplate: 'default.docx',
@@ -52,7 +51,6 @@ export function useSettingsController({
     gitpegWebhookSecret: '',
     gitpegModuleCandidates: ['proof', 'utrip', 'openapi'],
     erpnextSync: false,
-    wechatMiniapp: true,
     droneImport: false,
   })
   const [erpDraft, setErpDraft] = useState<ErpDraftState>({

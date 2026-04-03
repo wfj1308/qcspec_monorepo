@@ -6,6 +6,8 @@ from fastapi import HTTPException
 from services.api.domain.smu.runtime import smu_docpeg_helpers as docpeg
 from services.api.domain.smu.runtime import smu_evidence_helpers as evidence_helpers
 from services.api.domain.smu.runtime import smu_execute_helpers as execute_helpers
+from services.api.domain.smu.runtime import smu_flow_service as smu_flow
+from services.api.domain.smu.runtime import smu_crypto_helpers as crypto_helpers
 from services.api.domain.smu.runtime import smu_erp_helpers as erp
 from services.api.domain.smu.runtime import smu_freeze_helpers as freeze
 from services.api.domain.smu.runtime import smu_genesis_helpers as genesis_helpers
@@ -22,6 +24,9 @@ from services.api.domain.smu.runtime import smu_trip_helpers as trip
 def test_smu_governance_helpers_basic_behaviors() -> None:
     assert gov.container_status_from_stage("INITIAL", "") == "Unspent"
     assert gov.container_status_from_stage("SETTLEMENT", "PASS") == "Approved"
+    assert state_helpers.canonical_smu_status("Reviewing") == "DRAFT"
+    assert state_helpers.canonical_smu_status("Approved") == "CONFIRMED"
+    assert state_helpers.canonical_smu_status("Frozen") == "FROZEN"
 
     gatekeeper = gov.build_gatekeeper(
         {
@@ -136,6 +141,94 @@ def test_smu_trip_helpers_sign_inputs() -> None:
     assert isinstance(signatures, list)
     assert len(signatures) == 3
     assert sign_inputs["approval_payload"]["approved_from"] == "SMU_APPROVAL_PANEL"
+    assert sign_inputs["approval_payload"]["status_target"] == "CONFIRMED"
+    assert sign_inputs["approval_payload"]["status_target_legacy"] == "Approved"
+
+
+def test_smu_trip_helpers_sign_inputs_attaches_sm2_metadata() -> None:
+    sign_inputs = trip.build_sign_inputs(
+        in_id="GP-TEST-SM2-1",
+        now_iso="2026-04-02T00:00:00+00:00",
+        contractor_did="did:example:contractor",
+        supervisor_did="did:example:supervisor",
+        owner_did="did:example:owner",
+        signer_metadata={
+            "sm2_signatures": [
+                {
+                    "role": "owner",
+                    "did": "did:example:owner",
+                    "signature_hex": "ab" * 64,
+                    "public_key_hex": "cd" * 64,
+                }
+            ]
+        },
+        consensus_values=None,
+        allowed_deviation=None,
+        allowed_deviation_percent=None,
+    )
+    owner_sig = [x for x in sign_inputs["signatures"] if x.get("role") == "owner"][0]
+    assert owner_sig["signature_scheme"] == "SM2_WITH_HASH_SHA256_FALLBACK"
+    assert owner_sig["sm2_signature_hex"] == "ab" * 64
+    assert sign_inputs["biometric"]["sm2_required"] is False
+    assert "owner" in sign_inputs["biometric"]["sm2_attached_roles"]
+
+
+def test_smu_trip_helpers_sign_inputs_strict_sm2_rejects_missing_roles() -> None:
+    with pytest.raises(HTTPException) as exc:
+        trip.build_sign_inputs(
+            in_id="GP-TEST-SM2-2",
+            now_iso="2026-04-02T00:00:00+00:00",
+            contractor_did="did:example:contractor",
+            supervisor_did="did:example:supervisor",
+            owner_did="did:example:owner",
+            signer_metadata={"require_sm2": True, "sm2_signatures": []},
+            consensus_values=None,
+            allowed_deviation=None,
+            allowed_deviation_percent=None,
+            sm2_verifier=lambda *_args: True,
+        )
+    assert exc.value.status_code == 409
+    assert "sm2_signature_missing_roles" in str(exc.value.detail)
+
+
+def test_smu_trip_helpers_sign_inputs_strict_sm2_accepts_all_roles_with_verifier() -> None:
+    sign_inputs = trip.build_sign_inputs(
+        in_id="GP-TEST-SM2-3",
+        now_iso="2026-04-02T00:00:00+00:00",
+        contractor_did="did:example:contractor",
+        supervisor_did="did:example:supervisor",
+        owner_did="did:example:owner",
+        signer_metadata={
+            "require_sm2": True,
+            "sm2_signatures": [
+                {
+                    "role": "contractor",
+                    "did": "did:example:contractor",
+                    "signature_hex": "aa" * 64,
+                    "public_key_hex": "bb" * 64,
+                },
+                {
+                    "role": "supervisor",
+                    "did": "did:example:supervisor",
+                    "signature_hex": "cc" * 64,
+                    "public_key_hex": "dd" * 64,
+                },
+                {
+                    "role": "owner",
+                    "did": "did:example:owner",
+                    "signature_hex": "ee" * 64,
+                    "public_key_hex": "ff" * 64,
+                },
+            ],
+        },
+        consensus_values=None,
+        allowed_deviation=None,
+        allowed_deviation_percent=None,
+        sm2_verifier=lambda *_args: True,
+    )
+    assert sign_inputs["biometric"]["sm2_required"] is True
+    assert sorted(sign_inputs["biometric"]["sm2_attached_roles"]) == ["contractor", "owner", "supervisor"]
+    assert all(bool(x.get("sm2_verified")) for x in sign_inputs["signatures"])
 
 
 def test_smu_trip_helpers_signatures_reject_invalid_did() -> None:
@@ -192,6 +285,8 @@ def test_smu_genesis_helpers_roots_resolution() -> None:
 
 def test_smu_state_helpers_export_smoke() -> None:
     assert callable(state_helpers.smu_id_from_item_code)
+    assert callable(state_helpers.canonical_smu_status)
+    assert callable(state_helpers.legacy_smu_status)
     assert callable(state_helpers.is_smu_frozen)
     assert callable(state_helpers.resolve_smu_leaf_items)
     assert callable(state_helpers.collect_smu_qualification)
@@ -211,6 +306,11 @@ def test_smu_primitives_export_smoke() -> None:
     assert callable(primitives.as_list)
     assert callable(primitives.to_float)
     assert callable(primitives.utc_iso)
+
+
+def test_smu_crypto_helpers_export_smoke() -> None:
+    assert callable(crypto_helpers.attach_sm2_signatures)
+    assert callable(crypto_helpers.verify_sm2_signature)
 
 
 def test_smu_execute_and_sign_helpers_export_smoke() -> None:
@@ -268,6 +368,21 @@ def test_smu_response_builders_basic_behaviors() -> None:
     assert execute_bundle["snappeg_hash"]
     assert execute_bundle["contract_formula_ok"] is True
 
+    sign_response = builders.build_sign_approval_response(
+        supervisor_executor_uri="v://executor/supervisor/mobile/",
+        supervisor_did="did:example:supervisor",
+        in_id="GP-IN",
+        out_id="GP-OUT",
+        settle={"result": "PASS"},
+        lineage_total_hash="root-1",
+        item_uri="v://project/p1/boq/100-01-01",
+        input_smu_id="100-01",
+        docpeg={"ok": True},
+        sm2_summary={"required": True, "verified_roles": ["owner"]},
+    )
+    assert sign_response["container"]["status"] == "CONFIRMED"
+    assert sign_response["container"]["status_legacy"] == "Approved"
+    assert sign_response["sm2"]["required"] is True
 
 def test_smu_governance_context_helpers_basic_behaviors() -> None:
     payload = govctx.resolve_governance_payload(
@@ -330,7 +445,8 @@ def test_smu_sign_helpers_build_output_patch() -> None:
         erpnext_push={"success": True},
         erpnext_receipt={"proof_id": "GP-ERP-1"},
     )
-    assert patch["container"]["status"] == "Approved"
+    assert patch["container"]["status"] == "CONFIRMED"
+    assert patch["container"]["status_legacy"] == "Approved"
     assert patch["smu_id"] == "100-01"
 
 

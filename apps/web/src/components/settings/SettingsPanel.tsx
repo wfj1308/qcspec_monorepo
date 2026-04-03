@@ -84,10 +84,6 @@ export default function SettingsPanel({
           <input type="checkbox" checked={settings.emailNotify} onChange={(e) => setSettings({ ...settings, emailNotify: e.target.checked })} />
         </div>
         <div className="toggle-row">
-          <span className="toggle-label">微信通知</span>
-          <input type="checkbox" checked={settings.wechatNotify} onChange={(e) => setSettings({ ...settings, wechatNotify: e.target.checked })} />
-        </div>
-        <div className="toggle-row">
           <span className="toggle-label">自动生成报告</span>
           <input type="checkbox" checked={settings.autoGenerateReport} onChange={(e) => setSettings({ ...settings, autoGenerateReport: e.target.checked })} />
         </div>
@@ -101,7 +97,6 @@ export default function SettingsPanel({
             style={{ flex: 'none' }}
             onClick={() => persistSettings({
               emailNotify: settings.emailNotify,
-              wechatNotify: settings.wechatNotify,
               autoGenerateReport: settings.autoGenerateReport,
               strictProof: settings.strictProof,
             })}
@@ -427,27 +422,6 @@ export default function SettingsPanel({
             </div>
           )}
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 0', borderBottom: '1px solid #E2E8F0' }}>
-            <div style={{ fontSize: 20, width: 28, textAlign: 'center' }}>💬</div>
-            <div style={{ flex: 1 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
-                <div style={{ fontSize: 13, fontWeight: 700, color: '#0F172A' }}>微信小程序登入</div>
-                <span style={{
-                  fontSize: 12,
-                  fontWeight: 700,
-                  borderRadius: 10,
-                  padding: '2px 8px',
-                  background: settings.wechatMiniapp ? '#ECFDF5' : '#F8FAFC',
-                  color: settings.wechatMiniapp ? '#059669' : '#64748B',
-                }}>
-                  {settings.wechatMiniapp ? '已启用' : '未接入'}
-                </span>
-              </div>
-              <div style={{ fontSize: 12, color: '#64748B' }}>施工人员通过微信扫码登录，现场质检录入</div>
-            </div>
-            <input type="checkbox" checked={settings.wechatMiniapp} onChange={(e) => setSettings({ ...settings, wechatMiniapp: e.target.checked })} />
-          </div>
-
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 0' }}>
             <div style={{ fontSize: 20, width: 28, textAlign: 'center' }}>🚁</div>
             <div style={{ flex: 1 }}>
@@ -529,7 +503,6 @@ export default function SettingsPanel({
                 erpnextGitpegShellUriField: erpWritebackDraft.gitpegShellUriField,
                 erpnextGitpegProofHashField: erpWritebackDraft.gitpegProofHashField,
                 erpnextGitpegIndustryProfileIdField: erpWritebackDraft.gitpegIndustryProfileIdField,
-                wechatMiniapp: settings.wechatMiniapp,
                 droneImport: settings.droneImport,
               })
             }

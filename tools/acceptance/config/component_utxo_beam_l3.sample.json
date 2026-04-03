@@ -1,0 +1,62 @@
+{
+  "component_id": "MAIN-BEAM-L3",
+  "component_uri": "v://cn.yanan/east-ring-expressway/component/MAIN-BEAM-L3",
+  "project_uri": "v://cn.yanan/east-ring-expressway",
+  "kind": "precast_beam",
+  "boq_items": [
+    {
+      "item_id": "403-1-2",
+      "description": "Rebar fabrication and installation",
+      "unit": "kg",
+      "qty": 1885,
+      "unit_price": 5.8,
+      "spec_uri": "v://norm/JTG/bridge/rebar_installation"
+    },
+    {
+      "item_id": "404-2-1",
+      "description": "Concrete casting",
+      "unit": "m3",
+      "qty": 23.6,
+      "unit_price": 460.0,
+      "spec_uri": "v://norm/JTG/bridge/concrete_casting"
+    }
+  ],
+  "bom": [
+    {
+      "material_role": "steel",
+      "qty": 1885,
+      "tolerance_ratio": 0.03
+    },
+    {
+      "material_role": "concrete",
+      "qty": 23.6,
+      "tolerance_ratio": 0.03
+    }
+  ],
+  "material_inputs": [
+    {
+      "utxo_id": "UTXO-STEEL-HRB400-PHI20-001",
+      "material_role": "steel",
+      "qty": 1200,
+      "proof_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "boq_item_id": "403-1-2"
+    },
+    {
+      "utxo_id": "UTXO-STEEL-HRB400-PHI16-001",
+      "material_role": "steel",
+      "qty": 685,
+      "proof_hash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "boq_item_id": "403-1-2"
+    },
+    {
+      "utxo_id": "UTXO-CONCRETE-C40-001",
+      "material_role": "concrete",
+      "qty": 23.6,
+      "proof_hash": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "boq_item_id": "404-2-1"
+    }
+  ],
+  "trip_id": "TRIP-BEAM-L3-QC-001",
+  "trip_action": "quality.check",
+  "trip_executor_uri": "v://cn.yanan/east-ring-expressway/role/supervisor/mobile/inspector-li/"
+}

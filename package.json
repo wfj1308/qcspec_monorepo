@@ -12,6 +12,8 @@
     "dev":     "turbo run dev",
     "build":   "turbo run build",
     "test":    "turbo run test",
+    "test:component-utxo:gate": "python tools/acceptance/component_utxo_gate.py --skip-demo",
+    "acceptance:component-utxo:demo": "python tools/acceptance/component_utxo_beam_l3_demo.py --skip-docpeg --payload-file tools/acceptance/config/component_utxo_beam_l3.sample.json",
     "lint":    "turbo run lint",
     "db:push": "supabase db push",
     "db:reset":"supabase db reset"

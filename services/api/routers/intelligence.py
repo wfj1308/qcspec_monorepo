@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends
 
 from services.api.dependencies import get_intelligence_service
 from services.api.domain import IntelligenceService
-from services.api.proof_schemas import (
+from services.api.domain.proof.schemas import (
     FinanceProofExportBody,
     NormEvolutionBody,
     OMBundleExportBody,

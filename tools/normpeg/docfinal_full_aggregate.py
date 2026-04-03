@@ -21,8 +21,8 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from services.api.domain.execution.flows import build_docfinal_package_for_boq, get_boq_realtime_status  # noqa: E402
 from services.api.supabase_provider import get_supabase_client  # noqa: E402
-from services.api.triprole_engine import build_docfinal_package_for_boq, get_boq_realtime_status  # noqa: E402
 
 
 def _to_text(value: Any, default: str = "") -> str:
@@ -124,4 +124,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

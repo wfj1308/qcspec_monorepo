@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from services.api import triprole_engine as engine
+from services.api.domain.execution.runtime import triprole_engine as engine
 
 
 def test_build_docfinal_package_for_boq_delegates_to_runtime(monkeypatch: object) -> None:

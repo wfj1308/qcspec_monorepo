@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, File, Form, UploadFile
 
 from services.api.dependencies import get_smu_service
 from services.api.domain import SMUService
-from services.api.proof_schemas import SMUExecuteBody, SMUFreezeBody, SMUSignBody, SMUValidateBody
+from services.api.domain.proof.schemas import SMUExecuteBody, SMUFreezeBody, SMUSignBody, SMUValidateBody
 
 router = APIRouter()
 public_router = APIRouter()

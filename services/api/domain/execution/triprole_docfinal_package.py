@@ -45,6 +45,9 @@ from services.api.domain.execution.triprole_docfinal_context import (
 from services.api.domain.execution.triprole_docfinal_render import (
     render_docfinal_artifacts as _render_docfinal_artifacts,
 )
+from services.api.domain.execution.triprole_component_utxo import (
+    build_component_utxo_verification as _build_component_utxo_verification,
+)
 from services.api.domain.execution.triprole_docfinal_runtime import (
     load_docfinal_chain as _load_docfinal_chain,
     resolve_docfinal_lineage_and_asset_origin as _resolve_docfinal_lineage_and_asset_origin,
@@ -214,6 +217,41 @@ def build_docfinal_package_for_boq(
         transfer_receipt=transfer_receipt,
     )
 
+    component_verification: dict[str, Any] = {}
+    component_payload = _as_dict(latest_sd.get("component_utxo"))
+    if not component_payload:
+        component_payload = {
+            "component_id": _to_text(latest_sd.get("component_id") or "").strip(),
+            "kind": _to_text(latest_sd.get("component_kind") or "component").strip(),
+            "boq_items": _as_list(latest_sd.get("component_boq_items")),
+            "bom": _as_list(latest_sd.get("component_bom")),
+            "material_input_proof_ids": _as_list(latest_sd.get("component_material_input_proof_ids")),
+            "material_inputs": _as_list(latest_sd.get("component_material_inputs")),
+            "default_tolerance_ratio": latest_sd.get("component_default_tolerance_ratio"),
+        }
+    if _to_text(component_payload.get("component_id") or "").strip():
+        try:
+            component_verification = _build_component_utxo_verification(
+                sb=sb,
+                component_id=_to_text(component_payload.get("component_id") or "").strip(),
+                kind=_to_text(component_payload.get("kind") or "component").strip(),
+                boq_items=_as_list(component_payload.get("boq_items")),
+                bom=_as_list(component_payload.get("bom")),
+                material_inputs=_as_list(component_payload.get("material_inputs")),
+                material_input_proof_ids=_as_list(component_payload.get("material_input_proof_ids")),
+                project_uri=_to_text(meta.get("project_uri") or latest.get("project_uri") or "").strip(),
+                default_tolerance_ratio=float(component_payload.get("default_tolerance_ratio") or 0.05),
+            )
+            context["component_utxo"] = component_verification
+            context["component_proof_hash"] = _to_text(component_verification.get("proof_hash") or "").strip()
+        except Exception as exc:
+            component_verification = {
+                "ok": False,
+                "component_id": _to_text(component_payload.get("component_id") or "").strip(),
+                "error": f"{type(exc).__name__}: {exc}",
+            }
+            context["component_utxo"] = component_verification
+
     artifacts = _render_docfinal_artifacts(
         module_file=module_file,
         template_path=template_path,
@@ -244,6 +282,7 @@ def build_docfinal_package_for_boq(
         "asset_transfer": transfer_receipt,
         "full_lineage": lineage_snapshot,
         "asset_origin": asset_origin,
+        "component_utxo": component_verification,
     }
 
 

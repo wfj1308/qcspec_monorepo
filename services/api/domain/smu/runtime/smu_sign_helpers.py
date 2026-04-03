@@ -11,6 +11,7 @@ from services.api.domain.smu.runtime.smu_primitives import (
     as_list as _as_list,
     to_text as _to_text,
 )
+from services.api.domain.smu.runtime.smu_state_helpers import canonical_smu_status, legacy_smu_status
 
 
 def resolve_sign_context(
@@ -70,9 +71,12 @@ def build_sign_output_patch(
     erpnext_push: dict[str, Any],
     erpnext_receipt: dict[str, Any],
 ) -> dict[str, Any]:
+    canonical_status = canonical_smu_status("Approved")
+    legacy_status = legacy_smu_status("Approved")
     return {
         "container": {
-            "status": "Approved",
+            "status": canonical_status,
+            "status_legacy": legacy_status,
             "stage": "OrdoSign & DID",
             "boq_item_uri": item_uri,
             "smu_id": input_smu_id,

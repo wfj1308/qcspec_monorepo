@@ -507,95 +507,15 @@ def _parse_openpyxl_sheet(
     out: list[BoqItem] = []
     start_row = header_row + (2 if uses_double_header else 1)
     for row_index, row in enumerate(ws.iter_rows(min_row=start_row, values_only=True), start=start_row):
-        cells = list(row)
-        item_no_raw = _to_text(
-            cells[colmap["item_no"]] if colmap.get("item_no") is not None and colmap["item_no"] < len(cells) else ""
-        ).strip()
-        item_no = _normalize_item_no(item_no_raw)
-        if not item_no or not ITEM_NO_PATTERN.match(item_no):
-            continue
-
-        name = _to_text(
-            cells[colmap["name"]] if colmap.get("name") is not None and colmap["name"] < len(cells) else ""
-        ).strip()
-        unit = _normalize_unit(
-            cells[colmap["unit"]] if colmap.get("unit") is not None and colmap["unit"] < len(cells) else ""
+        item = _parse_boq_row(
+            cells=list(row),
+            colmap=colmap,
+            row_index=row_index,
+            sheet_name=sheet_name,
+            leaf_only=leaf_only,
         )
-        division = _to_text(
-            cells[colmap["division"]] if colmap.get("division") is not None and colmap["division"] < len(cells) else ""
-        ).strip()
-        subdivision = _to_text(
-            cells[colmap["subdivision"]]
-            if colmap.get("subdivision") is not None and colmap["subdivision"] < len(cells)
-            else ""
-        ).strip()
-        hierarchy_raw = _to_text(
-            cells[colmap["hierarchy"]] if colmap.get("hierarchy") is not None and colmap["hierarchy"] < len(cells) else ""
-        ).strip()
-
-        dq_raw = _to_text(
-            cells[colmap["design_quantity"]]
-            if colmap.get("design_quantity") is not None and colmap["design_quantity"] < len(cells)
-            else ""
-        ).strip()
-        up_raw = _to_text(
-            cells[colmap["unit_price"]]
-            if colmap.get("unit_price") is not None and colmap["unit_price"] < len(cells)
-            else ""
-        ).strip()
-        aq_raw = _to_text(
-            cells[colmap["approved_quantity"]]
-            if colmap.get("approved_quantity") is not None and colmap["approved_quantity"] < len(cells)
-            else ""
-        ).strip()
-        aa_raw = _to_text(
-            cells[colmap["approved_amount"]]
-            if colmap.get("approved_amount") is not None and colmap["approved_amount"] < len(cells)
-            else ""
-        ).strip()
-
-        design_quantity = _round4(_to_float(dq_raw))
-        unit_price = _round4(_to_float(up_raw))
-        approved_quantity = _round4(_to_float(aq_raw))
-        approved_amount = _round4(_to_float(aa_raw))
-        approved_quantity, used_amount = _fallback_approved_quantity(
-            item_no=item_no,
-            unit=unit,
-            approved_quantity=approved_quantity,
-            approved_amount=approved_amount,
-            design_quantity=design_quantity,
-            unit_price=unit_price,
-        )
-        if used_amount:
-            aq_raw = aa_raw
-            if not unit:
-                unit = "总额"
-        remark = _to_text(
-            cells[colmap["remark"]] if colmap.get("remark") is not None and colmap["remark"] < len(cells) else ""
-        ).strip()
-
-        if leaf_only and design_quantity is None and approved_quantity is None:
-            continue
-
-        out.append(
-            BoqItem(
-                item_no=item_no,
-                name=name,
-                unit=unit,
-                division=division,
-                subdivision=subdivision,
-                hierarchy_raw=hierarchy_raw,
-                design_quantity=design_quantity,
-                design_quantity_raw=dq_raw,
-                unit_price=unit_price,
-                unit_price_raw=up_raw,
-                approved_quantity=approved_quantity,
-                approved_quantity_raw=aq_raw,
-                remark=remark,
-                row_index=row_index,
-                sheet_name=sheet_name,
-            )
-        )
+        if item is not None:
+            out.append(item)
     return out
 
 
@@ -624,95 +544,15 @@ def _parse_xlrd_sheet(
     out: list[BoqItem] = []
     start_row = header_row + (1 if uses_double_header else 0)
     for row_idx in range(start_row, ws.nrows):
-        cells = ws.row_values(row_idx)
-        item_no_raw = _to_text(
-            cells[colmap["item_no"]] if colmap.get("item_no") is not None and colmap["item_no"] < len(cells) else ""
-        ).strip()
-        item_no = _normalize_item_no(item_no_raw)
-        if not item_no or not ITEM_NO_PATTERN.match(item_no):
-            continue
-
-        name = _to_text(
-            cells[colmap["name"]] if colmap.get("name") is not None and colmap["name"] < len(cells) else ""
-        ).strip()
-        unit = _normalize_unit(
-            cells[colmap["unit"]] if colmap.get("unit") is not None and colmap["unit"] < len(cells) else ""
+        item = _parse_boq_row(
+            cells=ws.row_values(row_idx),
+            colmap=colmap,
+            row_index=row_idx + 1,
+            sheet_name=sheet_name,
+            leaf_only=leaf_only,
         )
-        division = _to_text(
-            cells[colmap["division"]] if colmap.get("division") is not None and colmap["division"] < len(cells) else ""
-        ).strip()
-        subdivision = _to_text(
-            cells[colmap["subdivision"]]
-            if colmap.get("subdivision") is not None and colmap["subdivision"] < len(cells)
-            else ""
-        ).strip()
-        hierarchy_raw = _to_text(
-            cells[colmap["hierarchy"]] if colmap.get("hierarchy") is not None and colmap["hierarchy"] < len(cells) else ""
-        ).strip()
-
-        dq_raw = _to_text(
-            cells[colmap["design_quantity"]]
-            if colmap.get("design_quantity") is not None and colmap["design_quantity"] < len(cells)
-            else ""
-        ).strip()
-        up_raw = _to_text(
-            cells[colmap["unit_price"]]
-            if colmap.get("unit_price") is not None and colmap["unit_price"] < len(cells)
-            else ""
-        ).strip()
-        aq_raw = _to_text(
-            cells[colmap["approved_quantity"]]
-            if colmap.get("approved_quantity") is not None and colmap["approved_quantity"] < len(cells)
-            else ""
-        ).strip()
-        aa_raw = _to_text(
-            cells[colmap["approved_amount"]]
-            if colmap.get("approved_amount") is not None and colmap["approved_amount"] < len(cells)
-            else ""
-        ).strip()
-
-        design_quantity = _round4(_to_float(dq_raw))
-        unit_price = _round4(_to_float(up_raw))
-        approved_quantity = _round4(_to_float(aq_raw))
-        approved_amount = _round4(_to_float(aa_raw))
-        approved_quantity, used_amount = _fallback_approved_quantity(
-            item_no=item_no,
-            unit=unit,
-            approved_quantity=approved_quantity,
-            approved_amount=approved_amount,
-            design_quantity=design_quantity,
-            unit_price=unit_price,
-        )
-        if used_amount:
-            aq_raw = aa_raw
-            if not unit:
-                unit = "总额"
-        remark = _to_text(
-            cells[colmap["remark"]] if colmap.get("remark") is not None and colmap["remark"] < len(cells) else ""
-        ).strip()
-
-        if leaf_only and design_quantity is None and approved_quantity is None:
-            continue
-
-        out.append(
-            BoqItem(
-                item_no=item_no,
-                name=name,
-                unit=unit,
-                division=division,
-                subdivision=subdivision,
-                hierarchy_raw=hierarchy_raw,
-                design_quantity=design_quantity,
-                design_quantity_raw=dq_raw,
-                unit_price=unit_price,
-                unit_price_raw=up_raw,
-                approved_quantity=approved_quantity,
-                approved_quantity_raw=aq_raw,
-                remark=remark,
-                row_index=row_idx + 1,
-                sheet_name=sheet_name,
-            )
-        )
+        if item is not None:
+            out.append(item)
     return out
 
 
@@ -760,97 +600,86 @@ def _parse_csv_rows(
     out: list[BoqItem] = []
     start_row = header_row + (1 if uses_double_header else 0)
     for row_idx in range(start_row, len(rows)):
-        cells = rows[row_idx]
-        item_no_raw = _to_text(
-            cells[colmap["item_no"]] if colmap.get("item_no") is not None and colmap["item_no"] < len(cells) else ""
-        ).strip()
-        item_no = _normalize_item_no(item_no_raw)
-        if not item_no or not ITEM_NO_PATTERN.match(item_no):
-            continue
-
-        name = _to_text(
-            cells[colmap["name"]] if colmap.get("name") is not None and colmap["name"] < len(cells) else ""
-        ).strip()
-        unit = _normalize_unit(
-            cells[colmap["unit"]] if colmap.get("unit") is not None and colmap["unit"] < len(cells) else ""
+        item = _parse_boq_row(
+            cells=rows[row_idx],
+            colmap=colmap,
+            row_index=row_idx + 1,
+            sheet_name=sheet_name,
+            leaf_only=leaf_only,
         )
-        division = _to_text(
-            cells[colmap["division"]] if colmap.get("division") is not None and colmap["division"] < len(cells) else ""
-        ).strip()
-        subdivision = _to_text(
-            cells[colmap["subdivision"]]
-            if colmap.get("subdivision") is not None and colmap["subdivision"] < len(cells)
-            else ""
-        ).strip()
-        hierarchy_raw = _to_text(
-            cells[colmap["hierarchy"]] if colmap.get("hierarchy") is not None and colmap["hierarchy"] < len(cells) else ""
-        ).strip()
-
-        dq_raw = _to_text(
-            cells[colmap["design_quantity"]]
-            if colmap.get("design_quantity") is not None and colmap["design_quantity"] < len(cells)
-            else ""
-        ).strip()
-        up_raw = _to_text(
-            cells[colmap["unit_price"]]
-            if colmap.get("unit_price") is not None and colmap["unit_price"] < len(cells)
-            else ""
-        ).strip()
-        aq_raw = _to_text(
-            cells[colmap["approved_quantity"]]
-            if colmap.get("approved_quantity") is not None and colmap["approved_quantity"] < len(cells)
-            else ""
-        ).strip()
-        aa_raw = _to_text(
-            cells[colmap["approved_amount"]]
-            if colmap.get("approved_amount") is not None and colmap["approved_amount"] < len(cells)
-            else ""
-        ).strip()
-
-        design_quantity = _round4(_to_float(dq_raw))
-        unit_price = _round4(_to_float(up_raw))
-        approved_quantity = _round4(_to_float(aq_raw))
-        approved_amount = _round4(_to_float(aa_raw))
-        approved_quantity, used_amount = _fallback_approved_quantity(
-            item_no=item_no,
-            unit=unit,
-            approved_quantity=approved_quantity,
-            approved_amount=approved_amount,
-            design_quantity=design_quantity,
-            unit_price=unit_price,
-        )
-        if used_amount:
-            aq_raw = aa_raw
-            if not unit:
-                unit = "总额"
-
-        remark = _to_text(
-            cells[colmap["remark"]] if colmap.get("remark") is not None and colmap["remark"] < len(cells) else ""
-        ).strip()
-
-        if leaf_only and design_quantity is None and approved_quantity is None:
-            continue
-
-        out.append(
-            BoqItem(
-                item_no=item_no,
-                name=name,
-                unit=unit,
-                division=division,
-                subdivision=subdivision,
-                hierarchy_raw=hierarchy_raw,
-                design_quantity=design_quantity,
-                design_quantity_raw=dq_raw,
-                unit_price=unit_price,
-                unit_price_raw=up_raw,
-                approved_quantity=approved_quantity,
-                approved_quantity_raw=aq_raw,
-                remark=remark,
-                row_index=row_idx + 1,
-                sheet_name=sheet_name,
-            )
-        )
+        if item is not None:
+            out.append(item)
     return out
+
+
+def _cell_text(cells: list[Any], colmap: dict[str, int], key: str) -> str:
+    idx = colmap.get(key)
+    if idx is None or idx >= len(cells):
+        return ""
+    return _to_text(cells[idx]).strip()
+
+
+def _parse_boq_row(
+    *,
+    cells: list[Any],
+    colmap: dict[str, int],
+    row_index: int,
+    sheet_name: str,
+    leaf_only: bool,
+) -> BoqItem | None:
+    item_no_raw = _cell_text(cells, colmap, "item_no")
+    item_no = _normalize_item_no(item_no_raw)
+    if not item_no or not ITEM_NO_PATTERN.match(item_no):
+        return None
+
+    name = _cell_text(cells, colmap, "name")
+    unit = _normalize_unit(_cell_text(cells, colmap, "unit"))
+    division = _cell_text(cells, colmap, "division")
+    subdivision = _cell_text(cells, colmap, "subdivision")
+    hierarchy_raw = _cell_text(cells, colmap, "hierarchy")
+
+    dq_raw = _cell_text(cells, colmap, "design_quantity")
+    up_raw = _cell_text(cells, colmap, "unit_price")
+    aq_raw = _cell_text(cells, colmap, "approved_quantity")
+    aa_raw = _cell_text(cells, colmap, "approved_amount")
+
+    design_quantity = _round4(_to_float(dq_raw))
+    unit_price = _round4(_to_float(up_raw))
+    approved_quantity = _round4(_to_float(aq_raw))
+    approved_amount = _round4(_to_float(aa_raw))
+    approved_quantity, used_amount = _fallback_approved_quantity(
+        item_no=item_no,
+        unit=unit,
+        approved_quantity=approved_quantity,
+        approved_amount=approved_amount,
+        design_quantity=design_quantity,
+        unit_price=unit_price,
+    )
+    if used_amount:
+        aq_raw = aa_raw
+        if not unit:
+            unit = "总额"
+
+    if leaf_only and design_quantity is None and approved_quantity is None:
+        return None
+
+    return BoqItem(
+        item_no=item_no,
+        name=name,
+        unit=unit,
+        division=division,
+        subdivision=subdivision,
+        hierarchy_raw=hierarchy_raw,
+        design_quantity=design_quantity,
+        design_quantity_raw=dq_raw,
+        unit_price=unit_price,
+        unit_price_raw=up_raw,
+        approved_quantity=approved_quantity,
+        approved_quantity_raw=aq_raw,
+        remark=_cell_text(cells, colmap, "remark"),
+        row_index=row_index,
+        sheet_name=sheet_name,
+    )
 
 def parse_boq_excel(
     xlsx_path: str | Path,

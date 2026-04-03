@@ -6,7 +6,8 @@ from fastapi import APIRouter, Depends
 
 from services.api.dependencies import get_execution_service
 from services.api.domain import ExecutionService
-from services.api.proof_schemas import (
+from services.api.domain.proof.schemas import (
+    ComponentUTXOVerifyBody,
     FrequencyCalcBody,
     LabTestRecordBody,
     OfflineReplayBody,
@@ -122,6 +123,14 @@ async def transfer_triprole_asset(
     execution_service: ExecutionService = Depends(get_execution_service),
 ):
     return await execution_service.transfer_asset(body=body)
+
+
+@router.post("/triprole/component/verify")
+async def verify_triprole_component_utxo(
+    body: ComponentUTXOVerifyBody,
+    execution_service: ExecutionService = Depends(get_execution_service),
+):
+    return await execution_service.verify_component_utxo(body=body)
 
 
 @router.post("/triprole/apply-variation")

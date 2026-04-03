@@ -11,12 +11,43 @@ from services.api.domain.smu.runtime.smu_primitives import (
     to_text as _to_text,
 )
 
+_CANONICAL_STATUS_MAP = {
+    "UNSPENT": "DRAFT",
+    "PENDING": "DRAFT",
+    "REVIEWING": "DRAFT",
+    "INITIAL": "DRAFT",
+    "PRECHECK": "DRAFT",
+    "APPROVED": "CONFIRMED",
+    "CONFIRMED": "CONFIRMED",
+    "PASS": "CONFIRMED",
+    "FROZEN": "FROZEN",
+    "SMU_FROZEN": "FROZEN",
+}
+
+_LEGACY_STATUS_MAP = {
+    "DRAFT": "Reviewing",
+    "CONFIRMED": "Approved",
+    "FROZEN": "Frozen",
+}
+
 
 def smu_id_from_item_code(item_code: str) -> str:
     token = _to_text(item_code).strip().rstrip("/").split("/")[-1]
     if "-" in token:
         return token.split("-")[0]
     return token
+
+
+def canonical_smu_status(status: str) -> str:
+    key = _to_text(status).strip().upper()
+    if key in {"FAIL", "FAILED", "REJECTED", "BLOCKED", "SMU_FREEZE_REJECTED"}:
+        return "DRAFT"
+    return _CANONICAL_STATUS_MAP.get(key, "DRAFT")
+
+
+def legacy_smu_status(status: str) -> str:
+    canonical = canonical_smu_status(status)
+    return _LEGACY_STATUS_MAP.get(canonical, "Reviewing")
 
 
 def is_smu_frozen(*, sb: Any, project_uri: str, smu_id: str) -> dict[str, Any]:
@@ -161,8 +192,10 @@ def mark_smu_scope_immutable(
 
 
 __all__ = [
+    "canonical_smu_status",
     "collect_smu_qualification",
     "is_smu_frozen",
+    "legacy_smu_status",
     "mark_smu_scope_immutable",
     "resolve_smu_leaf_items",
     "smu_id_from_item_code",

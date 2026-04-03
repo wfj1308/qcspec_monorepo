@@ -321,7 +321,6 @@ create table enterprise_configs (
   -- 集成设置
   gitpeg_enabled   boolean default false,     -- GitPeg Proof接入
   erp_enabled      boolean default false,     -- ERP同步
-  wechat_enabled   boolean default true,      -- 微信小程序
   -- 自定义
   custom_fields    jsonb default '{}',
   updated_at       timestamptz default now()

@@ -11,12 +11,15 @@ from services.api.core.http import read_upload_content_sync
 from services.api.domain.smu.flows import (
     execute_smu_trip,
     freeze_smu,
+    get_active_smu_import_job,
     get_governance_context,
+    get_smu_import_job,
     import_genesis_trip,
     list_spu_template_library,
     preview_genesis_tree,
     retry_erpnext_push_queue as retry_erpnext_push_queue_smu,
     sign_smu_approval,
+    start_smu_import_job,
     validate_logic,
 )
 
@@ -150,6 +153,13 @@ def smu_execute_flow(*, body: Any, sb: Client) -> dict[str, Any]:
 
 
 def smu_sign_flow(*, body: Any, sb: Client) -> dict[str, Any]:
+    signer_metadata = dict(body.signer_metadata or {})
+    if bool(getattr(body, "require_sm2", False)):
+        signer_metadata["require_sm2"] = True
+    sm2_signatures = [dict(x) for x in list(getattr(body, "sm2_signatures", []) or []) if isinstance(x, dict)]
+    if sm2_signatures:
+        signer_metadata["sm2_signatures"] = sm2_signatures
+
     return sign_smu_approval(
         sb=sb,
         input_proof_id=str(body.input_proof_id or ""),
@@ -158,7 +168,7 @@ def smu_sign_flow(*, body: Any, sb: Client) -> dict[str, Any]:
         supervisor_did=str(body.supervisor_did or ""),
         contractor_did=str(body.contractor_did or ""),
         owner_did=str(body.owner_did or ""),
-        signer_metadata=dict(body.signer_metadata or {}),
+        signer_metadata=signer_metadata,
         consensus_values=list(body.consensus_values or []),
         allowed_deviation=(float(body.allowed_deviation) if body.allowed_deviation is not None else None),
         allowed_deviation_percent=(

@@ -15,6 +15,7 @@ from typing import Any
 
 from services.api.domain.utxo.integrations import ProofUTXOEngine
 from services.api.domain.execution.triprole_common import (
+    to_text as _to_text,
     utc_iso as _utc_iso,
 )
 from services.api.domain.execution.triprole_lineage import (
@@ -55,6 +56,9 @@ from services.api.domain.execution.triprole_docfinal_master_export import (
 )
 from services.api.domain.execution.triprole_docfinal_package import (
     build_docfinal_package_for_boq as _build_docfinal_package_for_boq_runtime,
+)
+from services.api.domain.execution.triprole_component_utxo import (
+    build_component_utxo_verification as _build_component_utxo_verification_runtime,
 )
 from services.api.domain.execution.triprole_realtime_entry import (
     get_boq_realtime_status as _get_boq_realtime_status_runtime,
@@ -314,6 +318,73 @@ def build_docfinal_package_for_boq(
     )
 
 
+def verify_component_utxo(*, sb: Any, body: Any) -> dict[str, Any]:
+    boq_items_raw = [
+        item.model_dump() if hasattr(item, "model_dump") else dict(item)
+        for item in _as_iterable(getattr(body, "boq_items", []))
+    ]
+    material_inputs_raw = [
+        item.model_dump() if hasattr(item, "model_dump") else dict(item)
+        for item in _as_iterable(getattr(body, "material_inputs", []))
+    ]
+    material_bindings_raw = [
+        item.model_dump() if hasattr(item, "model_dump") else dict(item)
+        for item in _as_iterable(getattr(body, "material_bindings", []))
+    ]
+    component_nodes_raw = [
+        item.model_dump() if hasattr(item, "model_dump") else dict(item)
+        for item in _as_iterable(getattr(body, "component_nodes", []))
+    ]
+    bom_payload = getattr(body, "bom", [])
+    if hasattr(bom_payload, "model_dump"):
+        bom_payload = bom_payload.model_dump()
+    elif isinstance(bom_payload, list):
+        bom_payload = [
+            item.model_dump() if hasattr(item, "model_dump") else dict(item)
+            for item in bom_payload
+            if hasattr(item, "model_dump") or isinstance(item, dict)
+        ]
+    elif not isinstance(bom_payload, (list, dict)):
+        bom_payload = []
+    return _build_component_utxo_verification_runtime(
+        sb=sb,
+        component_id=_to_text(getattr(body, "component_id", "")).strip(),
+        component_uri=_to_text(getattr(body, "component_uri", "")).strip(),
+        kind=_to_text(getattr(body, "kind", "")).strip() or "component",
+        project_uri=_to_text(getattr(body, "project_uri", "")).strip(),
+        boq_items=boq_items_raw,
+        bom=bom_payload,
+        material_bindings=material_bindings_raw,
+        material_inputs=material_inputs_raw,
+        material_input_proof_ids=[
+            _to_text(x).strip()
+            for x in _as_iterable(getattr(body, "material_input_proof_ids", []))
+            if _to_text(x).strip()
+        ],
+        child_components=[
+            _to_text(x).strip()
+            for x in _as_iterable(getattr(body, "child_components", []))
+            if _to_text(x).strip()
+        ],
+        parent_component=_to_text(getattr(body, "parent_component", "")).strip() or None,
+        status=_to_text(getattr(body, "status", "PENDING")).strip() or "PENDING",
+        version=int(getattr(body, "version", 1) or 1),
+        last_trip_id=_to_text(getattr(body, "last_trip_id", "")).strip() or None,
+        last_action=_to_text(getattr(body, "last_action", "")).strip() or None,
+        timestamp=float(getattr(body, "timestamp", 0.0) or 0.0) or None,
+        trip_id=_to_text(getattr(body, "trip_id", "")).strip(),
+        trip_action=_to_text(getattr(body, "trip_action", "")).strip(),
+        trip_executor_uri=_to_text(getattr(body, "trip_executor_uri", "")).strip(),
+        norm_ref=_to_text(getattr(body, "norm_ref", "")).strip(),
+        component_nodes=component_nodes_raw,
+        default_tolerance_ratio=float(getattr(body, "default_tolerance_ratio", 0.05)),
+        render_docpeg=bool(getattr(body, "render_docpeg", True)),
+        verify_base_url=_to_text(getattr(body, "verify_base_url", "")).strip() or "https://verify.qcspec.com",
+        template_path=_to_text(getattr(body, "template_path", "")).strip() or None,
+        include_docx_base64=bool(getattr(body, "include_docx_base64", True)),
+    )
+
+
 def get_boq_realtime_status(
     *,
     sb: Any,
@@ -354,3 +425,7 @@ def export_doc_final(
         utc_iso_fn=_utc_iso,
         encrypt_aes256_fn=_encrypt_aes256,
     )
+
+
+def _as_iterable(value: Any) -> list[Any]:
+    return value if isinstance(value, list) else []

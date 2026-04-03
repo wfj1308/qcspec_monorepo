@@ -11,6 +11,7 @@ from services.api.domain.smu.runtime.smu_primitives import (
     to_float as _to_float,
     to_text as _to_text,
 )
+from services.api.domain.smu.runtime.smu_state_helpers import canonical_smu_status, legacy_smu_status
 from services.api.domain.smu.runtime.smu_trip_helpers import (
     build_quality_payload,
     collect_qc_values,
@@ -127,6 +128,8 @@ def build_governance_context_response(
     container_boq_item_uri: str,
     container_smu_id: str,
 ) -> dict[str, Any]:
+    canonical_status = canonical_smu_status(container_status)
+    legacy_status = legacy_smu_status(container_status)
     return {
         "ok": True,
         "phase": "Governance & QCGate",
@@ -140,7 +143,8 @@ def build_governance_context_response(
             "input_proof_id": _to_text(row.get("proof_id") or "").strip(),
         },
         "container": {
-            "status": container_status,
+            "status": canonical_status,
+            "status_legacy": legacy_status,
             "stage": container_stage,
             "boq_item_uri": container_boq_item_uri,
             "smu_id": container_smu_id,
@@ -236,6 +240,8 @@ def build_execute_trip_response(
     snappeg_hash: str,
     formula_validation: dict[str, Any],
 ) -> dict[str, Any]:
+    canonical_status = canonical_smu_status("Reviewing")
+    legacy_status = legacy_smu_status("Reviewing")
     return {
         "ok": True,
         "phase": "Execution & SnapPeg",
@@ -253,7 +259,8 @@ def build_execute_trip_response(
             "force_reject": bool(force_reject),
         },
         "container": {
-            "status": "Reviewing",
+            "status": canonical_status,
+            "status_legacy": legacy_status,
             "stage": "Execution & SnapPeg",
             "boq_item_uri": item_uri,
             "smu_id": smu_id,
@@ -274,7 +281,10 @@ def build_sign_approval_response(
     item_uri: str,
     input_smu_id: str,
     docpeg: dict[str, Any],
+    sm2_summary: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
+    canonical_status = canonical_smu_status("Approved")
+    legacy_status = legacy_smu_status("Approved")
     return {
         "ok": True,
         "phase": "OrdoSign & DID",
@@ -291,12 +301,14 @@ def build_sign_approval_response(
             "total_proof_hash": lineage_total_hash,
         },
         "container": {
-            "status": "Approved",
+            "status": canonical_status,
+            "status_legacy": legacy_status,
             "stage": "OrdoSign & DID",
             "boq_item_uri": item_uri,
             "smu_id": input_smu_id,
         },
         "docpeg": docpeg,
+        "sm2": _as_dict(sm2_summary),
         "raw": settle,
     }
 

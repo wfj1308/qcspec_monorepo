@@ -6,7 +6,7 @@ from fastapi import Depends
 
 from services.api.dependencies import require_auth_identity
 
-from . import auth, autoreg, boq, documents, erpnext, execution, inspections, intelligence, photos, projects, proof, reports, settlement, settings, smu, specification, team, trip_mock, utxo, verify
+from . import auth, autoreg, boq, documents, erpnext, execution, finance, inspections, intelligence, photos, projects, proof, reporting, settings, smu, specification, team, trip_mock, utxo, verify
 
 AUTH_DEP = [Depends(require_auth_identity)]
 
@@ -18,8 +18,8 @@ ROUTER_REGISTRY = [
     {"router": photos.router, "prefix": "/v1/photos", "tags": ["photos"], "dependencies": AUTH_DEP},
     {"router": documents.router, "prefix": "/v1/proof", "tags": ["documents"], "dependencies": AUTH_DEP},
     {"router": boq.router, "prefix": "/v1/proof", "tags": ["boq"], "dependencies": AUTH_DEP},
-    {"router": reports.router, "prefix": "/v1/reports", "tags": ["reports"], "dependencies": AUTH_DEP},
-    {"router": reports.router, "prefix": "/api/reports", "tags": ["reports-api"], "dependencies": AUTH_DEP},
+    {"router": reporting.router, "prefix": "/v1/reports", "tags": ["reporting"], "dependencies": AUTH_DEP},
+    {"router": reporting.router, "prefix": "/api/reports", "tags": ["reporting-api"], "dependencies": AUTH_DEP},
     {"router": trip_mock.router, "prefix": "/api/trip", "tags": ["trip-api"], "dependencies": AUTH_DEP},
     {"router": verify.router, "prefix": "/v1/verify", "tags": ["verify"], "dependencies": AUTH_DEP},
     {"router": verify.public_router, "prefix": "/api/verify", "tags": ["verify-public"]},
@@ -29,7 +29,7 @@ ROUTER_REGISTRY = [
     {"router": smu.router, "prefix": "/v1/proof", "tags": ["smu"], "dependencies": AUTH_DEP},
     {"router": execution.router, "prefix": "/v1/proof", "tags": ["execution"], "dependencies": AUTH_DEP},
     {"router": intelligence.router, "prefix": "/v1/proof", "tags": ["intelligence"], "dependencies": AUTH_DEP},
-    {"router": settlement.router, "prefix": "/v1/proof", "tags": ["settlement"], "dependencies": AUTH_DEP},
+    {"router": finance.router, "prefix": "/v1/proof", "tags": ["finance"], "dependencies": AUTH_DEP},
     {"router": specification.router, "prefix": "/v1/proof", "tags": ["specification"], "dependencies": AUTH_DEP},
     {"router": proof.public_router, "prefix": "/v1/proof", "tags": ["proof-public"]},
     {"router": smu.public_router, "prefix": "/v1/proof", "tags": ["smu-public"]},

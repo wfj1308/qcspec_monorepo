@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, File, Form, UploadFile
 
 from services.api.dependencies import get_document_governance_service
 from services.api.domain import DocumentGovernanceService
-from services.api.proof_schemas import DocAutoClassifyBody, DocNodeAutoGenerateBody, DocNodeCreateBody, DocSearchBody
+from services.api.domain.proof.schemas import DocAutoClassifyBody, DocNodeAutoGenerateBody, DocNodeCreateBody, DocSearchBody
 
 router = APIRouter()
 

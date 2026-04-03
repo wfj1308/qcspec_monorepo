@@ -157,6 +157,8 @@ export function useProofSmu(request: ApiRequestFn) {
     contractor_did: string
     owner_did: string
     signer_metadata?: Record<string, unknown>
+    require_sm2?: boolean
+    sm2_signatures?: Array<Record<string, unknown>>
     consensus_values?: Array<Record<string, unknown>>
     allowed_deviation?: number
     allowed_deviation_percent?: number

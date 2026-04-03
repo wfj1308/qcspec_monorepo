@@ -71,9 +71,18 @@ API 文档地址：`http://localhost:8000/docs`
 npm run lint
 npm run build
 npm run test
+npm run test:component-utxo:gate
+npm run acceptance:component-utxo:demo
 ```
 
 > 说明：部分 workspace 目前为 `skip` 脚本（占位护栏），后续会逐步替换为真实测试与静态检查。
+
+### ComponentUTXO 门禁
+
+- 本地门禁：`npm run test:component-utxo:gate`
+- 离线验收 Demo：`npm run acceptance:component-utxo:demo`
+- 门禁脚本：`tools/acceptance/component_utxo_gate.py`
+- GitHub Actions（可选）：`.github/workflows/component-utxo-gate.yml`
 
 ## 核心接口前缀
 

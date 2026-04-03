@@ -1,1 +1,1 @@
-export * from './workbench/useSovereignWorkbenchInputState'
+export * from './workbench/state/useSovereignWorkbenchInputState'

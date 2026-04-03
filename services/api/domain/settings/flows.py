@@ -34,7 +34,6 @@ ENTERPRISE_UPDATE_FIELD_MAP = {
 
 SETTINGS_UPDATE_FIELD_MAP = {
     "emailNotify": "notify_daily",
-    "wechatNotify": "wechat_enabled",
     "reportTemplate": "report_template",
 }
 
@@ -46,7 +45,6 @@ CUSTOM_PASSTHROUGH_FIELD_MAP = {
     "gitpegToken": "gitpeg_token",
     "gitpegEnabled": "gitpeg_enabled",
     "erpnextSync": "erpnext_sync",
-    "wechatMiniapp": "wechat_miniapp",
     "droneImport": "drone_import",
 }
 
@@ -173,7 +171,6 @@ def _to_payload(cfg: dict, ent: dict) -> dict:
         },
         "settings": {
             "emailNotify": bool(cfg.get("notify_daily", True)),
-            "wechatNotify": bool(cfg.get("wechat_enabled", True)),
             "autoGenerateReport": bool(custom.get("auto_generate_report", False)),
             "strictProof": bool(custom.get("strict_proof", True)),
             "reportTemplate": cfg.get("report_template") or "default.docx",
@@ -223,7 +220,6 @@ def _to_payload(cfg: dict, ent: dict) -> dict:
             "erpnextGitpegProofHashField": custom.get("erpnext_gitpeg_proof_hash_field") or "gitpeg_proof_hash",
             "erpnextGitpegIndustryProfileIdField": custom.get("erpnext_gitpeg_industry_profile_id_field")
             or "gitpeg_industry_profile_id",
-            "wechatMiniapp": bool(custom.get("wechat_miniapp", True)),
             "droneImport": bool(custom.get("drone_import", False)),
             "permissionMatrix": matrix,
         },

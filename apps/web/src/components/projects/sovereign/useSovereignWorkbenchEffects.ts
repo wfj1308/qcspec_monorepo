@@ -1,1 +1,1 @@
-export * from './workbench/useSovereignWorkbenchEffects'
+export * from './workbench/effects/useSovereignWorkbenchEffects'

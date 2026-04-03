@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, UploadFile, File, Form
 
 from services.api.dependencies import get_settings_service
 from services.api.domain import SettingsService
-from services.api.settings_schemas import (
+from services.api.domain.settings.schemas import (
     ErpNextTestRequest,
     GitPegRegistrarTestRequest,
     SettingsUpdate,

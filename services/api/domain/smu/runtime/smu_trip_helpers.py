@@ -4,16 +4,18 @@ from __future__ import annotations
 
 import hashlib
 import re
-from typing import Any
+from typing import Any, Callable
 
 from fastapi import HTTPException
 from services.api.domain.execution.flows import execute_triprole_action
+from services.api.domain.smu.runtime.smu_crypto_helpers import attach_sm2_signatures
 from services.api.domain.smu.runtime.smu_primitives import (
     as_dict as _as_dict,
     as_list as _as_list,
     to_float as _to_float,
     to_text as _to_text,
 )
+from services.api.domain.smu.runtime.smu_state_helpers import canonical_smu_status, legacy_smu_status
 
 
 def collect_qc_values(measurement_data: dict[str, Any]) -> list[float]:
@@ -118,9 +120,12 @@ def build_approval_payload(
     allowed_deviation: float | None,
     allowed_deviation_percent: float | None,
 ) -> dict[str, Any]:
+    canonical_target = canonical_smu_status("Approved")
+    legacy_target = legacy_smu_status("Approved")
     payload: dict[str, Any] = {
         "approved_from": "SMU_APPROVAL_PANEL",
-        "status_target": "Approved",
+        "status_target": canonical_target,
+        "status_target_legacy": legacy_target,
     }
     if consensus_values:
         payload["consensus_values"] = consensus_values
@@ -142,7 +147,10 @@ def build_sign_inputs(
     consensus_values: list[dict[str, Any]] | None,
     allowed_deviation: float | None,
     allowed_deviation_percent: float | None,
+    sm2_verifier: Callable[[str, str, str], bool] | None = None,
 ) -> dict[str, Any]:
+    normalized_metadata = _as_dict(signer_metadata)
+    strict_sm2 = bool(normalized_metadata.get("require_sm2"))
     signatures = build_signatures(
         input_proof_id=in_id,
         now_iso=now_iso,
@@ -150,13 +158,27 @@ def build_sign_inputs(
         supervisor_did=supervisor_did,
         owner_did=owner_did,
     )
+    signatures = attach_sm2_signatures(
+        signatures=signatures,
+        sm2_entries=normalized_metadata.get("sm2_signatures"),
+        input_proof_id=in_id,
+        now_iso=now_iso,
+        strict=strict_sm2,
+        verifier=sm2_verifier,
+    )
     biometric = resolve_signer_metadata(
-        signer_metadata=signer_metadata,
+        signer_metadata=normalized_metadata,
         now_iso=now_iso,
         contractor_did=contractor_did,
         supervisor_did=supervisor_did,
         owner_did=owner_did,
     )
+    biometric["sm2_required"] = strict_sm2
+    biometric["sm2_attached_roles"] = [
+        _to_text(sig.get("role") or "").strip()
+        for sig in signatures
+        if _to_text(sig.get("sm2_verify_mode") or "").strip() != "not_provided"
+    ]
     approval_payload = build_approval_payload(
         consensus_values=consensus_values,
         allowed_deviation=allowed_deviation,

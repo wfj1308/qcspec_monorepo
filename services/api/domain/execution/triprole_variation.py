@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import uuid
 from typing import Any
 
 from fastapi import HTTPException
@@ -31,6 +32,10 @@ from services.api.domain.execution.triprole_lineage import _is_leaf_boq_row
 from services.api.domain.execution.triprole_offline import _resolve_existing_offline_result
 from services.api.domain.execution.triprole_shadow import _build_shadow_packet
 from services.api.domain.execution.triprole_writeback import _patch_state_data_fields
+from services.api.domain.utxo.common import (
+    gen_tx_id as _gen_tx_id,
+    ordosign as _ordosign,
+)
 
 
 def apply_variation(
@@ -141,7 +146,7 @@ def apply_variation(
     variation_entry = {
         "delta_amount": merge["delta_amount"],
         "reason": _to_text(reason).strip() or "variation_instruction",
-        "mode": "delta_utxo_merge",
+        "mode": "delta_utxo_fork",
         "applied_at": now_iso,
         "executor_uri": _to_text(executor_uri).strip(),
         "source_input_proof_id": input_proof_id,
@@ -170,11 +175,13 @@ def apply_variation(
             "delta_utxo": {
                 "delta_amount": merge["delta_amount"],
                 "reason": variation_entry["reason"],
-                "merge_strategy": "genesis_plus_delta_minus_transferred",
+                "merge_strategy": "fork_delta_then_aggregate",
+                "parent_proof_id": input_proof_id,
                 "merged_total_before": merge["merged_total_before"],
                 "merged_total_after": merge["merged_total_after"],
                 "previous_balance": merge["previous_balance"],
                 "balance_after": merge["balance_after"],
+                "approved_total_with_deltas": merge["merged_total_after"],
             },
             "variation_history": variation_history,
             "did_gate": did_gate,
@@ -197,26 +204,34 @@ def apply_variation(
     )
 
     engine = ProofUTXOEngine(sb)
-    tx = engine.consume(
-        input_proof_ids=[input_proof_id],
-        output_states=[
-            {
-                "owner_uri": _to_text(input_row.get("owner_uri") or executor_uri).strip(),
-                "project_id": input_row.get("project_id"),
-                "project_uri": _to_text(input_row.get("project_uri") or "").strip(),
-                "segment_uri": _to_text(input_row.get("segment_uri") or normalized_boq_item_uri).strip(),
-                "proof_type": "archive",
-                "result": "PASS",
-                "state_data": next_state,
-                "conditions": _as_list(input_row.get("conditions")),
-                "parent_proof_id": input_proof_id,
-                "norm_uri": _to_text(input_row.get("norm_uri") or input_sd.get("norm_uri") or None) or None,
-            }
-        ],
-        executor_uri=_to_text(executor_uri).strip(),
-        executor_role=_to_text(executor_role).strip() or "TRIPROLE",
-        trigger_action="TripRole.apply_variation",
-        trigger_data={
+    output_id = f"GP-PROOF-{uuid.uuid4().hex[:16].upper()}"
+    created = engine.create(
+        proof_id=output_id,
+        owner_uri=_to_text(input_row.get("owner_uri") or executor_uri).strip(),
+        project_id=input_row.get("project_id"),
+        project_uri=_to_text(input_row.get("project_uri") or "").strip(),
+        segment_uri=_to_text(input_row.get("segment_uri") or normalized_boq_item_uri).strip(),
+        proof_type="archive",
+        result="PASS",
+        state_data=next_state,
+        conditions=_as_list(input_row.get("conditions")),
+        parent_proof_id=input_proof_id,
+        norm_uri=_to_text(input_row.get("norm_uri") or input_sd.get("norm_uri") or None) or None,
+        signer_uri=_to_text(executor_uri).strip(),
+        signer_role=_to_text(executor_role).strip() or "TRIPROLE",
+        created_at=now_iso,
+    )
+    output_id = _to_text(created.get("proof_id") or output_id).strip()
+    output_row = engine.get_by_id(output_id) if output_id else None
+
+    tx = {
+        "tx_id": _gen_tx_id(),
+        "tx_type": "fork",
+        "tx_semantics": "fork_delta_utxo",
+        "input_proofs": [input_proof_id],
+        "output_proofs": [output_id] if output_id else [],
+        "trigger_action": "TripRole.apply_variation.fork",
+        "trigger_data": {
             "boq_item_uri": normalized_boq_item_uri,
             "delta_amount": merge["delta_amount"],
             "reason": variation_entry["reason"],
@@ -227,12 +242,33 @@ def apply_variation(
             "spatiotemporal_anchor_hash": anchor.get("spatiotemporal_anchor_hash"),
             "offline_packet_id": normalized_offline_packet_id,
         },
-        tx_type="merge",
-    )
-
-    output_ids = [_to_text(x).strip() for x in _as_list(tx.get("output_proofs")) if _to_text(x).strip()]
-    output_id = output_ids[0] if output_ids else ""
-    output_row = engine.get_by_id(output_id) if output_id else None
+        "executor_uri": _to_text(executor_uri).strip(),
+        "ordosign_hash": "",
+        "status": "success",
+        "error_msg": None,
+        "created_at": now_iso,
+    }
+    tx["ordosign_hash"] = _ordosign(_to_text(tx.get("tx_id") or "").strip(), _to_text(executor_uri).strip())
+    try:
+        sb.table("proof_transaction").insert(
+            {
+                "tx_id": tx["tx_id"],
+                "tx_type": tx["tx_type"],
+                "input_proofs": tx["input_proofs"],
+                "output_proofs": tx["output_proofs"],
+                "trigger_action": tx["trigger_action"],
+                "trigger_data": tx["trigger_data"],
+                "executor_uri": tx["executor_uri"],
+                "ordosign_hash": tx["ordosign_hash"],
+                "status": tx["status"],
+                "error_msg": tx["error_msg"],
+                "created_at": tx["created_at"],
+            }
+        ).execute()
+    except Exception:
+        tx["persisted"] = False
+    else:
+        tx["persisted"] = True
     credit_endorsement: dict[str, Any] = {}
     mirror_sync: dict[str, Any] = {}
     if isinstance(output_row, dict):
@@ -278,6 +314,7 @@ def apply_variation(
         "delta_amount": merge["delta_amount"],
         "merged_total_after": merge["merged_total_after"],
         "available_balance": merge["balance_after"],
+        "variation_mode": "fork_delta_utxo",
         "did_gate": did_gate,
         "credit_endorsement": credit_endorsement,
         "mirror_sync": mirror_sync,

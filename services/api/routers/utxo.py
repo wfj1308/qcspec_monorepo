@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends
 
 from services.api.dependencies import get_utxo_application_service
 from services.api.domain import UTXOService
-from services.api.proof_schemas import UTXOAutoSettleBody, UTXOConsumeBody, UTXOCreateBody
+from services.api.domain.proof.schemas import UTXOAutoSettleBody, UTXOConsumeBody, UTXOCreateBody
 
 router = APIRouter()
 

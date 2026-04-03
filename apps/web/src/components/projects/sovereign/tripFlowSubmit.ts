@@ -39,6 +39,19 @@ type RunTripSubmitArgs = {
   smuExecute: (payload: Record<string, unknown>) => Promise<unknown>
 }
 
+
+function toFiniteNumber(value: string): number | null {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : null
+}
+
+function buildGeoLocation(lat: string, lng: string): Record<string, number> {
+  const latNumber = toFiniteNumber(lat)
+  const lngNumber = toFiniteNumber(lng)
+  if (latNumber === null || lngNumber === null) return {}
+  return { lat: latNumber, lng: lngNumber }
+}
+
 export async function runTripSubmit({
   active,
   apiProjectUri,
@@ -106,6 +119,7 @@ export async function runTripSubmit({
   setExecuting(true)
   try {
     const now = new Date().toISOString()
+    const geoLocation = buildGeoLocation(lat, lng)
     let payload: Record<string, unknown> | null = null
     try {
       payload = await smuExecute({
@@ -116,7 +130,7 @@ export async function runTripSubmit({
         executor_role: 'TRIPROLE',
         component_type: compType,
         measurement,
-        geo_location: { lat: Number(lat), lng: Number(lng) },
+        geo_location: geoLocation,
         server_timestamp_proof: { ntp_server: 'pool.ntp.org', captured_at: now, proof_hash: `ntp-${now}` },
         evidence_hashes: evidence.map((item) => item.hash),
       }) as Record<string, unknown> | null

@@ -21,11 +21,6 @@ def test_api_root_python_files_stay_thin_allowlist() -> None:
     allowed = {
         "dependencies.py",
         "main.py",
-        "projects_schemas.py",
-        "proof_schemas.py",
-        "proof_utxo_engine.py",
-        "settings_schemas.py",
-        "triprole_engine.py",
     }
 
     unexpected = sorted(current - allowed)

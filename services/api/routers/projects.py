@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, Request
 
 from services.api.dependencies import get_projects_service
 from services.api.domain import ProjectsService
-from services.api.projects_schemas import ProjectAutoregSyncRequest, ProjectCreate, ProjectGitPegCompleteRequest
+from services.api.domain.projects.schemas import ProjectAutoregSyncRequest, ProjectCreate, ProjectGitPegCompleteRequest
 
 router = APIRouter()
 public_router = APIRouter()
