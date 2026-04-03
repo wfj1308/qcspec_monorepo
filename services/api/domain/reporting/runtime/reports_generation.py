@@ -20,7 +20,7 @@ from typing import Any, Optional
 
 from fastapi import HTTPException
 from postgrest.exceptions import APIError
-from supabase import Client
+from supabase import Client, create_client
 
 from services.api.infrastructure.document.engine import DocxEngine
 from services.api.domain.reporting.runtime.reports_eval import (
@@ -254,7 +254,11 @@ def _generate_report_task(
 ):
     """Background task: aggregate data and create report row + proof record."""
     try:
-        sb = _supabase_client_cached(str(supabase_url or "").strip(), str(supabase_key or "").strip())
+        url = str(supabase_url or "").strip()
+        key = str(supabase_key or "").strip()
+        if not url or not key:
+            raise RuntimeError("supabase not configured for background report generation")
+        sb = create_client(url, key)
         inspected_from = _normalize_dt(date_from, end_of_day=False)
         inspected_to = _normalize_dt(date_to, end_of_day=True)
 
