@@ -26,10 +26,10 @@ from services.api.domain.execution.geo.triprole_geo_sensor import (
 from services.api.domain.execution.scan.triprole_scan import (
     validate_scan_confirm_payload as _validate_scan_confirm_payload,
 )
-from services.api.domain.execution.triprole_shadow import (
+from services.api.domain.execution.asset.triprole_shadow import (
     _build_shadow_packet,
 )
-from services.api.domain.execution.triprole_writeback import (
+from services.api.domain.execution.asset.triprole_writeback import (
     _patch_state_data_fields,
 )
 from services.api.domain.execution.integrations import (

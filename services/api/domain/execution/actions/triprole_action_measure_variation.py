@@ -6,7 +6,7 @@ from typing import Any, Callable
 
 from fastapi import HTTPException
 
-from services.api.domain.execution.triprole_asset import (
+from services.api.domain.execution.asset.triprole_asset import (
     _compute_delta_merge,
     _extract_variation_delta_amount,
 )

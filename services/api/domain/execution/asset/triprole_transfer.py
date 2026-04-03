@@ -6,7 +6,7 @@ from typing import Any
 
 from fastapi import HTTPException
 
-from services.api.domain.execution.triprole_asset import (
+from services.api.domain.execution.asset.triprole_asset import (
     _resolve_ledger_balance,
     _resolve_transfer_input_row,
 )

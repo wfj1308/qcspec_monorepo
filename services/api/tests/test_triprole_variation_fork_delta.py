@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from services.api.domain.execution import triprole_variation as variation_mod
+from services.api.domain.execution.asset import triprole_variation as variation_mod
 
 
 class _FakeEngine:

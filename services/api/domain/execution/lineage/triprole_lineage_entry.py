@@ -8,7 +8,7 @@ from services.api.domain.execution.integrations import (
     ProofUTXOEngine,
     get_proof_chain,
 )
-from services.api.domain.execution.triprole_asset import (
+from services.api.domain.execution.asset.triprole_asset import (
     _resolve_latest_boq_row,
 )
 from services.api.domain.execution.lineage.triprole_asset_origin import (

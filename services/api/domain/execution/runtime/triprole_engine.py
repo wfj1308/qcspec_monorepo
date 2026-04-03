@@ -30,13 +30,13 @@ from services.api.domain.execution.lineage.triprole_lineage_entry import (
 from services.api.domain.execution.offline.triprole_offline_entry import (
     replay_offline_packets as _replay_offline_packets_runtime,
 )
-from services.api.domain.execution.triprole_transfer import (
+from services.api.domain.execution.asset.triprole_transfer import (
     transfer_asset as _transfer_asset,
 )
-from services.api.domain.execution.triprole_ingest import (
+from services.api.domain.execution.asset.triprole_ingest import (
     ingest_sensor_data as _ingest_sensor_data,
 )
-from services.api.domain.execution.triprole_variation import (
+from services.api.domain.execution.asset.triprole_variation import (
     apply_variation as _apply_variation,
 )
 from services.api.domain.execution.actions.triprole_action_entry import (

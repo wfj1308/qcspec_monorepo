@@ -14,7 +14,7 @@ from services.api.domain.execution.integrations import (
     sync_to_mirrors,
     verify_credential,
 )
-from services.api.domain.execution.triprole_asset import (
+from services.api.domain.execution.asset.triprole_asset import (
     _compute_delta_merge,
     _resolve_transfer_input_row,
 )
@@ -30,8 +30,8 @@ from services.api.domain.execution.geo.triprole_geo_sensor import (
 )
 from services.api.domain.execution.lineage.triprole_lineage import _is_leaf_boq_row
 from services.api.domain.execution.offline.triprole_offline import _resolve_existing_offline_result
-from services.api.domain.execution.triprole_shadow import _build_shadow_packet
-from services.api.domain.execution.triprole_writeback import _patch_state_data_fields
+from services.api.domain.execution.asset.triprole_shadow import _build_shadow_packet
+from services.api.domain.execution.asset.triprole_writeback import _patch_state_data_fields
 from services.api.domain.utxo.common import (
     gen_tx_id as _gen_tx_id,
     ordosign as _ordosign,

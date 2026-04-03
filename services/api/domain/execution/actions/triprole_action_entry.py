@@ -67,10 +67,10 @@ from services.api.domain.execution.actions.triprole_dispute import (
 from services.api.domain.execution.offline.triprole_offline import (
     _resolve_existing_offline_result,
 )
-from services.api.domain.execution.triprole_shadow import (
+from services.api.domain.execution.asset.triprole_shadow import (
     _build_shadow_packet,
 )
-from services.api.domain.execution.triprole_writeback import (
+from services.api.domain.execution.asset.triprole_writeback import (
     _patch_state_data_fields,
     update_chain_with_result,
 )
