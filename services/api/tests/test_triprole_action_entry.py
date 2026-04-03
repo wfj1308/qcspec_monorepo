@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from services.api.domain.execution import triprole_action_entry as entry
+from services.api.domain.execution.actions import triprole_action_entry as entry
 
 
 def test_execute_triprole_action_entry_delegates_to_execute_flow(monkeypatch) -> None:

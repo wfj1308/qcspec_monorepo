@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from services.api.domain.execution import triprole_lineage_entry as entry
+from services.api.domain.execution.lineage import triprole_lineage_entry as entry
 
 
 class _FakeEngine:

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from services.api.domain.execution.triprole_full_lineage import build_full_lineage
+from services.api.domain.execution.lineage.triprole_full_lineage import build_full_lineage
 
 
 def test_build_full_lineage_filters_by_project_and_deduplicates() -> None:

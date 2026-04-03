@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 from fastapi import HTTPException
 
-from services.api.domain.execution.triprole_action_context import build_triprole_action_context
+from services.api.domain.execution.actions.triprole_action_context import build_triprole_action_context
 
 
 def test_build_triprole_action_context_success() -> None:

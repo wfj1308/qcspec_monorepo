@@ -5,7 +5,7 @@ import hashlib
 import pytest
 from fastapi import HTTPException
 
-from services.api.domain.execution.triprole_docfinal_finalize import finalize_master_docfinal
+from services.api.domain.execution.docfinal.triprole_docfinal_finalize import finalize_master_docfinal
 
 
 def test_finalize_master_docfinal_raises_for_empty_bytes() -> None:

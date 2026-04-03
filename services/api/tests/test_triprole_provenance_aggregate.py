@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 from fastapi import HTTPException
 
-from services.api.domain.execution.triprole_provenance_aggregate import (
+from services.api.domain.execution.lineage.triprole_provenance_aggregate import (
     build_provenance_aggregate,
 )
 

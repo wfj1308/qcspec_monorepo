@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from services.api.domain.execution.triprole_action_dispatch import dispatch_triprole_transition
+from services.api.domain.execution.actions.triprole_action_dispatch import dispatch_triprole_transition
 
 
 def _base_kwargs() -> dict[str, object]:

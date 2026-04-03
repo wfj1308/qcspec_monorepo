@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from services.api.domain.execution import triprole_docfinal_audit as audit
+from services.api.domain.execution.docfinal import triprole_docfinal_audit as audit
 
 
 def test_compute_docfinal_risk_audit_happy_path(monkeypatch) -> None:

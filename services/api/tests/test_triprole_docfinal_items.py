@@ -3,7 +3,7 @@ from __future__ import annotations
 import io
 import zipfile
 
-from services.api.domain.execution.triprole_docfinal_items import export_docfinal_item_to_master
+from services.api.domain.execution.docfinal.triprole_docfinal_items import export_docfinal_item_to_master
 
 
 def _zip_bytes(files: dict[str, bytes]) -> bytes:

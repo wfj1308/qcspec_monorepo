@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 from fastapi import HTTPException
 
-from services.api.domain.execution.triprole_action_validate import validate_transition
+from services.api.domain.execution.actions.triprole_action_validate import validate_transition
 
 
 def test_validate_transition_rejects_spent_input() -> None:

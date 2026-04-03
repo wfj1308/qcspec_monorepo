@@ -3,7 +3,7 @@ from __future__ import annotations
 import base64
 import hashlib
 
-from services.api.domain.execution.triprole_docfinal import (
+from services.api.domain.execution.docfinal.triprole_docfinal import (
     apply_hierarchy_asset_filter,
     build_recursive_hierarchy_summary,
     encrypt_aes256,

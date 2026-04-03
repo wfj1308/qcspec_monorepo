@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from services.api.domain.execution import triprole_offline_entry as offline_entry
-from services.api.domain.execution import triprole_realtime_entry as realtime_entry
-from services.api.domain.execution import triprole_scan_confirm_entry as scan_entry
+from services.api.domain.execution.offline import triprole_offline_entry as offline_entry
+from services.api.domain.execution.realtime import triprole_realtime_entry as realtime_entry
+from services.api.domain.execution.scan import triprole_scan_confirm_entry as scan_entry
 
 
 def test_offline_entry_wires_default_replay_packet_fn(monkeypatch) -> None:

@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 from fastapi import HTTPException
 
-from services.api.domain.execution.triprole_action_measure_variation import (
+from services.api.domain.execution.actions.triprole_action_measure_variation import (
     apply_measure_record_transition,
     apply_variation_record_transition,
 )

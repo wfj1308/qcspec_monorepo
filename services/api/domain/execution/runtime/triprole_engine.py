@@ -18,16 +18,16 @@ from services.api.domain.execution.triprole_common import (
     to_text as _to_text,
     utc_iso as _utc_iso,
 )
-from services.api.domain.execution.triprole_lineage import (
+from services.api.domain.execution.lineage.triprole_lineage import (
     _item_no_from_boq_uri,
     _smu_id_from_item_no,
 )
-from services.api.domain.execution.triprole_lineage_entry import (
+from services.api.domain.execution.lineage.triprole_lineage_entry import (
     aggregate_provenance_chain as _aggregate_provenance_chain_runtime,
     get_full_lineage as _get_full_lineage_runtime,
     trace_asset_origin as _trace_asset_origin_runtime,
 )
-from services.api.domain.execution.triprole_offline_entry import (
+from services.api.domain.execution.offline.triprole_offline_entry import (
     replay_offline_packets as _replay_offline_packets_runtime,
 )
 from services.api.domain.execution.triprole_transfer import (
@@ -39,28 +39,28 @@ from services.api.domain.execution.triprole_ingest import (
 from services.api.domain.execution.triprole_variation import (
     apply_variation as _apply_variation,
 )
-from services.api.domain.execution.triprole_action_entry import (
+from services.api.domain.execution.actions.triprole_action_entry import (
     execute_triprole_action as _execute_triprole_action_runtime,
 )
-from services.api.domain.execution.triprole_scan_confirm_entry import (
+from services.api.domain.execution.scan.triprole_scan_confirm_entry import (
     scan_to_confirm_signature as _scan_to_confirm_signature_runtime,
 )
-from services.api.domain.execution.triprole_docfinal import (
+from services.api.domain.execution.docfinal.triprole_docfinal import (
     encrypt_aes256 as _encrypt_aes256,
 )
-from services.api.domain.execution.triprole_docfinal_export import (
+from services.api.domain.execution.docfinal.triprole_docfinal_export import (
     export_doc_final_archive as _export_doc_final_archive,
 )
-from services.api.domain.execution.triprole_docfinal_master_export import (
+from services.api.domain.execution.docfinal.triprole_docfinal_master_export import (
     export_doc_final as _export_doc_final_runtime,
 )
-from services.api.domain.execution.triprole_docfinal_package import (
+from services.api.domain.execution.docfinal.triprole_docfinal_package import (
     build_docfinal_package_for_boq as _build_docfinal_package_for_boq_runtime,
 )
-from services.api.domain.execution.triprole_component_utxo import (
+from services.api.domain.execution.component.triprole_component_utxo import (
     build_component_utxo_verification as _build_component_utxo_verification_runtime,
 )
-from services.api.domain.execution.triprole_realtime_entry import (
+from services.api.domain.execution.realtime.triprole_realtime_entry import (
     get_boq_realtime_status as _get_boq_realtime_status_runtime,
 )
 

@@ -31,7 +31,7 @@ from services.api.domain.boq.runtime.item_history_helpers import (
     is_variation_row as _is_variation_row,
     source_utxo_refs as _source_utxo_refs,
 )
-from services.api.domain.execution.triprole_docfinal_audit import (
+from services.api.domain.execution.docfinal.triprole_docfinal_audit import (
     compute_docfinal_risk_audit as _compute_docfinal_risk_audit,
 )
 

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from services.api.domain.execution import triprole_action_special as special
+from services.api.domain.execution.actions import triprole_action_special as special
 
 
 class _FakeEngine:

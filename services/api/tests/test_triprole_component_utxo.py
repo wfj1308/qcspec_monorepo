@@ -6,7 +6,7 @@ import json
 import pytest
 from fastapi import HTTPException
 
-from services.api.domain.execution.triprole_component_utxo import (
+from services.api.domain.execution.component.triprole_component_utxo import (
     ComponentMaterialBinding,
     ComponentUTXO,
     TripRoleAction,

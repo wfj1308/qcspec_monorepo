@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from services.api.domain.execution.triprole_action_dispute import apply_dispute_resolve_transition
+from services.api.domain.execution.actions.triprole_action_dispute import apply_dispute_resolve_transition
 
 
 def test_apply_dispute_resolve_transition_pass() -> None:

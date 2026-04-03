@@ -21,12 +21,12 @@ from services.api.domain.execution.triprole_common import (
     to_text as _to_text,
     utc_iso as _utc_iso,
 )
-from services.api.domain.execution.triprole_geo_sensor import (
+from services.api.domain.execution.geo.triprole_geo_sensor import (
     build_spatiotemporal_anchor as _build_spatiotemporal_anchor,
     decode_sensor_payload as _decode_sensor_payload,
     normalize_sensor_payload as _normalize_sensor_payload,
 )
-from services.api.domain.execution.triprole_lineage import _is_leaf_boq_row
+from services.api.domain.execution.lineage.triprole_lineage import _is_leaf_boq_row
 from services.api.domain.execution.triprole_shadow import _build_shadow_packet
 from services.api.domain.execution.triprole_writeback import _patch_state_data_fields
 

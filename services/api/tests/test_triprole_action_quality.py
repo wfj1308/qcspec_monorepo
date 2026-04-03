@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 from fastapi import HTTPException
 
-from services.api.domain.execution.triprole_action_quality import apply_quality_check_transition
+from services.api.domain.execution.actions.triprole_action_quality import apply_quality_check_transition
 
 
 def test_apply_quality_check_transition_rejects_locked_spec_mismatch() -> None:

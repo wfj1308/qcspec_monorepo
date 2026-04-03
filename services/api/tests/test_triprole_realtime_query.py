@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 from fastapi import HTTPException
 
-from services.api.domain.execution.triprole_realtime_query import (
+from services.api.domain.execution.realtime.triprole_realtime_query import (
     fetch_boq_realtime_status,
 )
 

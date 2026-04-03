@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from services.api.domain.execution.triprole_docfinal_master_export import (
+from services.api.domain.execution.docfinal.triprole_docfinal_master_export import (
     export_doc_final,
 )
 

@@ -12,7 +12,7 @@ from services.api.domain.boq.integrations import (
     get_frequency_dashboard,
     get_public_verify_detail_flow,
 )
-from services.api.domain.execution.triprole_docfinal_audit import (
+from services.api.domain.execution.docfinal.triprole_docfinal_audit import (
     compute_docfinal_risk_audit as _compute_docfinal_risk_audit,
 )
 from services.api.domain.execution.flows import get_boq_realtime_status, trace_asset_origin

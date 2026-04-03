@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from services.api.domain.execution.triprole_action_execute import (
+from services.api.domain.execution.actions.triprole_action_execute import (
     execute_triprole_action_flow,
 )
 

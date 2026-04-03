@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from services.api.domain.execution.triprole_action_runtime import (
+from services.api.domain.execution.actions.triprole_action_runtime import (
     materialize_action_context,
     materialize_execution_io,
     materialize_parsed_request,

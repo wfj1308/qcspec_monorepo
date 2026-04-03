@@ -14,7 +14,7 @@ from services.api.domain.execution.triprole_common import (
     utc_iso,
 )
 from services.api.domain.execution.integrations import ProofUTXOEngine
-from services.api.domain.execution.triprole_lineage import _resolve_boq_item_uri
+from services.api.domain.execution.lineage.triprole_lineage import _resolve_boq_item_uri
 from services.api.domain.utxo.common import normalize_result
 
 

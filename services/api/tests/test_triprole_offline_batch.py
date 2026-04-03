@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from fastapi import HTTPException
 
-from services.api.domain.execution.triprole_offline import replay_offline_packets_batch
+from services.api.domain.execution.offline.triprole_offline import replay_offline_packets_batch
 
 
 def test_replay_offline_packets_batch_success() -> None:

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from services.api.domain.execution.triprole_action_transition_runtime import (
+from services.api.domain.execution.actions.triprole_action_transition_runtime import (
     resolve_triprole_transition_runtime,
 )
 

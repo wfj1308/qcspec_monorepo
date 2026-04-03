@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from services.api.domain.execution.triprole_realtime_status import build_boq_realtime_status
+from services.api.domain.execution.realtime.triprole_realtime_status import build_boq_realtime_status
 
 
 def test_build_boq_realtime_status_aggregates_and_sorts_items() -> None:

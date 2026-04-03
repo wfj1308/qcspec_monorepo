@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 from fastapi import HTTPException
 
-from services.api.domain.execution import triprole_docfinal_runtime as runtime
+from services.api.domain.execution.docfinal import triprole_docfinal_runtime as runtime
 
 
 def test_load_docfinal_chain_validates_and_scopes() -> None:

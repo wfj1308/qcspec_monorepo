@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from services.api.domain.execution.triprole_docfinal_render import render_docfinal_artifacts
+from services.api.domain.execution.docfinal.triprole_docfinal_render import render_docfinal_artifacts
 
 
 def test_render_docfinal_artifacts_with_evidence_and_custom_template(tmp_path: Path) -> None:

@@ -6,7 +6,7 @@ import zipfile
 import pytest
 from fastapi import HTTPException
 
-from services.api.domain.execution.triprole_docfinal_export import export_doc_final_archive
+from services.api.domain.execution.docfinal.triprole_docfinal_export import export_doc_final_archive
 
 
 def _zip_bytes(files: dict[str, bytes]) -> bytes:

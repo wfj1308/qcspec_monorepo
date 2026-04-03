@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from services.api.domain.execution.triprole_action_postprocess import run_triprole_postprocess
+from services.api.domain.execution.actions.triprole_action_postprocess import run_triprole_postprocess
 
 
 def test_run_triprole_postprocess_quality_path_with_remediation() -> None:

@@ -4,7 +4,7 @@ import io
 import json
 import zipfile
 
-from services.api.domain.execution.triprole_docfinal_archive import (
+from services.api.domain.execution.docfinal.triprole_docfinal_archive import (
     build_archive_index_payload,
     build_archive_volumes,
     write_archive_manifest_files,

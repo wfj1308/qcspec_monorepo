@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from services.api.domain.execution.triprole_component_docpeg import (
+from services.api.domain.execution.component.triprole_component_docpeg import (
     build_component_docpeg_bundle,
     build_component_docpeg_context,
     render_component_docpeg_docx,

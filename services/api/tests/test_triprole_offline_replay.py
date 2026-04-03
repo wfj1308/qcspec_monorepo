@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from services.api.domain.execution.triprole_offline import replay_offline_packet
+from services.api.domain.execution.offline.triprole_offline import replay_offline_packet
 
 
 def test_replay_offline_packet_dispatches_variation_apply() -> None:

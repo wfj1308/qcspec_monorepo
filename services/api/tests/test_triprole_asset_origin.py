@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 from fastapi import HTTPException
 
-from services.api.domain.execution.triprole_asset_origin import trace_asset_origin
+from services.api.domain.execution.lineage.triprole_asset_origin import trace_asset_origin
 
 
 def test_trace_asset_origin_requires_target() -> None:

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from services.api.domain.execution import triprole_docfinal_context as ctx
+from services.api.domain.execution.docfinal import triprole_docfinal_context as ctx
 
 
 def test_build_docfinal_meta_fills_defaults() -> None:

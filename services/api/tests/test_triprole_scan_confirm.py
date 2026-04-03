@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 from fastapi import HTTPException
 
-from services.api.domain.execution.triprole_scan_confirm import (
+from services.api.domain.execution.scan.triprole_scan_confirm import (
     execute_scan_confirm_signature,
 )
 

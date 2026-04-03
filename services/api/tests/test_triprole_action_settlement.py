@@ -3,8 +3,8 @@ from __future__ import annotations
 import pytest
 from fastapi import HTTPException
 
-from services.api.domain.execution import triprole_action_settlement as settlement_mod
-from services.api.domain.execution.triprole_action_settlement import apply_settlement_confirm_transition
+from services.api.domain.execution.actions import triprole_action_settlement as settlement_mod
+from services.api.domain.execution.actions.triprole_action_settlement import apply_settlement_confirm_transition
 
 
 class _ExecResult:

@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 from fastapi import HTTPException
 
-from services.api.domain.execution.triprole_action_input import prepare_triprole_action_input
+from services.api.domain.execution.actions.triprole_action_input import prepare_triprole_action_input
 
 
 class _FakeEngine:

@@ -1,0 +1,2 @@
+"""TripRole offline packet modules."""
+
