@@ -1,4 +1,4 @@
-﻿"""
+"""
 ERPNext integration service helpers for QCSpec.
 services/api/erpnext_service.py
 """

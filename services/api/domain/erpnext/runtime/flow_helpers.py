@@ -1,4 +1,4 @@
-﻿"""
+"""
 Flow helpers for ERPNext router.
 """
 

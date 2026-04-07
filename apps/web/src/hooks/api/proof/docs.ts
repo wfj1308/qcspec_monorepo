@@ -70,10 +70,12 @@ export function useProofDocs(request: ApiRequestFn) {
     source_utxo_id: string
     node_uri?: string
     executor_uri?: string
+    dtorole_context?: 'PUBLIC' | 'MARKET' | 'AI' | 'SUPERVISOR' | 'OWNER' | 'REGULATOR' | string
     text_excerpt?: string
     tags?: string[]
     custom_metadata?: Record<string, unknown>
     ai_metadata?: Record<string, unknown>
+    doc_spec?: Record<string, unknown>
     auto_classify?: boolean
   }) => {
     const form = new FormData()
@@ -83,9 +85,11 @@ export function useProofDocs(request: ApiRequestFn) {
     if (params.node_uri) form.append('node_uri', params.node_uri)
     if (params.executor_uri) form.append('executor_uri', params.executor_uri)
     if (params.text_excerpt) form.append('text_excerpt', params.text_excerpt)
+    if (params.dtorole_context) form.append('dtorole_context', params.dtorole_context)
     if (params.tags?.length) form.append('tags', JSON.stringify(params.tags))
     if (params.custom_metadata) form.append('custom_metadata', JSON.stringify(params.custom_metadata))
     if (params.ai_metadata) form.append('ai_metadata', JSON.stringify(params.ai_metadata))
+    if (params.doc_spec) form.append('doc_spec', JSON.stringify(params.doc_spec))
     form.append('auto_classify', String(params.auto_classify !== false))
 
     return request('/v1/proof/docs/register', {

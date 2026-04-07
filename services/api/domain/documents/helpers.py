@@ -118,6 +118,7 @@ def doc_search_flow(*, body: Any, sb: Any) -> dict[str, Any]:
         tags=list(body.tags or []),
         field_filters=dict(body.field_filters or {}),
         limit=int(body.limit or 200),
+        dto_role=str(getattr(body, "dto_role", "") or ""),
     )
 
 
@@ -132,6 +133,8 @@ async def doc_register_upload_flow(
     tags: str,
     custom_metadata: str,
     ai_metadata: str,
+    doc_spec: str,
+    dtorole_context: str,
     auto_classify: bool,
     sb: Any,
 ) -> dict[str, Any]:
@@ -185,4 +188,6 @@ async def doc_register_upload_flow(
         custom_metadata=_parse_json_dict(custom_metadata),
         tags=_parse_tags(tags),
         executor_uri=executor_uri or "v://executor/system/",
+        doc_spec=_parse_json_dict(doc_spec),
+        dtorole_context=str(dtorole_context or "").strip(),
     )

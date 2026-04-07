@@ -75,6 +75,7 @@ def start_smu_import_job(
     boq_root_uri: str = "",
     norm_context_root_uri: str = "",
     owner_uri: str = "",
+    bridge_mappings: dict[str, Any] | None = None,
     commit: bool = True,
 ) -> dict[str, Any]:
     content = upload_content or b""
@@ -170,6 +171,7 @@ def start_smu_import_job(
                 boq_root_uri=boq_root_uri,
                 norm_context_root_uri=norm_context_root_uri,
                 owner_uri=owner_uri,
+                bridge_mappings=bridge_mappings,
                 commit=bool(commit),
                 progress_hook=lambda stage, progress, message: _update_status(
                     stage=str(stage or "running"),

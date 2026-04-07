@@ -1,0 +1,350 @@
+-- QCSpec baseline catalog for SpecIR.
+-- Run after 018_specir_registry.sql.
+-- This is idempotent: re-running updates existing objects by URI.
+
+create extension if not exists pgcrypto;
+
+with seed(kind, uri, title, content, metadata, status) as (
+  values
+  -- Spec rules
+  (
+    'spec_rule',
+    'v://norm/spec-rule/gb50204-rebar-diameter@v1',
+    'GB50204 钢筋直径偏差',
+    '{
+      "authority":"GB50204-2015",
+      "rule_code":"5.3.2",
+      "operator":"range",
+      "unit":"mm",
+      "threshold":{"default":[-2,2],"main_beam":[-1,1],"pier":[-2,2]}
+    }'::jsonb,
+    '{"domain":"qcspec","seed":"022"}'::jsonb,
+    'active'
+  ),
+  (
+    'spec_rule',
+    'v://norm/spec-rule/gb50204-rebar-spacing@v1',
+    'GB50204 钢筋间距偏差',
+    '{
+      "authority":"GB50204-2015",
+      "rule_code":"5.3.3",
+      "operator":"range",
+      "unit":"mm",
+      "threshold":{"default":[-10,10],"main_beam":[-8,8],"pier":[-10,10]}
+    }'::jsonb,
+    '{"domain":"qcspec","seed":"022"}'::jsonb,
+    'active'
+  ),
+  (
+    'spec_rule',
+    'v://norm/spec-rule/gb50204-concrete-strength@v1',
+    'GB50204 混凝土抗压强度',
+    '{
+      "authority":"GB50204-2015",
+      "rule_code":"7.4",
+      "operator":">=",
+      "unit":"MPa",
+      "threshold":{"default":30}
+    }'::jsonb,
+    '{"domain":"qcspec","seed":"022"}'::jsonb,
+    'active'
+  ),
+  (
+    'spec_rule',
+    'v://norm/spec-rule/jtgf80-pavement-flatness@v1',
+    'JTG F80 路面平整度',
+    '{
+      "authority":"JTG F80/1-2017",
+      "rule_code":"10.2",
+      "operator":"<=",
+      "unit":"mm",
+      "threshold":{"default":3.0}
+    }'::jsonb,
+    '{"domain":"qcspec","seed":"022"}'::jsonb,
+    'active'
+  ),
+
+  -- Meter rules
+  (
+    'meter_rule',
+    'v://norm/meter-rule/by-weight@v1',
+    '按重量计量',
+    '{
+      "unit":"t",
+      "expression":"quantity_ton",
+      "description":"按过磅/核验重量计量"
+    }'::jsonb,
+    '{"domain":"qcspec","seed":"022"}'::jsonb,
+    'active'
+  ),
+  (
+    'meter_rule',
+    'v://norm/meter-rule/by-volume@v1',
+    '按体积计量',
+    '{
+      "unit":"m3",
+      "expression":"length*width*height",
+      "description":"按体积计算或实测方量计量"
+    }'::jsonb,
+    '{"domain":"qcspec","seed":"022"}'::jsonb,
+    'active'
+  ),
+  (
+    'meter_rule',
+    'v://norm/meter-rule/by-area@v1',
+    '按面积计量',
+    '{
+      "unit":"m2",
+      "expression":"length*width",
+      "description":"按面积计量"
+    }'::jsonb,
+    '{"domain":"qcspec","seed":"022"}'::jsonb,
+    'active'
+  ),
+  (
+    'meter_rule',
+    'v://norm/meter-rule/contract-payment@v1',
+    '合同支付计量',
+    '{
+      "unit":"CNY",
+      "expression":"claimed_amount",
+      "description":"按合同支付凭证计量"
+    }'::jsonb,
+    '{"domain":"qcspec","seed":"022"}'::jsonb,
+    'active'
+  ),
+  (
+    'meter_rule',
+    'v://norm/meter-rule/landscape-work@v1',
+    '绿化工程计量',
+    '{
+      "unit":"m2",
+      "expression":"length*width",
+      "description":"绿化按面积计量"
+    }'::jsonb,
+    '{"domain":"qcspec","seed":"022"}'::jsonb,
+    'active'
+  ),
+
+  -- Quota references
+  (
+    'quota',
+    'v://norm/quota/rebar-processing@v1',
+    '钢筋加工及安装定额',
+    '{
+      "unit":"t",
+      "labor_cost_per_unit":210.0,
+      "machine_cost_per_unit":95.0,
+      "material_loss_ratio":0.015
+    }'::jsonb,
+    '{"domain":"qcspec","seed":"022"}'::jsonb,
+    'active'
+  ),
+  (
+    'quota',
+    'v://norm/quota/concrete-casting@v1',
+    '墩身混凝土浇筑定额',
+    '{
+      "unit":"m3",
+      "labor_cost_per_unit":120.0,
+      "machine_cost_per_unit":80.0,
+      "material_loss_ratio":0.01
+    }'::jsonb,
+    '{"domain":"qcspec","seed":"022"}'::jsonb,
+    'active'
+  ),
+  (
+    'quota',
+    'v://norm/quota/pavement-laying@v1',
+    '路面铺筑定额',
+    '{
+      "unit":"m2",
+      "labor_cost_per_unit":38.0,
+      "machine_cost_per_unit":26.0,
+      "material_loss_ratio":0.02
+    }'::jsonb,
+    '{"domain":"qcspec","seed":"022"}'::jsonb,
+    'active'
+  ),
+  (
+    'quota',
+    'v://norm/quota/contract-payment@v1',
+    '合同支付定额',
+    '{
+      "unit":"CNY",
+      "labor_cost_per_unit":0.0,
+      "machine_cost_per_unit":0.0,
+      "material_loss_ratio":0.0
+    }'::jsonb,
+    '{"domain":"qcspec","seed":"022"}'::jsonb,
+    'active'
+  ),
+  (
+    'quota',
+    'v://norm/quota/landscape-work@v1',
+    '绿化工程定额',
+    '{
+      "unit":"m2",
+      "labor_cost_per_unit":30.0,
+      "machine_cost_per_unit":18.0,
+      "material_loss_ratio":0.03
+    }'::jsonb,
+    '{"domain":"qcspec","seed":"022"}'::jsonb,
+    'active'
+  ),
+
+  -- Gates
+  (
+    'gate',
+    'v://norm/gate/rebar-diameter-check@v1',
+    '钢筋直径门控',
+    '{
+      "strategy":"all_pass",
+      "fail_action":"trigger_review_trip",
+      "spec_rule_refs":["v://norm/spec-rule/gb50204-rebar-diameter@v1"]
+    }'::jsonb,
+    '{"domain":"qcspec","seed":"022"}'::jsonb,
+    'active'
+  ),
+  (
+    'gate',
+    'v://norm/gate/rebar-spacing-check@v1',
+    '钢筋间距门控',
+    '{
+      "strategy":"all_pass",
+      "fail_action":"trigger_review_trip",
+      "spec_rule_refs":["v://norm/spec-rule/gb50204-rebar-spacing@v1"]
+    }'::jsonb,
+    '{"domain":"qcspec","seed":"022"}'::jsonb,
+    'active'
+  ),
+  (
+    'gate',
+    'v://norm/gate/concrete-strength-check@v1',
+    '混凝土强度门控',
+    '{
+      "strategy":"all_pass",
+      "fail_action":"trigger_review_trip",
+      "spec_rule_refs":["v://norm/spec-rule/gb50204-concrete-strength@v1"]
+    }'::jsonb,
+    '{"domain":"qcspec","seed":"022"}'::jsonb,
+    'active'
+  ),
+  (
+    'gate',
+    'v://norm/gate/pavement-flatness-check@v1',
+    '路面平整度门控',
+    '{
+      "strategy":"all_pass",
+      "fail_action":"trigger_review_trip",
+      "spec_rule_refs":["v://norm/spec-rule/jtgf80-pavement-flatness@v1"]
+    }'::jsonb,
+    '{"domain":"qcspec","seed":"022"}'::jsonb,
+    'active'
+  ),
+
+  -- SPU definitions (reference-only source of truth)
+  (
+    'spu',
+    'v://norm/spu/rebar-processing@v1',
+    '钢筋加工及安装',
+    '{
+      "unit":"t",
+      "norm_refs":["v://norm/GB50204@2015"],
+      "gate_refs":[
+        "v://norm/gate/rebar-diameter-check@v1",
+        "v://norm/gate/rebar-spacing-check@v1"
+      ],
+      "quota_ref":"v://norm/quota/rebar-processing@v1",
+      "meter_rule_ref":"v://norm/meter-rule/by-weight@v1"
+    }'::jsonb,
+    '{"domain":"qcspec","seed":"022"}'::jsonb,
+    'active'
+  ),
+  (
+    'spu',
+    'v://norm/spu/pier-concrete-casting@v1',
+    '墩身混凝土浇筑',
+    '{
+      "unit":"m3",
+      "norm_refs":["v://norm/GB50204@2015"],
+      "gate_refs":["v://norm/gate/concrete-strength-check@v1"],
+      "quota_ref":"v://norm/quota/concrete-casting@v1",
+      "meter_rule_ref":"v://norm/meter-rule/by-volume@v1"
+    }'::jsonb,
+    '{"domain":"qcspec","seed":"022"}'::jsonb,
+    'active'
+  ),
+  (
+    'spu',
+    'v://norm/spu/pavement-laying@v1',
+    '路面铺筑',
+    '{
+      "unit":"m2",
+      "norm_refs":["v://norm/JTG_F80@2017"],
+      "gate_refs":["v://norm/gate/pavement-flatness-check@v1"],
+      "quota_ref":"v://norm/quota/pavement-laying@v1",
+      "meter_rule_ref":"v://norm/meter-rule/by-area@v1"
+    }'::jsonb,
+    '{"domain":"qcspec","seed":"022"}'::jsonb,
+    'active'
+  ),
+  (
+    'spu',
+    'v://norm/spu/contract-payment@v1',
+    '合同支付项',
+    '{
+      "unit":"CNY",
+      "norm_refs":["v://norm/JTG_F80@2017"],
+      "gate_refs":[],
+      "quota_ref":"v://norm/quota/contract-payment@v1",
+      "meter_rule_ref":"v://norm/meter-rule/contract-payment@v1"
+    }'::jsonb,
+    '{"domain":"qcspec","seed":"022"}'::jsonb,
+    'active'
+  ),
+  (
+    'spu',
+    'v://norm/spu/landscape-work@v1',
+    '绿化工程',
+    '{
+      "unit":"m2",
+      "norm_refs":["v://norm/JTG_F80@2017"],
+      "gate_refs":[],
+      "quota_ref":"v://norm/quota/landscape-work@v1",
+      "meter_rule_ref":"v://norm/meter-rule/landscape-work@v1"
+    }'::jsonb,
+    '{"domain":"qcspec","seed":"022"}'::jsonb,
+    'active'
+  )
+)
+insert into public.specir_objects (
+  uri,
+  kind,
+  version,
+  title,
+  content,
+  content_hash,
+  status,
+  metadata
+)
+select
+  s.uri,
+  s.kind,
+  coalesce(nullif(split_part(s.uri, '@', 2), ''), 'v1') as version,
+  s.title,
+  s.content,
+  encode(digest(convert_to(coalesce(s.content::text, ''), 'utf8'), 'sha256'), 'hex') as content_hash,
+  s.status,
+  s.metadata
+from seed s
+on conflict (uri) do update
+set
+  kind = excluded.kind,
+  version = excluded.version,
+  title = excluded.title,
+  content = excluded.content,
+  content_hash = excluded.content_hash,
+  status = excluded.status,
+  metadata = excluded.metadata,
+  updated_at = now();

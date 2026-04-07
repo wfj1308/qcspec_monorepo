@@ -1,4 +1,4 @@
-﻿"""
+"""
 Query helpers for proof UTXO operations.
 """
 

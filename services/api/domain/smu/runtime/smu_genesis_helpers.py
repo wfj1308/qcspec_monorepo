@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Callable
 
-from services.api.domain.boq.runtime.utxo import initialize_boq_utxos
+from services.api.domain.boqpeg.integrations import initialize_boq_genesis_chain
 from services.api.domain.smu.runtime.smu_primitives import (
     as_dict as _as_dict,
     as_list as _as_list,
@@ -34,9 +34,10 @@ def initialize_genesis_chain(
     norm_root: str,
     owner_uri: str,
     upload_file_name: str,
+    bridge_mappings: dict[str, Any] | None = None,
     commit: bool,
 ) -> dict[str, Any]:
-    return initialize_boq_utxos(
+    return initialize_boq_genesis_chain(
         sb=sb,
         project_uri=project_uri,
         project_id=_to_text(project_id).strip() or None,
@@ -45,12 +46,14 @@ def initialize_genesis_chain(
         norm_context_root_uri=norm_root,
         owner_uri=_to_text(owner_uri).strip() or f"{project_uri.rstrip('/')}/role/system/",
         source_file=upload_file_name,
+        bridge_mappings=bridge_mappings,
         commit=bool(commit),
     )
 
 
 def enrich_genesis_preview_rows(
     *,
+    sb: Any,
     result: dict[str, Any],
     upload_file_name: str,
     owner_uri: str,
@@ -61,6 +64,7 @@ def enrich_genesis_preview_rows(
         code = _to_text(sd.get("item_no") or "").strip()
         name = _to_text(sd.get("item_name") or "").strip()
         patch = build_genesis_enrichment_patch(
+            sb=sb,
             code=code,
             name=name,
             sd=sd,
@@ -88,6 +92,7 @@ def persist_genesis_created_enrichment(
         code = _to_text(sd.get("item_no") or "").strip()
         name = _to_text(sd.get("item_name") or "").strip()
         patch = build_genesis_enrichment_patch(
+            sb=sb,
             code=code,
             name=name,
             sd=sd,

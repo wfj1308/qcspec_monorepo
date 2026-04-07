@@ -1,17 +1,39 @@
-"""SMU and genesis routes."""
+"""SMU routes.
+
+Genesis import endpoints are legacy compatibility aliases and are forwarded to
+BOQPeg service handlers so old clients and new clients share one import chain.
+"""
 
 from __future__ import annotations
 
+import json
 from typing import Optional
 
-from fastapi import APIRouter, Depends, File, Form, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 
-from services.api.dependencies import get_smu_service
-from services.api.domain import SMUService
+from services.api.dependencies import get_boqpeg_service, get_smu_service
+from services.api.domain import BOQPegService, SMUService
 from services.api.domain.proof.schemas import SMUExecuteBody, SMUFreezeBody, SMUSignBody, SMUValidateBody
 
 router = APIRouter()
 public_router = APIRouter()
+
+
+def _to_text(value: object) -> str:
+    return str(value or "").strip()
+
+
+def _parse_json_object(raw: str, *, field_name: str) -> dict[str, object]:
+    text = _to_text(raw)
+    if not text:
+        return {}
+    try:
+        decoded = json.loads(text)
+    except Exception as exc:
+        raise HTTPException(400, f"invalid {field_name}: {exc}") from exc
+    if not isinstance(decoded, dict):
+        raise HTTPException(400, f"{field_name} must decode to object")
+    return decoded
 
 
 @router.post("/smu/genesis/import")
@@ -22,16 +44,19 @@ async def import_smu_genesis(
     boq_root_uri: str = Form(""),
     norm_context_root_uri: str = Form(""),
     owner_uri: str = Form(""),
+    bridge_mappings_json: str = Form(""),
     commit: bool = Form(True),
-    smu_service: SMUService = Depends(get_smu_service),
+    boqpeg_service: BOQPegService = Depends(get_boqpeg_service),
 ):
-    return await smu_service.import_genesis(
+    bridge_mappings = _parse_json_object(bridge_mappings_json, field_name="bridge_mappings_json")
+    return await boqpeg_service.import_upload(
         file=file,
         project_uri=project_uri,
         project_id=project_id,
         boq_root_uri=boq_root_uri,
         norm_context_root_uri=norm_context_root_uri,
         owner_uri=owner_uri,
+        bridge_mappings=bridge_mappings,
         commit=commit,
     )
 
@@ -44,15 +69,18 @@ async def preview_smu_genesis(
     boq_root_uri: str = Form(""),
     norm_context_root_uri: str = Form(""),
     owner_uri: str = Form(""),
-    smu_service: SMUService = Depends(get_smu_service),
+    bridge_mappings_json: str = Form(""),
+    boqpeg_service: BOQPegService = Depends(get_boqpeg_service),
 ):
-    return await smu_service.preview_genesis(
+    bridge_mappings = _parse_json_object(bridge_mappings_json, field_name="bridge_mappings_json")
+    return await boqpeg_service.preview_upload(
         file=file,
         project_uri=project_uri,
         project_id=project_id,
         boq_root_uri=boq_root_uri,
         norm_context_root_uri=norm_context_root_uri,
         owner_uri=owner_uri,
+        bridge_mappings=bridge_mappings,
     )
 
 
@@ -64,38 +92,50 @@ async def import_smu_genesis_async(
     boq_root_uri: str = Form(""),
     norm_context_root_uri: str = Form(""),
     owner_uri: str = Form(""),
+    bridge_mappings_json: str = Form(""),
     commit: bool = Form(True),
-    smu_service: SMUService = Depends(get_smu_service),
+    boqpeg_service: BOQPegService = Depends(get_boqpeg_service),
 ):
-    return await smu_service.import_genesis_async(
+    bridge_mappings = _parse_json_object(bridge_mappings_json, field_name="bridge_mappings_json")
+    return await boqpeg_service.import_upload_async(
         file=file,
         project_uri=project_uri,
         project_id=project_id,
         boq_root_uri=boq_root_uri,
         norm_context_root_uri=norm_context_root_uri,
         owner_uri=owner_uri,
+        bridge_mappings=bridge_mappings,
         commit=commit,
     )
 
 
 @router.get("/smu/genesis/import-job/{job_id}")
-async def get_smu_genesis_import_job(job_id: str, smu_service: SMUService = Depends(get_smu_service)):
-    return await smu_service.get_import_job(job_id=job_id)
+async def get_smu_genesis_import_job(job_id: str, boqpeg_service: BOQPegService = Depends(get_boqpeg_service)):
+    return await boqpeg_service.get_import_job(job_id=job_id)
 
 
 @public_router.get("/smu/genesis/import-job-public/{job_id}")
-async def get_smu_genesis_import_job_public(job_id: str, smu_service: SMUService = Depends(get_smu_service)):
-    return await smu_service.get_import_job(job_id=job_id)
+async def get_smu_genesis_import_job_public(
+    job_id: str,
+    boqpeg_service: BOQPegService = Depends(get_boqpeg_service),
+):
+    return await boqpeg_service.get_import_job(job_id=job_id)
 
 
 @router.get("/smu/genesis/import-job-active")
-async def get_smu_genesis_import_job_active(project_uri: str, smu_service: SMUService = Depends(get_smu_service)):
-    return await smu_service.get_active_import_job(project_uri=project_uri)
+async def get_smu_genesis_import_job_active(
+    project_uri: str,
+    boqpeg_service: BOQPegService = Depends(get_boqpeg_service),
+):
+    return await boqpeg_service.get_active_import_job(project_uri=project_uri)
 
 
 @public_router.get("/smu/genesis/import-job-active-public")
-async def get_smu_genesis_import_job_active_public(project_uri: str, smu_service: SMUService = Depends(get_smu_service)):
-    return await smu_service.get_active_import_job(project_uri=project_uri)
+async def get_smu_genesis_import_job_active_public(
+    project_uri: str,
+    boqpeg_service: BOQPegService = Depends(get_boqpeg_service),
+):
+    return await boqpeg_service.get_active_import_job(project_uri=project_uri)
 
 
 @router.get("/smu/spu/library")

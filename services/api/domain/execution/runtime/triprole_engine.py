@@ -1,4 +1,4 @@
-﻿"""
+"""
 TripRole lifecycle execution + provenance aggregation service.
 
 Implements:

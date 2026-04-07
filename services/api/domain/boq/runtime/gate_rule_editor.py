@@ -1,4 +1,4 @@
-﻿"""
+"""
 Gate rule editor service:
 - Visual rule payload query
 - Norm library import
@@ -72,6 +72,45 @@ def _utc_iso() -> str:
 def _sha256_json(payload: Any) -> str:
     canonical = json.dumps(payload, ensure_ascii=False, sort_keys=True, default=str)
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def _safe_ref_token(value: Any) -> str:
+    text = _to_text(value).strip()
+    if not text:
+        return ""
+    text = text.replace("::", "/").replace("#", "/").replace("@", "-")
+    text = re.sub(r"[^0-9A-Za-z._/-]+", "-", text).strip("-/")
+    text = re.sub(r"/{2,}", "/", text)
+    return text[:180]
+
+
+def _build_gate_ref_pack(
+    *,
+    gate_id: str,
+    linked_spec_uri: str,
+    spec_dict_key: str,
+    spec_item: str,
+) -> dict[str, Any]:
+    normalized_gate_id = _to_text(gate_id).strip()
+    normalized_spec_uri = _to_text(linked_spec_uri).strip()
+    normalized_spec_dict_key = _to_text(spec_dict_key).strip()
+    normalized_spec_item = _to_text(spec_item).strip()
+    ref_gate_uri = f"v://norm/gate/{_safe_ref_token(normalized_gate_id)}@v1" if normalized_gate_id else ""
+    ref_spec_uri = normalized_spec_uri if normalized_spec_uri.startswith("v://") else ""
+    ref_spec_dict_uri = f"v://norm/specdict/{_safe_ref_token(normalized_spec_dict_key)}@v1" if normalized_spec_dict_key else ""
+    if normalized_spec_item and ref_spec_dict_uri:
+        ref_spec_item_uri = f"{ref_spec_dict_uri}#{_safe_ref_token(normalized_spec_item)}"
+    elif normalized_spec_item and ref_spec_uri:
+        ref_spec_item_uri = f"{ref_spec_uri}#{_safe_ref_token(normalized_spec_item)}"
+    else:
+        ref_spec_item_uri = ""
+    return {
+        "ref_gate_uri": ref_gate_uri,
+        "ref_gate_uris": [ref_gate_uri] if ref_gate_uri else [],
+        "ref_spec_uri": ref_spec_uri,
+        "ref_spec_dict_uri": ref_spec_dict_uri,
+        "ref_spec_item_uri": ref_spec_item_uri,
+    }
 
 
 def _item_code_parts(item_code: str) -> list[str]:
@@ -516,12 +555,21 @@ def apply_to_all_similar_items(
             if gid and gid not in seen:
                 dedup_ids.append(gid)
                 seen.add(gid)
+        ref_pack = _build_gate_ref_pack(
+            gate_id=_to_text(gate_pack.get("gate_id") or "").strip(),
+            linked_spec_uri=_to_text(
+                gate_pack.get("linked_spec_uri")
+                or (_as_dict(linked_rules[0]).get("spec_uri") if linked_rules else "")
+                or ""
+            ).strip(),
+            spec_dict_key=_to_text(gate_pack.get("spec_dict_key") or "").strip(),
+            spec_item=_to_text(gate_pack.get("spec_item") or "").strip(),
+        )
 
         sd.update(
             {
                 "linked_gate_id": _to_text(gate_pack.get("gate_id") or "").strip(),
                 "linked_gate_ids": dedup_ids,
-                "linked_gate_rules": linked_rules,
                 "linked_spec_uri": _to_text(
                     gate_pack.get("linked_spec_uri")
                     or (_as_dict(linked_rules[0]).get("spec_uri") if linked_rules else "")
@@ -534,6 +582,11 @@ def apply_to_all_similar_items(
                 "gate_rule_pack_hash": _to_text(gate_pack.get("rule_pack_hash") or "").strip(),
                 "spec_dict_key": _to_text(gate_pack.get("spec_dict_key") or "").strip(),
                 "spec_item": _to_text(gate_pack.get("spec_item") or "").strip(),
+                "ref_gate_uri": _to_text(ref_pack.get("ref_gate_uri") or "").strip(),
+                "ref_gate_uris": _as_list(ref_pack.get("ref_gate_uris")),
+                "ref_spec_uri": _to_text(ref_pack.get("ref_spec_uri") or "").strip(),
+                "ref_spec_dict_uri": _to_text(ref_pack.get("ref_spec_dict_uri") or "").strip(),
+                "ref_spec_item_uri": _to_text(ref_pack.get("ref_spec_item_uri") or "").strip(),
                 "gate_rule_applied_at": _utc_iso(),
             }
         )
@@ -652,6 +705,13 @@ def save_gate_rule_version(
     }
     rule_pack_hash = _sha256_json(pack_canonical)
     proof_id = f"GP-GATE-{rule_pack_hash[:16].upper()}"
+    linked_spec_uri = _to_text(_as_dict(normalized_rules[0]).get("spec_uri") or "").strip()
+    ref_pack = _build_gate_ref_pack(
+        gate_id=gate_id,
+        linked_spec_uri=linked_spec_uri,
+        spec_dict_key=_to_text(saved_specdict.get("spec_dict_key") or "").strip(),
+        spec_item=_to_text(specdict_payload.get("spec_item") or "").strip(),
+    )
 
     engine = ProofUTXOEngine(sb)
     state_data = {
@@ -666,13 +726,18 @@ def save_gate_rule_version(
         "fail_action": _to_text(fail_action).strip() or "trigger_review_trip",
         "spec_dict_key": _to_text(saved_specdict.get("spec_dict_key") or "").strip(),
         "spec_item": _to_text(specdict_payload.get("spec_item") or "").strip(),
+        "ref_gate_uri": _to_text(ref_pack.get("ref_gate_uri") or "").strip(),
+        "ref_gate_uris": _as_list(ref_pack.get("ref_gate_uris")),
+        "ref_spec_uri": _to_text(ref_pack.get("ref_spec_uri") or "").strip(),
+        "ref_spec_dict_uri": _to_text(ref_pack.get("ref_spec_dict_uri") or "").strip(),
+        "ref_spec_item_uri": _to_text(ref_pack.get("ref_spec_item_uri") or "").strip(),
         "rule_pack_hash": rule_pack_hash,
         "executor_uri": _to_text(executor_uri).strip(),
         "saved_at": now_iso,
         "metadata": _as_dict(metadata),
     }
     segment_uri = f"{normalized_project_uri.rstrip('/')}/boq/{normalized_code}"
-    norm_uri = _to_text(_as_dict(normalized_rules[0]).get("spec_uri") or "").strip() or None
+    norm_uri = linked_spec_uri or None
 
     try:
         rule_row = engine.create(
@@ -741,10 +806,15 @@ def save_gate_rule_version(
             "gate_id_base": normalized_gate_base,
             "version": version,
             "rules": normalized_rules,
-            "linked_spec_uri": _to_text(_as_dict(normalized_rules[0]).get("spec_uri") or "").strip(),
+            "linked_spec_uri": linked_spec_uri,
             "rule_pack_hash": rule_pack_hash,
             "spec_dict_key": _to_text(saved_specdict.get("spec_dict_key") or "").strip(),
             "spec_item": _to_text(specdict_payload.get("spec_item") or "").strip(),
+            "ref_gate_uri": _to_text(ref_pack.get("ref_gate_uri") or "").strip(),
+            "ref_gate_uris": _as_list(ref_pack.get("ref_gate_uris")),
+            "ref_spec_uri": _to_text(ref_pack.get("ref_spec_uri") or "").strip(),
+            "ref_spec_dict_uri": _to_text(ref_pack.get("ref_spec_dict_uri") or "").strip(),
+            "ref_spec_item_uri": _to_text(ref_pack.get("ref_spec_item_uri") or "").strip(),
             "execution_strategy": _to_text(execution_strategy).strip() or "all_pass",
             "fail_action": _to_text(fail_action).strip() or "trigger_review_trip",
         },
@@ -886,6 +956,11 @@ def get_gate_editor_payload(
             "linked_spec_uri": _to_text(sd.get("linked_spec_uri") or "").strip(),
             "spec_dict_key": _to_text(sd.get("spec_dict_key") or "").strip(),
             "spec_item": _to_text(sd.get("spec_item") or "").strip(),
+            "ref_gate_uri": _to_text(sd.get("ref_gate_uri") or "").strip(),
+            "ref_gate_uris": _as_list(sd.get("ref_gate_uris")),
+            "ref_spec_uri": _to_text(sd.get("ref_spec_uri") or "").strip(),
+            "ref_spec_dict_uri": _to_text(sd.get("ref_spec_dict_uri") or "").strip(),
+            "ref_spec_item_uri": _to_text(sd.get("ref_spec_item_uri") or "").strip(),
             "gate_version": _to_text(sd.get("gate_version") or "").strip(),
             "gate_rule_proof_id": _to_text(sd.get("gate_rule_proof_id") or "").strip(),
             "gate_rule_pack_hash": _to_text(sd.get("gate_rule_pack_hash") or "").strip(),

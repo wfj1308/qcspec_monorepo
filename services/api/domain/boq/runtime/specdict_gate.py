@@ -1,4 +1,4 @@
-﻿"""
+"""
 SpecDict <-> Gate decoupling service.
 
 Implements:
@@ -17,6 +17,10 @@ import re
 from typing import Any
 
 from fastapi import HTTPException
+from services.api.domain.specir.runtime.registry import (
+    build_specir_ref_uri,
+    ensure_specir_object,
+)
 
 
 def _to_text(value: Any, default: str = "") -> str:
@@ -132,6 +136,162 @@ def _safe_spec_uri(spec_uri: Any, spec_dict_key: str, version: str, spec_item: s
     return f"v://specdict/{key}@{v}"
 
 
+def _safe_ref_token(value: Any) -> str:
+    text = _to_text(value).strip()
+    if not text:
+        return ""
+    text = text.replace("::", "/").replace("#", "/").replace("@", "-")
+    text = re.sub(r"[^0-9A-Za-z._/-]+", "-", text).strip("-/")
+    text = re.sub(r"/{2,}", "/", text)
+    return text[:180]
+
+
+def _build_gate_ref_pack(
+    *,
+    linked_gate_id: str,
+    linked_gate_ids: list[str],
+    linked_spec_uri: str,
+    spec_dict_key: str,
+    spec_item: str,
+) -> dict[str, Any]:
+    normalized_gate_id = _to_text(linked_gate_id).strip()
+    normalized_gate_ids = [_to_text(x).strip() for x in linked_gate_ids if _to_text(x).strip()]
+    if normalized_gate_id and normalized_gate_id not in normalized_gate_ids:
+        normalized_gate_ids.insert(0, normalized_gate_id)
+    ref_gate_uris = [f"v://norm/gate/{_safe_ref_token(gid)}@v1" for gid in normalized_gate_ids if _safe_ref_token(gid)]
+    ref_gate_uri = ref_gate_uris[0] if ref_gate_uris else ""
+    ref_spec_uri = _to_text(linked_spec_uri).strip() if _to_text(linked_spec_uri).strip().startswith("v://") else ""
+    normalized_dict_key = _safe_specdict_key(spec_dict_key)
+    ref_spec_dict_uri = f"v://norm/specdict/{_safe_ref_token(normalized_dict_key)}@v1" if normalized_dict_key else ""
+    normalized_item = _to_text(spec_item).strip()
+    if normalized_item and ref_spec_dict_uri:
+        ref_spec_item_uri = f"{ref_spec_dict_uri}#{_safe_ref_token(normalized_item)}"
+    elif normalized_item and ref_spec_uri:
+        ref_spec_item_uri = f"{ref_spec_uri}#{_safe_ref_token(normalized_item)}"
+    else:
+        ref_spec_item_uri = ""
+    return {
+        "ref_gate_uri": ref_gate_uri,
+        "ref_gate_uris": ref_gate_uris,
+        "ref_spec_uri": ref_spec_uri,
+        "ref_spec_dict_uri": ref_spec_dict_uri,
+        "ref_spec_item_uri": ref_spec_item_uri,
+    }
+
+
+def _sync_specir_from_spec_dict(
+    *,
+    sb: Any,
+    spec_dict_key: str,
+    title: str,
+    version: str,
+    authority: str,
+    spec_uri: str,
+    items: dict[str, Any],
+    metadata: dict[str, Any],
+    is_active: bool,
+) -> None:
+    token = _safe_ref_token(spec_dict_key)
+    if not token:
+        return
+    ref_spec_dict_uri = build_specir_ref_uri(kind="specdict", key=token, version="v1")
+    if not ref_spec_dict_uri:
+        return
+    try:
+        ensure_specir_object(
+            sb=sb,
+            uri=ref_spec_dict_uri,
+            kind="spec_dict",
+            title=_to_text(title).strip() or _to_text(spec_dict_key).strip(),
+            content={
+                "spec_dict_key": _to_text(spec_dict_key).strip(),
+                "version": _to_text(version).strip(),
+                "authority": _to_text(authority).strip(),
+                "spec_uri": _to_text(spec_uri).strip(),
+                "items": _as_dict(items),
+                "is_active": bool(is_active),
+            },
+            metadata=_as_dict(metadata),
+            status="active" if bool(is_active) else "inactive",
+        )
+        for item_key, item_rule in _as_dict(items).items():
+            normalized_item_key = _to_text(item_key).strip()
+            if not normalized_item_key:
+                continue
+            ensure_specir_object(
+                sb=sb,
+                uri=f"{ref_spec_dict_uri}#{_safe_ref_token(normalized_item_key)}",
+                kind="spec_item",
+                title=f"{_to_text(title).strip() or _to_text(spec_dict_key).strip()}::{normalized_item_key}",
+                content={
+                    "spec_dict_uri": ref_spec_dict_uri,
+                    "spec_dict_key": _to_text(spec_dict_key).strip(),
+                    "spec_item": normalized_item_key,
+                    "rule": _as_dict(item_rule),
+                },
+                metadata={"source": "specdict_gate.save_spec_dict"},
+                status="active" if bool(is_active) else "inactive",
+            )
+    except Exception:
+        return
+
+
+def _sync_specir_from_gate_binding(
+    *,
+    sb: Any,
+    gate_id: str,
+    gate_id_base: str,
+    subitem_code: str,
+    spec_dict_key: str,
+    spec_item: str,
+    match_kind: str,
+    execution_strategy: str,
+    fail_action: str,
+    gate_rules: list[dict[str, Any]],
+    metadata: dict[str, Any],
+    is_active: bool,
+) -> None:
+    normalized_gate_id = _to_text(gate_id).strip()
+    token = _safe_ref_token(normalized_gate_id)
+    if not token:
+        return
+    ref_gate_uri = build_specir_ref_uri(kind="gate", key=token, version="v1")
+    if not ref_gate_uri:
+        return
+    ref_pack = _build_gate_ref_pack(
+        linked_gate_id=normalized_gate_id,
+        linked_gate_ids=[normalized_gate_id],
+        linked_spec_uri="",
+        spec_dict_key=spec_dict_key,
+        spec_item=spec_item,
+    )
+    try:
+        ensure_specir_object(
+            sb=sb,
+            uri=ref_gate_uri,
+            kind="gate",
+            title=normalized_gate_id,
+            content={
+                "gate_id": normalized_gate_id,
+                "gate_id_base": _to_text(gate_id_base).strip(),
+                "subitem_code": _to_text(subitem_code).strip(),
+                "match_kind": _to_text(match_kind).strip(),
+                "execution_strategy": _to_text(execution_strategy).strip(),
+                "fail_action": _to_text(fail_action).strip(),
+                "spec_dict_key": _to_text(spec_dict_key).strip(),
+                "spec_item": _to_text(spec_item).strip(),
+                "spec_dict_uri": _to_text(ref_pack.get("ref_spec_dict_uri") or "").strip(),
+                "spec_item_uri": _to_text(ref_pack.get("ref_spec_item_uri") or "").strip(),
+                "rules": _as_list(gate_rules),
+                "is_active": bool(is_active),
+            },
+            metadata=_as_dict(metadata),
+            status="active" if bool(is_active) else "inactive",
+        )
+    except Exception:
+        return
+
+
 def _extract_item_rule(items: dict[str, Any], spec_item: str) -> tuple[str, dict[str, Any]]:
     if not items:
         return "", {}
@@ -221,14 +381,27 @@ def save_spec_dict(
         or []
     )
     row = _as_dict(rows[0]) if rows else payload
+    saved_items = _as_dict(row.get("items") or payload["items"])
+    saved_metadata = _as_dict(row.get("metadata") or payload["metadata"])
+    _sync_specir_from_spec_dict(
+        sb=sb,
+        spec_dict_key=_to_text(row.get("spec_dict_key") or key).strip(),
+        title=_to_text(row.get("title") or payload["title"]).strip(),
+        version=_to_text(row.get("version") or payload["version"]).strip(),
+        authority=_to_text(row.get("authority") or payload["authority"]).strip(),
+        spec_uri=_to_text(row.get("spec_uri") or payload["spec_uri"]).strip(),
+        items=saved_items,
+        metadata=saved_metadata,
+        is_active=bool(row.get("is_active") if row.get("is_active") is not None else payload["is_active"]),
+    )
     return {
         "ok": True,
         "spec_dict_key": _to_text(row.get("spec_dict_key") or key).strip(),
         "title": _to_text(row.get("title") or payload["title"]).strip(),
         "version": _to_text(row.get("version") or payload["version"]).strip(),
         "spec_uri": _to_text(row.get("spec_uri") or payload["spec_uri"]).strip(),
-        "items": _as_dict(row.get("items") or payload["items"]),
-        "metadata": _as_dict(row.get("metadata") or payload["metadata"]),
+        "items": saved_items,
+        "metadata": saved_metadata,
         "updated_at": _to_text(row.get("updated_at") or _utc_iso()).strip(),
     }
 
@@ -299,7 +472,7 @@ def resolve_gate_binding(
 ) -> dict[str, Any]:
     code = _to_text(subitem_code).strip()
     if not code:
-        return {
+        payload = {
             "from_registry": False,
             "item_code": "",
             "linked_gate_id": "",
@@ -311,6 +484,16 @@ def resolve_gate_binding(
             "gate_template_lock": False,
             "gate_binding_hash": "",
         }
+        payload.update(
+            _build_gate_ref_pack(
+                linked_gate_id="",
+                linked_gate_ids=[],
+                linked_spec_uri=_to_text(fallback_spec_uri).strip(),
+                spec_dict_key="",
+                spec_item="",
+            )
+        )
+        return payload
 
     candidate_rows = _load_candidate_gates(sb=sb)
     scored: list[tuple[int, dict[str, Any]]] = []
@@ -407,7 +590,7 @@ def resolve_gate_binding(
             "spec_item": spec_item,
         }
     )
-    return {
+    payload = {
         "from_registry": bool(selected_rows),
         "item_code": code,
         "linked_gate_id": linked_gate_id,
@@ -421,6 +604,16 @@ def resolve_gate_binding(
         "gate_template_lock": gate_template_lock,
         "gate_binding_hash": gate_binding_hash,
     }
+    payload.update(
+        _build_gate_ref_pack(
+            linked_gate_id=linked_gate_id,
+            linked_gate_ids=linked_gate_ids,
+            linked_spec_uri=linked_spec_uri,
+            spec_dict_key=spec_dict_key,
+            spec_item=spec_item,
+        )
+    )
+    return payload
 
 
 def upsert_gate_binding(
@@ -461,6 +654,20 @@ def upsert_gate_binding(
     }
     rows = sb.table("gates").upsert(payload, on_conflict="gate_id").execute().data or []
     row = _as_dict(rows[0]) if rows else payload
+    _sync_specir_from_gate_binding(
+        sb=sb,
+        gate_id=_to_text(row.get("gate_id") or normalized_gate_id).strip(),
+        gate_id_base=_to_text(row.get("gate_id_base") or payload["gate_id_base"]).strip(),
+        subitem_code=_to_text(row.get("subitem_code") or payload["subitem_code"]).strip(),
+        spec_dict_key=_to_text(row.get("spec_dict_key") or normalized_key).strip(),
+        spec_item=_to_text(row.get("spec_item") or payload["spec_item"]).strip(),
+        match_kind=_to_text(row.get("match_kind") or payload["match_kind"]).strip(),
+        execution_strategy=_to_text(row.get("execution_strategy") or payload["execution_strategy"]).strip(),
+        fail_action=_to_text(row.get("fail_action") or payload["fail_action"]).strip(),
+        gate_rules=_as_list(row.get("gate_rules") or payload["gate_rules"]),
+        metadata=_as_dict(row.get("metadata") or payload["metadata"]),
+        is_active=bool(row.get("is_active") if row.get("is_active") is not None else payload["is_active"]),
+    )
     return {
         "ok": True,
         "gate_id": _to_text(row.get("gate_id") or normalized_gate_id).strip(),
@@ -549,12 +756,23 @@ def resolve_dynamic_threshold(
         _to_text(spec_pack.get("version") or "v1.0").strip(),
         item_key,
     )
+    ref_pack = _build_gate_ref_pack(
+        linked_gate_id=_to_text(gate_row.get("gate_id") or "").strip(),
+        linked_gate_ids=[_to_text(gate_row.get("gate_id") or "").strip()],
+        linked_spec_uri=spec_uri,
+        spec_dict_key=spec_key,
+        spec_item=item_key,
+    )
     return {
         "found": True,
         "gate_id": _to_text(gate_row.get("gate_id") or "").strip(),
         "gate_id_base": _to_text(gate_row.get("gate_id_base") or "").strip(),
         "spec_dict_key": spec_key,
         "spec_item": item_key,
+        "ref_gate_uri": _to_text(ref_pack.get("ref_gate_uri") or "").strip(),
+        "ref_spec_uri": _to_text(ref_pack.get("ref_spec_uri") or "").strip(),
+        "ref_spec_dict_uri": _to_text(ref_pack.get("ref_spec_dict_uri") or "").strip(),
+        "ref_spec_item_uri": _to_text(ref_pack.get("ref_spec_item_uri") or "").strip(),
         "title": _to_text(spec_pack.get("title") or "").strip(),
         "version": _to_text(spec_pack.get("version") or "").strip(),
         "spec_uri": spec_uri,

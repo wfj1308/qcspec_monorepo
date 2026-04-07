@@ -52,7 +52,11 @@ def run_triprole_postprocess(
                 "boq_item_uri": boq_item_uri,
                 "linked_gate_id": _to_text(next_state.get("linked_gate_id") or "").strip(),
                 "linked_gate_ids": _as_list(next_state.get("linked_gate_ids")),
-                "linked_gate_rules": _as_list(next_state.get("linked_gate_rules")),
+                "ref_gate_uri": _to_text(next_state.get("ref_gate_uri") or "").strip(),
+                "ref_gate_uris": _as_list(next_state.get("ref_gate_uris")),
+                "ref_spec_uri": _to_text(next_state.get("ref_spec_uri") or "").strip(),
+                "ref_spec_dict_uri": _to_text(next_state.get("ref_spec_dict_uri") or "").strip(),
+                "ref_spec_item_uri": _to_text(next_state.get("ref_spec_item_uri") or "").strip(),
                 "evaluated_at": now_iso,
             },
         )

@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends
+from typing import Any
+
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel, Field
 
 from services.api.core import NormRefResolverService
 from services.api.dependencies import get_boq_specification_service, get_normref_resolver
@@ -10,6 +13,28 @@ from services.api.domain import BOQSpecificationService
 from services.api.domain.proof.schemas import GateRuleGenerateBody, GateRuleNormImportBody, GateRuleRollbackBody, GateRuleSaveBody, SpecDictSaveBody
 
 router = APIRouter()
+
+
+class NormRefVerifyBody(BaseModel):
+    uri: str = ""
+    protocol_uri: str = ""
+    spu_uri: str = ""
+    actual_data: dict[str, Any] = Field(default_factory=dict)
+    design_data: dict[str, Any] = Field(default_factory=dict)
+    context: dict[str, Any] = Field(default_factory=dict)
+
+
+def _resolve_verify_uri(*, uri: str, protocol_uri: str, spu_uri: str) -> str:
+    direct = (uri or protocol_uri).strip()
+    if direct:
+        return direct
+    spu = spu_uri.strip()
+    if not spu:
+        return ""
+    if "/spu/" in spu:
+        head, tail = spu.split("/spu/", 1)
+        return f"{head}/qc/{tail}"
+    return spu
 
 
 @router.get("/gate-editor/{subitem_code}")
@@ -79,3 +104,39 @@ async def resolve_spec_dict_threshold(
     resolver: NormRefResolverService = Depends(get_normref_resolver),
 ):
     return resolver.resolve_threshold(gate_id=gate_id, context=context)
+
+
+@router.get("/resolve")
+async def resolve_normref_protocol(
+    uri: str,
+    resolver: NormRefResolverService = Depends(get_normref_resolver),
+):
+    out = resolver.resolve_protocol(uri=uri)
+    if not bool(out.get("ok")):
+        raise HTTPException(404, str(out.get("error") or "protocol_not_found"))
+    return out
+
+
+@router.post("/verify")
+async def verify_normref_protocol(
+    body: NormRefVerifyBody,
+    resolver: NormRefResolverService = Depends(get_normref_resolver),
+):
+    resolved_uri = _resolve_verify_uri(
+        uri=str(body.uri or ""),
+        protocol_uri=str(body.protocol_uri or ""),
+        spu_uri=str(body.spu_uri or ""),
+    )
+    if not resolved_uri:
+        raise HTTPException(400, "uri or protocol_uri or spu_uri is required")
+    out = resolver.verify_protocol(
+        uri=resolved_uri,
+        actual_data=dict(body.actual_data or {}),
+        design_data=dict(body.design_data or {}),
+        context=dict(body.context or {}),
+    )
+    if not bool(out.get("ok")):
+        if str(out.get("error") or "") == "protocol_not_found":
+            raise HTTPException(404, "protocol_not_found")
+        raise HTTPException(400, str(out.get("error") or "verify_failed"))
+    return out

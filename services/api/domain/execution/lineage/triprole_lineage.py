@@ -151,6 +151,11 @@ def _resolve_subitem_gate_binding(
     linked_spec_uri = to_text(sd.get("linked_spec_uri") or "").strip()
     spec_dict_key = to_text(sd.get("spec_dict_key") or "").strip()
     spec_item = to_text(sd.get("spec_item") or "").strip()
+    ref_gate_uri = to_text(sd.get("ref_gate_uri") or "").strip()
+    ref_gate_uris = as_list(sd.get("ref_gate_uris"))
+    ref_spec_uri = to_text(sd.get("ref_spec_uri") or "").strip()
+    ref_spec_dict_uri = to_text(sd.get("ref_spec_dict_uri") or "").strip()
+    ref_spec_item_uri = to_text(sd.get("ref_spec_item_uri") or "").strip()
 
     if linked_gate_id and linked_gate_ids:
         binding["linked_gate_id"] = linked_gate_id
@@ -163,6 +168,16 @@ def _resolve_subitem_gate_binding(
         binding["spec_dict_key"] = spec_dict_key
     if spec_item:
         binding["spec_item"] = spec_item
+    if ref_gate_uri:
+        binding["ref_gate_uri"] = ref_gate_uri
+    if ref_gate_uris:
+        binding["ref_gate_uris"] = ref_gate_uris
+    if ref_spec_uri:
+        binding["ref_spec_uri"] = ref_spec_uri
+    if ref_spec_dict_uri:
+        binding["ref_spec_dict_uri"] = ref_spec_dict_uri
+    if ref_spec_item_uri:
+        binding["ref_spec_item_uri"] = ref_spec_item_uri
     if sd.get("gate_template_lock") is not None:
         binding["gate_template_lock"] = bool(sd.get("gate_template_lock"))
     return binding

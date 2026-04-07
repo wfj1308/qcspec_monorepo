@@ -1,4 +1,4 @@
-﻿"""
+"""
 DocPeg helpers for BOQ-linked proof chain aggregation and report packaging.
 """
 

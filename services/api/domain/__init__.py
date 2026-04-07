@@ -8,6 +8,7 @@ from typing import Any
 __all__ = [
     "AuthService",
     "BOQService",
+    "BOQPegService",
     "BOQSpecificationService",
     "AutoregService",
     "DocumentGovernanceService",
@@ -30,6 +31,7 @@ __all__ = [
 _EXPORT_MAP: dict[str, tuple[str, str]] = {
     "AuthService": ("services.api.domain.auth", "AuthService"),
     "BOQService": ("services.api.domain.boq", "BOQService"),
+    "BOQPegService": ("services.api.domain.boqpeg", "BOQPegService"),
     "BOQSpecificationService": ("services.api.domain.boq", "BOQSpecificationService"),
     "AutoregService": ("services.api.domain.autoreg", "AutoregService"),
     "DocumentGovernanceService": ("services.api.domain.documents", "DocumentGovernanceService"),

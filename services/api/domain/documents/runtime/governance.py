@@ -19,6 +19,10 @@ from typing import Any
 import httpx
 from fastapi import HTTPException
 
+from services.api.domain.documents.runtime.specir_docpeg_v11 import (
+    build_docpeg_specir_v11,
+    project_docpeg_specir_v11_for_role,
+)
 from services.api.domain.utxo.integrations import ProofUTXOEngine
 
 
@@ -501,6 +505,8 @@ def register_document(
     trip_action: str = "",
     lifecycle_stage: str = "",
     trip_payload: dict[str, Any] | None = None,
+    doc_spec: dict[str, Any] | None = None,
+    dtorole_context: str = "",
 ) -> dict[str, Any]:
     proj_uri = _normalize_uri(project_uri)
     n_uri = _normalize_uri(node_uri or proj_uri)
@@ -577,6 +583,36 @@ def register_document(
         "uploaded_at": _utc_iso(),
         "proof_fingerprint": fingerprint,
     }
+    docpeg_specir_v1_1 = build_docpeg_specir_v11(
+        project_uri=proj_uri,
+        node_uri=n_uri,
+        source_utxo_id=src_id,
+        file_name=file_name,
+        mime_type=mime_type,
+        storage_url=storage_url,
+        text_excerpt=text_excerpt,
+        ai_metadata=ai_meta,
+        custom_metadata={**cus_meta, "docpeg_specir_v1_1": _as_dict(doc_spec)},
+        tags=merged_tags[:30],
+        lifecycle_stage=lifecycle_stage,
+        trigger_event=trip_action or "document.register",
+        created_at=_to_text(state_data.get("uploaded_at")).strip(),
+        jurisdiction=_to_text(cus_meta.get("jurisdiction")).strip(),
+        proof_hash=fingerprint,
+        trip_role=trip_action,
+        dtorole_context=_to_text(dtorole_context).strip() or _to_text(cus_meta.get("dtorole_context") or cus_meta.get("dto_role")).strip(),
+        trip_context={
+            "executed_by": _to_text(executor_uri).strip() or "v://executor/system/",
+            "executed_at": _to_text(state_data.get("uploaded_at")).strip(),
+            "input": _as_dict(trip_payload),
+            "output": {"status": "registered"},
+        },
+        required_trip_roles=_as_list(cus_meta.get("required_trip_roles")),
+        dtorole_permissions=_as_dict(cus_meta.get("dtorole_permissions")),
+        dtorole_proof=_as_dict(cus_meta.get("dtorole_proof")),
+        dtorole_state=_as_dict(cus_meta.get("dtorole_state")),
+    )
+    state_data["docpeg_specir_v1_1"] = docpeg_specir_v1_1
     if _to_text(trip_action).strip():
         state_data["trip_action"] = _to_text(trip_action).strip()
     if _to_text(lifecycle_stage).strip():
@@ -609,6 +645,20 @@ def register_document(
         # is not yet allowed by proof_utxo_proof_type_check.
         proof_type_used = "archive"
         row = engine.create(proof_type=proof_type_used, **create_kwargs)
+    final_proof_hash = _to_text(row.get("proof_hash")).strip()
+    if final_proof_hash:
+        state_data["docpeg_specir_v1_1"] = _as_dict(state_data.get("docpeg_specir_v1_1"))
+        _as_dict(state_data["docpeg_specir_v1_1"]).setdefault("proof", {})
+        _as_dict(_as_dict(state_data["docpeg_specir_v1_1"]).get("proof"))["proof_hash"] = final_proof_hash
+        _as_dict(_as_dict(state_data["docpeg_specir_v1_1"]).get("proof"))["trip_proof_hash"] = final_proof_hash
+        try:
+            sb.table("proof_utxo").update({"state_data": state_data}).eq("proof_id", _to_text(row.get("proof_id")).strip()).execute()
+        except Exception:
+            pass
+    doc_view = project_docpeg_specir_v11_for_role(
+        spec=_as_dict(state_data.get("docpeg_specir_v1_1")),
+        dto_role=_to_text(dtorole_context).strip() or _to_text(cus_meta.get("dtorole_context") or cus_meta.get("dto_role")).strip() or "OWNER",
+    )
     _insert_doc_tags(
         sb=sb,
         proof_id=_to_text(row.get("proof_id")).strip(),
@@ -629,6 +679,8 @@ def register_document(
         "storage_url": _to_text(storage_url).strip(),
         "proof_type": proof_type_used,
         "tags": merged_tags[:30],
+        "docpeg_specir_v1_1": _as_dict(state_data.get("docpeg_specir_v1_1")),
+        "docpeg_specir_v1_1_view": doc_view,
     }
 
 
@@ -677,6 +729,7 @@ def search_documents(
     tags: list[str] | None = None,
     field_filters: dict[str, Any] | None = None,
     limit: int = 200,
+    dto_role: str = "",
 ) -> dict[str, Any]:
     proj_uri = _normalize_uri(project_uri)
     node = _normalize_uri(node_uri or proj_uri)
@@ -741,6 +794,8 @@ def search_documents(
     cards = []
     for row in filtered:
         sd = _as_dict(row.get("state_data"))
+        doc_spec = _as_dict(sd.get("docpeg_specir_v1_1"))
+        doc_view = project_docpeg_specir_v11_for_role(spec=doc_spec, dto_role=dto_role or "PUBLIC") if doc_spec else {}
         cards.append(
             {
                 "proof_id": _to_text(row.get("proof_id")).strip(),
@@ -756,12 +811,15 @@ def search_documents(
                 "summary": _to_text(sd.get("summary")).strip(),
                 "tags": _as_list(sd.get("tags")),
                 "state_data": sd,
+                "docpeg_specir_v1_1": doc_spec,
+                "docpeg_specir_v1_1_view": doc_view,
             }
         )
     return {
         "ok": True,
         "project_uri": proj_uri,
         "node_uri": node,
+        "dto_role": _to_text(dto_role).strip().upper() or "PUBLIC",
         "count": len(cards),
         "cards": cards,
     }

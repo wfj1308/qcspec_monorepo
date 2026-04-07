@@ -1,4 +1,4 @@
-﻿"""
+"""
 Transaction helpers for ProofUTXOEngine.
 """
 
@@ -11,6 +11,65 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from postgrest.exceptions import APIError
 from supabase import Client
+
+
+def _to_text(value: Any) -> str:
+    if value is None:
+        return ""
+    return str(value)
+
+
+def _as_dict(value: Any) -> Dict[str, Any]:
+    if isinstance(value, dict):
+        return value
+    return {}
+
+
+def _normalize_boq_uri_from_segment(segment_uri: str) -> str:
+    uri = _to_text(segment_uri).strip()
+    if not uri.startswith("v://") or "/boq/" not in uri:
+        return ""
+    token = "/spu-mapping/"
+    if token in uri:
+        uri = uri.split(token, 1)[0]
+    return uri.rstrip("/")
+
+
+def _extract_boq_uri(*, segment_uri: str, state_data: Dict[str, Any]) -> str:
+    for key in ("boq_item_canonical_uri", "boq_item_v_uri", "boq_item_uri"):
+        text = _to_text(state_data.get(key)).strip()
+        if text.startswith("v://"):
+            return text.rstrip("/")
+    ref = _as_dict(state_data.get("project_boq_item_ref"))
+    ref_uri = _to_text(ref.get("boq_v_uri")).strip()
+    if ref_uri.startswith("v://"):
+        return ref_uri.rstrip("/")
+    return _normalize_boq_uri_from_segment(segment_uri)
+
+
+def _sync_boq_markdown_after_consume(
+    *,
+    sb: Client,
+    project_uri: str,
+    boq_v_uris: List[str],
+    actor_uri: str,
+    reason: str,
+) -> None:
+    if not boq_v_uris:
+        return
+    try:
+        from services.api.domain.boq.runtime.boq_item_markdown import sync_boq_item_markdowns_for_uris
+
+        sync_boq_item_markdowns_for_uris(
+            sb=sb,
+            project_uri=project_uri,
+            boq_v_uris=boq_v_uris,
+            actor_uri=actor_uri,
+            reason=reason or "utxo.consume",
+            write_file=True,
+        )
+    except Exception:
+        return
 
 
 def create_proof_row(
@@ -165,8 +224,19 @@ def consume_proofs(
     tx_id = gen_tx_id()
     now_iso = utc_now_iso()
     output_proofs: List[str] = []
+    touched_boq_uris: List[str] = []
     first_input = proof_map[input_proof_ids[0]]
     parent_id = input_proof_ids[0]
+    first_project_uri = _to_text(first_input.get("project_uri")).strip()
+    for pid in input_proof_ids:
+        src = proof_map.get(pid) or {}
+        src_state = _as_dict(src.get("state_data"))
+        boq_uri = _extract_boq_uri(
+            segment_uri=_to_text(src.get("segment_uri")).strip(),
+            state_data=src_state,
+        )
+        if boq_uri and boq_uri not in touched_boq_uris:
+            touched_boq_uris.append(boq_uri)
 
     for output in output_states:
         created = create_callback(
@@ -188,6 +258,13 @@ def consume_proofs(
             created_at=now_iso,
         )
         output_proofs.append(str(created["proof_id"]))
+        out_state = _as_dict(output.get("state_data"))
+        boq_uri = _extract_boq_uri(
+            segment_uri=_to_text(output.get("segment_uri") or first_input.get("segment_uri")).strip(),
+            state_data=out_state,
+        )
+        if boq_uri and boq_uri not in touched_boq_uris:
+            touched_boq_uris.append(boq_uri)
 
     tx_row = {
         "tx_id": tx_id,
@@ -207,6 +284,13 @@ def consume_proofs(
         sb.table("proof_utxo").update(
             {"spent": True, "spend_tx_id": tx_id, "spent_at": now_iso}
         ).eq("proof_id", pid).execute()
+    _sync_boq_markdown_after_consume(
+        sb=sb,
+        project_uri=first_project_uri,
+        boq_v_uris=touched_boq_uris,
+        actor_uri=executor_uri,
+        reason=trigger_action or tx_type,
+    )
     return tx_row
 
 

@@ -1,4 +1,4 @@
-﻿"""
+"""
 Request models for settings router.
 """
 

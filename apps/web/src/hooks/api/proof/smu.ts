@@ -1,117 +1,153 @@
 import { useCallback } from 'react'
 import { API_BASE, normalizeApiPayload, type ApiRequestFn } from '../base'
 
+const BOQPEG_PRIMARY_PREFIX = '/v1/qcspec/boqpeg'
+const BOQPEG_COMPAT_PREFIX = '/v1/proof/boqpeg'
+const SMU_GENESIS_COMPAT_PREFIXES = ['/v1/proof/smu/genesis', '/v1/docpeg/smu/genesis'] as const
+
+type SmuGenesisImportParams = {
+  file: File
+  project_uri: string
+  project_id?: string
+  boq_root_uri?: string
+  norm_context_root_uri?: string
+  owner_uri?: string
+  commit?: boolean
+}
+
+type SmuGenesisPreviewParams = Omit<SmuGenesisImportParams, 'commit'>
+
+function buildGenesisFormData(
+  params: SmuGenesisImportParams | SmuGenesisPreviewParams,
+  includeCommit: boolean,
+): FormData {
+  const form = new FormData()
+  form.append('file', params.file)
+  form.append('project_uri', params.project_uri)
+  if (params.project_id) form.append('project_id', params.project_id)
+  if (params.boq_root_uri) form.append('boq_root_uri', params.boq_root_uri)
+  if (params.norm_context_root_uri) form.append('norm_context_root_uri', params.norm_context_root_uri)
+  if (params.owner_uri) form.append('owner_uri', params.owner_uri)
+  if (includeCommit) {
+    form.append('commit', String((params as SmuGenesisImportParams).commit !== false))
+  }
+  return form
+}
+
 export function useProofSmu(request: ApiRequestFn) {
-  const smuImportGenesis = useCallback(async (params: {
-    file: File
-    project_uri: string
-    project_id?: string
-    boq_root_uri?: string
-    norm_context_root_uri?: string
-    owner_uri?: string
-    commit?: boolean
-  }) => {
-    const form = new FormData()
-    form.append('file', params.file)
-    form.append('project_uri', params.project_uri)
-    if (params.project_id) form.append('project_id', params.project_id)
-    if (params.boq_root_uri) form.append('boq_root_uri', params.boq_root_uri)
-    if (params.norm_context_root_uri) form.append('norm_context_root_uri', params.norm_context_root_uri)
-    if (params.owner_uri) form.append('owner_uri', params.owner_uri)
-    form.append('commit', String(params.commit !== false))
-
-    return request('/v1/proof/smu/genesis/import', {
-      method: 'POST',
-      body: form,
-      timeoutMs: 10 * 60 * 1000,
-    })
+  const requestWithFallback = useCallback(async (
+    candidatePaths: readonly string[],
+    options: Parameters<ApiRequestFn>[1],
+  ) => {
+    for (const path of candidatePaths) {
+      const result = await request(path, options)
+      if (result !== null) return result
+    }
+    return null
   }, [request])
 
-  const smuImportGenesisAsync = useCallback(async (params: {
-    file: File
-    project_uri: string
-    project_id?: string
-    boq_root_uri?: string
-    norm_context_root_uri?: string
-    owner_uri?: string
-    commit?: boolean
-  }) => {
-    const form = new FormData()
-    form.append('file', params.file)
-    form.append('project_uri', params.project_uri)
-    if (params.project_id) form.append('project_id', params.project_id)
-    if (params.boq_root_uri) form.append('boq_root_uri', params.boq_root_uri)
-    if (params.norm_context_root_uri) form.append('norm_context_root_uri', params.norm_context_root_uri)
-    if (params.owner_uri) form.append('owner_uri', params.owner_uri)
-    form.append('commit', String(params.commit !== false))
+  const fetchPublicWithFallback = useCallback(async (candidateUrls: readonly string[]) => {
+    for (const url of candidateUrls) {
+      try {
+        const res = await fetch(url, { method: 'GET' })
+        if (res.ok) {
+          const json = await res.json()
+          return normalizeApiPayload(json)
+        }
+      } catch {
+        // Try the next compatibility endpoint.
+      }
+    }
+    return null
+  }, [])
 
-    return request('/v1/proof/smu/genesis/import-async', {
-      method: 'POST',
-      body: form,
-      timeoutMs: 12000,
-    })
-  }, [request])
+  const smuImportGenesis = useCallback(async (params: SmuGenesisImportParams) => {
+    const form = buildGenesisFormData(params, true)
+    return requestWithFallback(
+      [
+        `${BOQPEG_PRIMARY_PREFIX}/import`,
+        `${BOQPEG_COMPAT_PREFIX}/import`,
+        ...SMU_GENESIS_COMPAT_PREFIXES.map((prefix) => `${prefix}/import`),
+      ],
+      {
+        method: 'POST',
+        body: form,
+        timeoutMs: 10 * 60 * 1000,
+      },
+    )
+  }, [requestWithFallback])
 
-  const smuImportGenesisPreview = useCallback(async (params: {
-    file: File
-    project_uri: string
-    project_id?: string
-    boq_root_uri?: string
-    norm_context_root_uri?: string
-    owner_uri?: string
-  }) => {
-    const form = new FormData()
-    form.append('file', params.file)
-    form.append('project_uri', params.project_uri)
-    if (params.project_id) form.append('project_id', params.project_id)
-    if (params.boq_root_uri) form.append('boq_root_uri', params.boq_root_uri)
-    if (params.norm_context_root_uri) form.append('norm_context_root_uri', params.norm_context_root_uri)
-    if (params.owner_uri) form.append('owner_uri', params.owner_uri)
+  const smuImportGenesisAsync = useCallback(async (params: SmuGenesisImportParams) => {
+    const form = buildGenesisFormData(params, true)
+    return requestWithFallback(
+      [
+        `${BOQPEG_PRIMARY_PREFIX}/import-async`,
+        `${BOQPEG_COMPAT_PREFIX}/import-async`,
+        ...SMU_GENESIS_COMPAT_PREFIXES.map((prefix) => `${prefix}/import-async`),
+      ],
+      {
+        method: 'POST',
+        body: form,
+        timeoutMs: 12000,
+      },
+    )
+  }, [requestWithFallback])
 
-    return request('/v1/proof/smu/genesis/preview', {
-      method: 'POST',
-      body: form,
-      timeoutMs: 12000,
-      skipAuthRedirect: true,
-    })
-  }, [request])
+  const smuImportGenesisPreview = useCallback(async (params: SmuGenesisPreviewParams) => {
+    const form = buildGenesisFormData(params, false)
+    return requestWithFallback(
+      [
+        `${BOQPEG_PRIMARY_PREFIX}/preview`,
+        `${BOQPEG_COMPAT_PREFIX}/preview`,
+        ...SMU_GENESIS_COMPAT_PREFIXES.map((prefix) => `${prefix}/preview`),
+      ],
+      {
+        method: 'POST',
+        body: form,
+        timeoutMs: 12000,
+        skipAuthRedirect: true,
+      },
+    )
+  }, [requestWithFallback])
 
   const smuImportGenesisJob = useCallback(async (job_id: string) => {
-    return request(`/v1/proof/smu/genesis/import-job/${encodeURIComponent(job_id)}`, {
-      timeoutMs: 12000,
-    })
-  }, [request])
+    const encodedJobId = encodeURIComponent(job_id)
+    return requestWithFallback(
+      [
+        `${BOQPEG_PRIMARY_PREFIX}/import-job/${encodedJobId}`,
+        `${BOQPEG_COMPAT_PREFIX}/import-job/${encodedJobId}`,
+        ...SMU_GENESIS_COMPAT_PREFIXES.map((prefix) => `${prefix}/import-job/${encodedJobId}`),
+      ],
+      {
+        timeoutMs: 12000,
+      },
+    )
+  }, [requestWithFallback])
 
   const smuImportGenesisJobPublic = useCallback(async (job_id: string) => {
     const id = encodeURIComponent(String(job_id || '').trim())
     if (!id) return null
-    try {
-      const res = await fetch(`${API_BASE}/v1/proof/smu/genesis/import-job-public/${id}`, {
-        method: 'GET',
-      })
-      if (!res.ok) return null
-      const json = await res.json()
-      return normalizeApiPayload(json)
-    } catch {
-      return null
-    }
-  }, [])
+    return fetchPublicWithFallback(
+      [
+        `${API_BASE}${BOQPEG_PRIMARY_PREFIX}/import-job-public/${id}`,
+        `${API_BASE}${BOQPEG_COMPAT_PREFIX}/import-job-public/${id}`,
+        ...SMU_GENESIS_COMPAT_PREFIXES.map((prefix) => `${API_BASE}${prefix}/import-job-public/${id}`),
+      ],
+    )
+  }, [fetchPublicWithFallback])
 
   const smuImportGenesisJobActivePublic = useCallback(async (project_uri: string) => {
     const uri = String(project_uri || '').trim()
     if (!uri) return null
-    try {
-      const qs = new URLSearchParams({ project_uri: uri }).toString()
-      const res = await fetch(`${API_BASE}/v1/proof/smu/genesis/import-job-active-public?${qs}`, {
-        method: 'GET',
-      })
-      if (!res.ok) return null
-      const json = await res.json()
-      return normalizeApiPayload(json)
-    } catch {
-      return null
-    }
-  }, [])
+    const qs = new URLSearchParams({ project_uri: uri }).toString()
+    return fetchPublicWithFallback(
+      [
+        `${API_BASE}${BOQPEG_PRIMARY_PREFIX}/import-job-active-public?${qs}`,
+        `${API_BASE}${BOQPEG_COMPAT_PREFIX}/import-job-active-public?${qs}`,
+        ...SMU_GENESIS_COMPAT_PREFIXES.map((prefix) => `${API_BASE}${prefix}/import-job-active-public?${qs}`),
+      ],
+    )
+  }, [fetchPublicWithFallback])
 
   const smuNodeContext = useCallback(async (query: {
     project_uri: string

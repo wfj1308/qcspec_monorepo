@@ -1,4 +1,4 @@
-﻿"""
+"""
 BOQ parsing and UTXO initialization helpers.
 
 Implements BOQ -> UTXO genesis workflow:
@@ -11,7 +11,7 @@ Implements BOQ -> UTXO genesis workflow:
 from __future__ import annotations
 
 from dataclasses import dataclass, asdict
-from datetime import datetime
+from datetime import UTC, datetime
 import csv
 import hashlib
 import io
@@ -25,6 +25,22 @@ from services.api.domain.boq.runtime.specdict_gate import (
     resolve_gate_binding,
     save_spec_dict,
     upsert_gate_binding,
+)
+from services.api.domain.specir.runtime.registry import (
+    ensure_specir_object,
+)
+from services.api.domain.specir.runtime.refs import (
+    resolve_spu_ref_pack,
+)
+from services.api.domain.specir.runtime.spu_schema import (
+    build_spu_ultimate_content,
+)
+from services.api.domain.specir.runtime.layering import (
+    build_project_boq_item_ref,
+    resolve_standard_spu_snapshot,
+)
+from services.api.domain.projects.gitpeg_sdk import (
+    register_boq_item,
 )
 
 ITEM_NO_PATTERN = re.compile(r"^\d{3}(?:-[0-9A-Za-z]+)*$")
@@ -102,8 +118,17 @@ class BoqHierarchyNode:
     linked_spec_uri: str
     spec_dict_key: str
     spec_item: str
+    ref_gate_uri: str
+    ref_gate_uris: list[str]
+    ref_spec_uri: str
+    ref_spec_dict_uri: str
+    ref_spec_item_uri: str
+    ref_spu_uri: str
+    ref_quota_uri: str
+    ref_meter_rule_uri: str
     gate_template_lock: bool
     hierarchy: dict[str, Any]
+    bridge_uri: str
     genesis_hash: str
 
 
@@ -153,6 +178,21 @@ def _normalize_unit(value: Any) -> str:
     if norm in {"金额", "费用", "价款"}:
         norm = "总额"
     return norm.strip()
+
+
+def _unit_from_meter_rule_uri(uri: str) -> str:
+    ref = _to_text(uri).strip().lower()
+    if "/by-weight@" in ref:
+        return "t"
+    if "/by-volume@" in ref:
+        return "m3"
+    if "/by-area@" in ref:
+        return "m2"
+    if "/contract-payment@" in ref:
+        return "CNY"
+    if "/landscape-work@" in ref:
+        return "m2"
+    return ""
 
 
 def _fallback_approved_quantity(
@@ -884,11 +924,186 @@ def _item_code_from_boq_uri(boq_item_uri: str) -> str:
     return uri.split("/")[-1]
 
 
+def _safe_ref_token(value: Any) -> str:
+    text = _to_text(value).strip()
+    if not text:
+        return ""
+    text = text.replace("::", "/").replace("#", "/").replace("@", "-")
+    text = re.sub(r"[^0-9A-Za-z._/-]+", "-", text).strip("-/")
+    text = re.sub(r"/{2,}", "/", text)
+    return text[:180]
+
+
+def _build_binding_refs(binding: dict[str, Any]) -> dict[str, Any]:
+    gate_ids = [_to_text(x).strip() for x in list(binding.get("linked_gate_ids") or []) if _to_text(x).strip()]
+    linked_gate_id = _to_text(binding.get("linked_gate_id") or "").strip()
+    linked_spec_uri = _to_text(binding.get("linked_spec_uri") or "").strip()
+    spec_dict_key = _to_text(binding.get("spec_dict_key") or "").strip()
+    spec_item = _to_text(binding.get("spec_item") or "").strip()
+
+    if linked_gate_id and linked_gate_id not in gate_ids:
+        gate_ids.insert(0, linked_gate_id)
+    ref_gate_uris = [f"v://norm/gate/{_safe_ref_token(gate_id)}@v1" for gate_id in gate_ids if _safe_ref_token(gate_id)]
+    ref_gate_uri = ref_gate_uris[0] if ref_gate_uris else ""
+
+    ref_spec_uri = linked_spec_uri if linked_spec_uri.startswith("v://") else ""
+    ref_spec_dict_uri = f"v://norm/specdict/{_safe_ref_token(spec_dict_key)}@v1" if spec_dict_key else ""
+    if spec_item and ref_spec_dict_uri:
+        ref_spec_item_uri = f"{ref_spec_dict_uri}#{_safe_ref_token(spec_item)}"
+    elif spec_item and ref_spec_uri:
+        ref_spec_item_uri = f"{ref_spec_uri}#{_safe_ref_token(spec_item)}"
+    else:
+        ref_spec_item_uri = ""
+    return {
+        "ref_gate_uri": ref_gate_uri,
+        "ref_gate_uris": ref_gate_uris,
+        "ref_spec_uri": ref_spec_uri,
+        "ref_spec_dict_uri": ref_spec_dict_uri,
+        "ref_spec_item_uri": ref_spec_item_uri,
+    }
+
+
+def _register_specir_refs(
+    *,
+    sb: Any,
+    item_code: str,
+    binding: dict[str, Any],
+) -> None:
+    if sb is None:
+        return
+    refs = _build_binding_refs(binding)
+    ref_spec_uri = _to_text(refs.get("ref_spec_uri") or "").strip()
+    ref_spec_dict_uri = _to_text(refs.get("ref_spec_dict_uri") or "").strip()
+    ref_spec_item_uri = _to_text(refs.get("ref_spec_item_uri") or "").strip()
+    ref_gate_uris = [_to_text(x).strip() for x in list(refs.get("ref_gate_uris") or []) if _to_text(x).strip()]
+    linked_gate_ids = [_to_text(x).strip() for x in list(binding.get("linked_gate_ids") or []) if _to_text(x).strip()]
+    linked_gate_rules = list(binding.get("linked_gate_rules") or [])
+
+    try:
+        if ref_spec_uri:
+            ensure_specir_object(
+                sb=sb,
+                uri=ref_spec_uri,
+                kind="spec_rule",
+                title=f"Spec Rule {item_code}",
+                content={
+                    "item_code": item_code,
+                    "spec_dict_key": _to_text(binding.get("spec_dict_key") or "").strip(),
+                    "spec_item": _to_text(binding.get("spec_item") or "").strip(),
+                },
+                metadata={"source": "boq.resolve_linked_gates"},
+            )
+        if ref_spec_dict_uri:
+            ensure_specir_object(
+                sb=sb,
+                uri=ref_spec_dict_uri,
+                kind="spec_dict",
+                title=f"SpecDict {item_code}",
+                content={
+                    "spec_dict_key": _to_text(binding.get("spec_dict_key") or "").strip(),
+                    "spec_item": _to_text(binding.get("spec_item") or "").strip(),
+                    "spec_uri": ref_spec_uri,
+                },
+                metadata={"source": "boq.resolve_linked_gates"},
+            )
+        if ref_spec_item_uri:
+            ensure_specir_object(
+                sb=sb,
+                uri=ref_spec_item_uri,
+                kind="spec_item",
+                title=f"SpecItem {item_code}",
+                content={
+                    "spec_dict_key": _to_text(binding.get("spec_dict_key") or "").strip(),
+                    "spec_item": _to_text(binding.get("spec_item") or "").strip(),
+                    "spec_uri": ref_spec_uri,
+                },
+                metadata={"source": "boq.resolve_linked_gates"},
+            )
+        for idx, ref_gate_uri in enumerate(ref_gate_uris):
+            gate_id = linked_gate_ids[idx] if idx < len(linked_gate_ids) else ""
+            ensure_specir_object(
+                sb=sb,
+                uri=ref_gate_uri,
+                kind="gate",
+                title=f"Gate {gate_id or item_code}",
+                content={
+                    "gate_id": gate_id,
+                    "item_code": item_code,
+                    "spec_uri": ref_spec_uri,
+                    "spec_item_uri": ref_spec_item_uri,
+                    "spec_dict_uri": ref_spec_dict_uri,
+                    "gate_rule": linked_gate_rules[idx] if idx < len(linked_gate_rules) else {},
+                },
+                metadata={"source": "boq.resolve_linked_gates"},
+            )
+    except Exception:
+        return
+
+
+def _register_specir_spu_refs(
+    *,
+    sb: Any,
+    item_code: str,
+    item_name: str,
+    ref_pack: dict[str, Any],
+) -> None:
+    if sb is None:
+        return
+    ref_spu_uri = _to_text(ref_pack.get("ref_spu_uri") or "").strip()
+    ref_quota_uri = _to_text(ref_pack.get("ref_quota_uri") or "").strip()
+    ref_meter_rule_uri = _to_text(ref_pack.get("ref_meter_rule_uri") or "").strip()
+    try:
+        if ref_spu_uri:
+            ensure_specir_object(
+                sb=sb,
+                uri=ref_spu_uri,
+                kind="spu",
+                title=item_name or item_code,
+                content=build_spu_ultimate_content(
+                    spu_uri=ref_spu_uri,
+                    title=item_name or item_code,
+                    content={
+                        "industry": "Highway",
+                        "unit": _unit_from_meter_rule_uri(ref_meter_rule_uri),
+                        "measure_statement": "Auto-registered from BOQ refs; refine in SpecIR editor.",
+                        "measure_operator": "boq-auto-register",
+                        "measure_expression": "approved_quantity",
+                        "quota_ref": ref_quota_uri,
+                        "meter_rule_ref": ref_meter_rule_uri,
+                        "gate_refs": [],
+                        "standard_codes": _default_norm_refs(item_no=item_code, item_name=item_name),
+                    },
+                ),
+                metadata={"source": "boq.resolve_spu_ref_pack"},
+            )
+        if ref_quota_uri:
+            ensure_specir_object(
+                sb=sb,
+                uri=ref_quota_uri,
+                kind="quota",
+                title=f"Quota {item_code}",
+                content={"spu_ref": ref_spu_uri, "item_code": item_code},
+                metadata={"source": "boq.resolve_spu_ref_pack"},
+            )
+        if ref_meter_rule_uri:
+            ensure_specir_object(
+                sb=sb,
+                uri=ref_meter_rule_uri,
+                kind="meter_rule",
+                title=f"Meter Rule {item_code}",
+                content={"spu_ref": ref_spu_uri, "item_code": item_code},
+                metadata={"source": "boq.resolve_spu_ref_pack"},
+            )
+    except Exception:
+        return
+
+
 def resolve_linked_gates(
     *,
     item_code: str,
     fallback_spec_uri: str = "",
     sb: Any = None,
+    persist_registry: bool = False,
 ) -> dict[str, Any]:
     code = _to_text(item_code).strip()
     fallback_spec = _to_text(fallback_spec_uri).strip()
@@ -901,7 +1116,7 @@ def resolve_linked_gates(
                 fallback_spec_uri=fallback_spec,
             )
             if bool(db_binding.get("from_registry")) and _to_text(db_binding.get("linked_gate_id") or "").strip():
-                return {
+                payload = {
                     "item_code": code,
                     "linked_gate_id": _to_text(db_binding.get("linked_gate_id") or "").strip(),
                     "linked_gate_ids": list(db_binding.get("linked_gate_ids") or []),
@@ -914,6 +1129,10 @@ def resolve_linked_gates(
                     "gate_template_lock": bool(db_binding.get("gate_template_lock")),
                     "gate_binding_hash": _to_text(db_binding.get("gate_binding_hash") or "").strip(),
                 }
+                payload.update(_build_binding_refs(payload))
+                if persist_registry:
+                    _register_specir_refs(sb=sb, item_code=code, binding=payload)
+                return payload
         except Exception:
             pass
 
@@ -1002,7 +1221,7 @@ def resolve_linked_gates(
 
     spec_dict_key = ""
     spec_item = ""
-    if sb is not None and linked_rules:
+    if sb is not None and persist_registry and linked_rules:
         first_rule = linked_rules[0]
         first_spec_uri = _to_text(first_rule.get("spec_uri") or "").strip()
         parsed = re.match(
@@ -1053,7 +1272,7 @@ def resolve_linked_gates(
             except Exception:
                 pass
 
-    return {
+    payload = {
         "item_code": code,
         "linked_gate_id": linked_gate_id,
         "linked_gate_ids": linked_gate_ids,
@@ -1066,6 +1285,10 @@ def resolve_linked_gates(
         "gate_template_lock": template_lock,
         "gate_binding_hash": binding_hash,
     }
+    payload.update(_build_binding_refs(payload))
+    if persist_registry:
+        _register_specir_refs(sb=sb, item_code=code, binding=payload)
+    return payload
 
 
 def auto_bind_gates(
@@ -1093,16 +1316,22 @@ def auto_bind_gates(
         item_code=item_code,
         fallback_spec_uri=_to_text(state_data.get("spec_uri") or row.get("norm_uri") or "").strip(),
         sb=sb,
+        persist_registry=True,
     )
+    refs = _build_binding_refs(binding)
     patched_state = dict(state_data)
     patched_state.update(
         {
             "linked_gate_id": _to_text(binding.get("linked_gate_id") or "").strip(),
             "linked_gate_ids": list(binding.get("linked_gate_ids") or []),
-            "linked_gate_rules": list(binding.get("linked_gate_rules") or []),
             "linked_spec_uri": _to_text(binding.get("linked_spec_uri") or "").strip(),
             "spec_dict_key": _to_text(binding.get("spec_dict_key") or "").strip(),
             "spec_item": _to_text(binding.get("spec_item") or "").strip(),
+            "ref_gate_uri": _to_text(refs.get("ref_gate_uri") or "").strip(),
+            "ref_gate_uris": list(refs.get("ref_gate_uris") or []),
+            "ref_spec_uri": _to_text(refs.get("ref_spec_uri") or "").strip(),
+            "ref_spec_dict_uri": _to_text(refs.get("ref_spec_dict_uri") or "").strip(),
+            "ref_spec_item_uri": _to_text(refs.get("ref_spec_item_uri") or "").strip(),
             "gate_template_lock": bool(binding.get("gate_template_lock")),
             "gate_binding_hash": _to_text(binding.get("gate_binding_hash") or "").strip(),
         }
@@ -1115,6 +1344,8 @@ def auto_bind_gates(
         "item_code": item_code,
         "linked_gate_id": patched_state.get("linked_gate_id"),
         "linked_gate_ids": patched_state.get("linked_gate_ids"),
+        "ref_gate_uri": patched_state.get("ref_gate_uri"),
+        "ref_spec_uri": patched_state.get("ref_spec_uri"),
         "spec_dict_key": patched_state.get("spec_dict_key"),
         "spec_item": patched_state.get("spec_item"),
         "gate_template_lock": patched_state.get("gate_template_lock"),
@@ -1161,13 +1392,17 @@ def _merkle_root(hashes: list[str]) -> str:
 def _build_hierarchy_nodes(
     *,
     boq_items: list[BoqItem],
+    project_uri: str,
     boq_root_uri: str,
     norm_context_root_uri: str,
     source_file: str,
+    bridge_mappings: dict[str, Any] | None = None,
     sb: Any = None,
+    persist_registry: bool = False,
 ) -> list[BoqHierarchyNode]:
     if not boq_items:
         return []
+    normalized_bridge_mappings = _normalize_bridge_mapping_keys(bridge_mappings)
 
     explicit_by_code: dict[str, BoqItem] = {}
     for item in boq_items:
@@ -1271,7 +1506,24 @@ def _build_hierarchy_nodes(
             item_code=code,
             fallback_spec_uri="",
             sb=sb,
+            persist_registry=persist_registry,
         )
+        spu_ref_pack = (
+            resolve_spu_ref_pack(
+                item_code=code,
+                item_name=name,
+                quantity_unit=_to_text((explicit.unit if explicit else (leaf_ref.unit if leaf_ref else "")) or "").strip(),
+            )
+            if is_leaf
+            else {"ref_spu_uri": "", "ref_quota_uri": "", "ref_meter_rule_uri": ""}
+        )
+        if persist_registry and is_leaf:
+            _register_specir_spu_refs(
+                sb=sb,
+                item_code=code,
+                item_name=name,
+                ref_pack=spu_ref_pack,
+            )
 
         hierarchy = {
             "chapter_code": hierarchy_meta.get("chapter_code") or "",
@@ -1284,6 +1536,16 @@ def _build_hierarchy_nodes(
             "is_leaf": is_leaf,
             "wbs_path": name,
         }
+        bridge_uri = ""
+        if is_leaf and normalized_bridge_mappings:
+            candidates = [code, code.lower(), uri, uri.rstrip("/"), uri.lower(), uri.rstrip("/").lower()]
+            for candidate in candidates:
+                if candidate not in normalized_bridge_mappings:
+                    continue
+                resolved = _normalize_bridge_uri_value(project_uri=project_uri, raw_value=normalized_bridge_mappings[candidate])
+                if resolved:
+                    bridge_uri = resolved
+                    break
 
         node_payload[code] = {
             "code": code,
@@ -1320,9 +1582,18 @@ def _build_hierarchy_nodes(
             "linked_spec_uri": _to_text(gate_binding.get("linked_spec_uri") or "").strip(),
             "spec_dict_key": _to_text(gate_binding.get("spec_dict_key") or "").strip(),
             "spec_item": _to_text(gate_binding.get("spec_item") or "").strip(),
+            "ref_gate_uri": _to_text(gate_binding.get("ref_gate_uri") or "").strip(),
+            "ref_gate_uris": list(gate_binding.get("ref_gate_uris") or []),
+            "ref_spec_uri": _to_text(gate_binding.get("ref_spec_uri") or "").strip(),
+            "ref_spec_dict_uri": _to_text(gate_binding.get("ref_spec_dict_uri") or "").strip(),
+            "ref_spec_item_uri": _to_text(gate_binding.get("ref_spec_item_uri") or "").strip(),
+            "ref_spu_uri": _to_text(spu_ref_pack.get("ref_spu_uri") or "").strip(),
+            "ref_quota_uri": _to_text(spu_ref_pack.get("ref_quota_uri") or "").strip(),
+            "ref_meter_rule_uri": _to_text(spu_ref_pack.get("ref_meter_rule_uri") or "").strip(),
             "gate_template_lock": bool(gate_binding.get("gate_template_lock")),
             "gate_binding_hash": _to_text(gate_binding.get("gate_binding_hash") or "").strip(),
             "hierarchy": hierarchy,
+            "bridge_uri": bridge_uri,
         }
 
     # Bottom-up subtree hashing so parent can seal descendants.
@@ -1351,10 +1622,18 @@ def _build_hierarchy_nodes(
             "children_merkle_root": children_merkle,
             "linked_gate_id": payload.get("linked_gate_id"),
             "linked_gate_ids": payload.get("linked_gate_ids"),
-            "linked_gate_rules": payload.get("linked_gate_rules"),
             "linked_spec_uri": payload.get("linked_spec_uri"),
+            "ref_gate_uri": payload.get("ref_gate_uri"),
+            "ref_gate_uris": payload.get("ref_gate_uris"),
+            "ref_spec_uri": payload.get("ref_spec_uri"),
+            "ref_spec_dict_uri": payload.get("ref_spec_dict_uri"),
+            "ref_spec_item_uri": payload.get("ref_spec_item_uri"),
+            "ref_spu_uri": payload.get("ref_spu_uri"),
+            "ref_quota_uri": payload.get("ref_quota_uri"),
+            "ref_meter_rule_uri": payload.get("ref_meter_rule_uri"),
             "gate_template_lock": payload.get("gate_template_lock"),
             "hierarchy": payload["hierarchy"],
+            "bridge_uri": payload.get("bridge_uri"),
             "source_file": payload["source_file"],
             "source_sheet": payload["source_sheet"],
             "source_row": payload["source_row"],
@@ -1399,8 +1678,17 @@ def _build_hierarchy_nodes(
             linked_spec_uri=_to_text(payload.get("linked_spec_uri") or "").strip(),
             spec_dict_key=_to_text(payload.get("spec_dict_key") or "").strip(),
             spec_item=_to_text(payload.get("spec_item") or "").strip(),
+            ref_gate_uri=_to_text(payload.get("ref_gate_uri") or "").strip(),
+            ref_gate_uris=list(payload.get("ref_gate_uris") or []),
+            ref_spec_uri=_to_text(payload.get("ref_spec_uri") or "").strip(),
+            ref_spec_dict_uri=_to_text(payload.get("ref_spec_dict_uri") or "").strip(),
+            ref_spec_item_uri=_to_text(payload.get("ref_spec_item_uri") or "").strip(),
+            ref_spu_uri=_to_text(payload.get("ref_spu_uri") or "").strip(),
+            ref_quota_uri=_to_text(payload.get("ref_quota_uri") or "").strip(),
+            ref_meter_rule_uri=_to_text(payload.get("ref_meter_rule_uri") or "").strip(),
             gate_template_lock=bool(payload.get("gate_template_lock")),
             hierarchy=dict(payload["hierarchy"]),
+            bridge_uri=_to_text(payload.get("bridge_uri") or "").strip(),
             genesis_hash=subtree_hash_by_code.get(code, ""),
         )
         nodes.append(node)
@@ -1418,9 +1706,11 @@ def parse_boq_hierarchy(
     items = parse_boq_excel(source_path, sheet_name=sheet_name, leaf_only=False)
     nodes = _build_hierarchy_nodes(
         boq_items=items,
+        project_uri="",
         boq_root_uri=boq_root_uri,
         norm_context_root_uri=norm_context_root_uri,
         source_file=str(source_path),
+        persist_registry=False,
     )
     children_by_parent: dict[str, list[str]] = {}
     for node in nodes:
@@ -1511,6 +1801,49 @@ def _default_owner_uri(project_uri: str) -> str:
     return f"{base}/executor/system/"
 
 
+def _slug_token(value: Any) -> str:
+    text = re.sub(r"\s+", "-", _to_text(value).strip().lower())
+    text = re.sub(r"[^0-9a-zA-Z\u4e00-\u9fff_-]+", "-", text)
+    text = re.sub(r"-+", "-", text).strip("-")
+    return text or "bridge"
+
+
+def _normalize_bridge_uri_value(*, project_uri: str, raw_value: Any) -> str:
+    if isinstance(raw_value, dict):
+        raw_uri = _to_text(raw_value.get("bridge_uri") or "").strip()
+        if raw_uri.startswith("v://"):
+            return raw_uri.rstrip("/")
+        raw_name = _to_text(raw_value.get("bridge_name") or "").strip()
+        if raw_name:
+            return f"{project_uri.rstrip('/')}/bridge/{_slug_token(raw_name)}"
+        return ""
+    text = _to_text(raw_value).strip()
+    if not text:
+        return ""
+    if text.startswith("v://"):
+        return text.rstrip("/")
+    return f"{project_uri.rstrip('/')}/bridge/{_slug_token(text)}"
+
+
+def _normalize_bridge_mapping_keys(
+    bridge_mappings: dict[str, Any] | None,
+) -> dict[str, Any]:
+    normalized: dict[str, Any] = {}
+    for raw_key, value in (bridge_mappings or {}).items():
+        key = _to_text(raw_key).strip()
+        if not key:
+            continue
+        normalized[key] = value
+        normalized[key.rstrip("/")] = value
+        normalized[key.lower()] = value
+        if "/" in key:
+            tail = key.rstrip("/").split("/")[-1]
+            if tail:
+                normalized[tail] = value
+                normalized[tail.lower()] = value
+    return normalized
+
+
 def _write_zero_ledger_meta(
     *,
     sb: Any,
@@ -1539,6 +1872,104 @@ def _write_zero_ledger_meta(
         return
 
 
+def _boq_full_line_uri(*, project_uri: str, item_no: str) -> str:
+    base = _to_text(project_uri).strip().rstrip("/")
+    code = _to_text(item_no).strip()
+    if not base or not code:
+        return ""
+    return f"{base}/full-line/boq/{code}"
+
+
+def _boq_bridge_scoped_uri(*, bridge_uri: str, item_no: str) -> str:
+    bridge = _to_text(bridge_uri).strip().rstrip("/")
+    code = _to_text(item_no).strip()
+    if not bridge.startswith("v://") or not code:
+        return ""
+    return f"{bridge}/boq/{code}"
+
+
+def _register_boq_item_sovereignty(
+    *,
+    sb: Any,
+    project_uri: str,
+    item_no: str,
+    description: str,
+    unit: str,
+    boq_quantity: float | None,
+    unit_price: float | None,
+    contract_total: float | None,
+    bridge_uri: str,
+    source_file: str,
+    source_sheet: str,
+    source_row: int | None,
+    commit: bool,
+    fallback_boq_uri: str,
+) -> dict[str, Any]:
+    project = _to_text(project_uri).strip().rstrip("/")
+    item_code = _to_text(item_no).strip()
+    bridge = _to_text(bridge_uri).strip().rstrip("/")
+    fallback_uri = _to_text(fallback_boq_uri).strip()
+    metadata = {
+        "description": _to_text(description).strip(),
+        "unit": _normalize_unit(unit),
+        "boq_quantity": boq_quantity,
+        "unit_price": unit_price,
+        "total_amount": contract_total,
+        "chapter": _item_code_parts(item_code)[0] if _item_code_parts(item_code) else "",
+        "bridge_uri": bridge,
+        "bridge_name": bridge.split("/")[-1] if bridge.startswith("v://") else "",
+        "source_file": _to_text(source_file).strip(),
+        "source_sheet": _to_text(source_sheet).strip(),
+        "source_row": source_row,
+    }
+    fallback_canonical = f"{project}/boq/{item_code}" if project and item_code else fallback_uri
+    fallback_full_line = _boq_full_line_uri(project_uri=project, item_no=item_code)
+    fallback_bridge_scoped = _boq_bridge_scoped_uri(bridge_uri=bridge, item_no=item_code)
+    try:
+        registration = register_boq_item(
+            sb=sb,
+            project_uri=project,
+            identifier=item_code,
+            metadata=metadata,
+            bridge_uri=bridge,
+            commit=bool(commit),
+        )
+        canonical_uri = _to_text(registration.get("canonical_uri") or fallback_canonical or fallback_uri).strip()
+        full_line_uri = _to_text(registration.get("full_line_uri") or fallback_full_line).strip()
+        bridge_scoped_uri = _to_text(registration.get("bridge_scoped_uri") or fallback_bridge_scoped).strip()
+        aliases: list[str] = []
+        for candidate in (full_line_uri, bridge_scoped_uri, fallback_uri):
+            text = _to_text(candidate).strip()
+            if text and text not in aliases:
+                aliases.append(text)
+        return {
+            "ok": bool(registration.get("ok", True)),
+            "canonical_uri": canonical_uri,
+            "full_line_uri": full_line_uri,
+            "bridge_scoped_uri": bridge_scoped_uri,
+            "alias_uris": aliases,
+            "metadata": metadata,
+            "committed": bool(registration.get("committed")),
+            "registration": registration.get("registration") if isinstance(registration.get("registration"), dict) else {},
+        }
+    except Exception as exc:
+        aliases = []
+        for candidate in (fallback_full_line, fallback_bridge_scoped, fallback_uri):
+            text = _to_text(candidate).strip()
+            if text and text not in aliases:
+                aliases.append(text)
+        return {
+            "ok": False,
+            "canonical_uri": fallback_canonical or fallback_uri,
+            "full_line_uri": fallback_full_line,
+            "bridge_scoped_uri": fallback_bridge_scoped,
+            "alias_uris": aliases,
+            "metadata": metadata,
+            "committed": False,
+            "registration_error": f"{exc.__class__.__name__}: {exc}",
+        }
+
+
 def initialize_boq_utxos(
     *,
     sb: Any,
@@ -1549,6 +1980,7 @@ def initialize_boq_utxos(
     norm_context_root_uri: str = "v://project/normContext",
     owner_uri: str | None = None,
     source_file: str = "",
+    bridge_mappings: dict[str, Any] | None = None,
     commit: bool = False,
 ) -> dict[str, Any]:
     if not _to_text(project_uri).strip():
@@ -1559,10 +1991,13 @@ def initialize_boq_utxos(
 
     hierarchy_nodes = _build_hierarchy_nodes(
         boq_items=boq_items,
+        project_uri=project_uri,
         boq_root_uri=boq_root_uri,
         norm_context_root_uri=norm_context_root_uri,
         source_file=source_file,
+        bridge_mappings=bridge_mappings,
         sb=sb,
+        persist_registry=bool(commit),
     )
     if not hierarchy_nodes:
         return {
@@ -1597,7 +2032,7 @@ def initialize_boq_utxos(
         hierarchy = dict(node.hierarchy)
         genesis_hash = node.genesis_hash
         proof_id = proof_id_by_uri.get(boq_item_uri) or _proof_id_for_boq_item(project_uri, boq_item_uri, genesis_hash)
-        genesis_at = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+        genesis_at = datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S")
         parent_utxo = proof_id_by_uri.get(node.parent_uri, "") if node.parent_uri else ""
         children_utxo = [proof_id_by_uri.get(uri, "") for uri in node.children_uris]
         children_utxo = [x for x in children_utxo if x]
@@ -1609,8 +2044,40 @@ def initialize_boq_utxos(
             design_total = _round4(float(node.design_quantity) * float(node.unit_price))
         if node.is_leaf and contract_quantity is not None and node.unit_price is not None:
             contract_total = _round4(float(contract_quantity) * float(node.unit_price))
+        boq_registration: dict[str, Any] = {}
+        boq_item_canonical_uri = boq_item_uri
+        boq_item_full_line_uri = ""
+        boq_item_bridge_scoped_uri = ""
+        boq_item_uri_aliases: list[str] = []
+        if node.is_leaf:
+            boq_registration = _register_boq_item_sovereignty(
+                sb=sb,
+                project_uri=project_uri,
+                item_no=node.code,
+                description=node.name,
+                unit=node.unit,
+                boq_quantity=contract_quantity,
+                unit_price=contract_unit_price,
+                contract_total=contract_total,
+                bridge_uri=_to_text(node.bridge_uri).strip(),
+                source_file=source_file,
+                source_sheet=node.source_sheet,
+                source_row=node.source_row,
+                commit=bool(commit),
+                fallback_boq_uri=boq_item_uri,
+            )
+            boq_item_canonical_uri = _to_text(boq_registration.get("canonical_uri") or boq_item_uri).strip()
+            boq_item_full_line_uri = _to_text(boq_registration.get("full_line_uri")).strip()
+            boq_item_bridge_scoped_uri = _to_text(boq_registration.get("bridge_scoped_uri")).strip()
+            boq_item_uri_aliases = [
+                _to_text(item).strip()
+                for item in (boq_registration.get("alias_uris") or [])
+                if _to_text(item).strip()
+            ]
         state_data = {
             "asset_type": "boq_item" if node.is_leaf else "boq_group",
+            "utxo_kind": "BOQ_INITIAL",
+            "utxo_state": "UNSPENT",
             "status": "INITIAL",
             "status_code": 0,
             "status_label": "GENESIS",
@@ -1619,13 +2086,27 @@ def initialize_boq_utxos(
             "node_type": node.node_type,
             "node_code": node.code,
             "boq_item_uri": boq_item_uri,
+            "boq_item_v_uri": boq_item_canonical_uri if node.is_leaf else boq_item_uri,
+            "boq_item_canonical_uri": boq_item_canonical_uri if node.is_leaf else boq_item_uri,
+            "boq_item_full_line_uri": boq_item_full_line_uri if node.is_leaf else "",
+            "boq_item_bridge_scoped_uri": boq_item_bridge_scoped_uri if node.is_leaf else "",
+            "boq_item_uri_aliases": boq_item_uri_aliases if node.is_leaf else [],
+            "boq_item_registration": boq_registration if node.is_leaf else {},
+            "bridge_uri": _to_text(node.bridge_uri).strip(),
             "norm_context_uri": norm_context_uri,
             "linked_gate_id": _to_text(node.linked_gate_id).strip(),
             "linked_gate_ids": list(node.linked_gate_ids),
-            "linked_gate_rules": list(node.linked_gate_rules),
             "linked_spec_uri": _to_text(node.linked_spec_uri).strip(),
             "spec_dict_key": _to_text(node.spec_dict_key).strip(),
             "spec_item": _to_text(node.spec_item).strip(),
+            "ref_gate_uri": _to_text(node.ref_gate_uri).strip(),
+            "ref_gate_uris": list(node.ref_gate_uris),
+            "ref_spec_uri": _to_text(node.ref_spec_uri).strip(),
+            "ref_spec_dict_uri": _to_text(node.ref_spec_dict_uri).strip(),
+            "ref_spec_item_uri": _to_text(node.ref_spec_item_uri).strip(),
+            "ref_spu_uri": _to_text(node.ref_spu_uri).strip(),
+            "ref_quota_uri": _to_text(node.ref_quota_uri).strip(),
+            "ref_meter_rule_uri": _to_text(node.ref_meter_rule_uri).strip(),
             "gate_template_lock": bool(node.gate_template_lock),
             "norm_refs": _default_norm_refs(item_no=node.code, item_name=node.name) if node.is_leaf else [],
             "item_no": node.code,
@@ -1695,6 +2176,13 @@ def initialize_boq_utxos(
                         "linked_spec_uri": _to_text(node.linked_spec_uri).strip(),
                         "spec_dict_key": _to_text(node.spec_dict_key).strip(),
                         "spec_item": _to_text(node.spec_item).strip(),
+                        "ref_gate_uri": _to_text(node.ref_gate_uri).strip(),
+                        "ref_spec_uri": _to_text(node.ref_spec_uri).strip(),
+                        "ref_spec_dict_uri": _to_text(node.ref_spec_dict_uri).strip(),
+                        "ref_spec_item_uri": _to_text(node.ref_spec_item_uri).strip(),
+                        "ref_spu_uri": _to_text(node.ref_spu_uri).strip(),
+                        "ref_quota_uri": _to_text(node.ref_quota_uri).strip(),
+                        "ref_meter_rule_uri": _to_text(node.ref_meter_rule_uri).strip(),
                     },
                     ensure_ascii=False,
                     sort_keys=True,
@@ -1702,6 +2190,53 @@ def initialize_boq_utxos(
                 ).encode("utf-8")
             ).hexdigest(),
         }
+        if node.is_leaf:
+            project_ref_payload = build_project_boq_item_ref(
+                boq_v_uri=boq_item_canonical_uri,
+                boq_item_id=node.code,
+                description=node.name,
+                quantity=contract_quantity,
+                unit=_normalize_unit(node.unit),
+                bridge_uri=_to_text(node.bridge_uri).strip(),
+                ref_spu_uri=_to_text(node.ref_spu_uri).strip(),
+                ref_quota_uri=_to_text(node.ref_quota_uri).strip(),
+                ref_meter_rule_uri=_to_text(node.ref_meter_rule_uri).strip(),
+            )
+            standard_spu_snapshot = resolve_standard_spu_snapshot(
+                sb=sb if bool(commit) else None,
+                ref_spu_uri=_to_text(node.ref_spu_uri).strip(),
+            )
+            state_data["utxo_quantity"] = contract_quantity
+            state_data["utxo_parent"] = parent_utxo or None
+            state_data["project_boq_item_ref"] = project_ref_payload
+            state_data["standard_spu_snapshot"] = standard_spu_snapshot
+            state_data["repo_ir_layer"] = "project_ref_only"
+            state_data["boq_item"] = {
+                "boq_item_id": node.code,
+                "description": node.name,
+                "unit": _normalize_unit(node.unit),
+                "boq_quantity": contract_quantity,
+                "project_uri": project_uri,
+                "bridge_uri": _to_text(node.bridge_uri).strip(),
+                "spec_uri": _to_text(node.linked_spec_uri).strip(),
+                "v_uri": boq_item_canonical_uri,
+                "canonical_uri": boq_item_canonical_uri,
+                "full_line_uri": boq_item_full_line_uri,
+                "bridge_scoped_uri": boq_item_bridge_scoped_uri,
+                "uri_aliases": boq_item_uri_aliases,
+            }
+            state_data["boq_utxo"] = {
+                "utxo_id": proof_id,
+                "boq_item_id": node.code,
+                "kind": "BOQ_INITIAL",
+                "state": "UNSPENT",
+                "quantity": contract_quantity,
+                "parent_utxo": parent_utxo or None,
+                "bridge_uri": _to_text(node.bridge_uri).strip(),
+                "boq_v_uri": boq_item_canonical_uri,
+                "proof_hash": "",
+                "timestamp": genesis_at,
+            }
         if node.is_leaf and _to_text(node.linked_spec_uri).strip():
             state_data["spec_uri"] = _to_text(node.linked_spec_uri).strip()
         if node.is_leaf:
@@ -1745,7 +2280,7 @@ def initialize_boq_utxos(
                 conditions=[],
                 parent_proof_id=parent_utxo or None,
                 norm_uri=norm_context_uri,
-                segment_uri=boq_item_uri,
+                segment_uri=boq_item_canonical_uri if node.is_leaf else boq_item_uri,
                 signer_uri=effective_owner,
                 signer_role="SYSTEM",
                 gitpeg_anchor=None,
@@ -1756,7 +2291,7 @@ def initialize_boq_utxos(
                 _write_zero_ledger_meta(
                     sb=sb,
                     project_uri=project_uri,
-                    boq_item_uri=boq_item_uri,
+                    boq_item_uri=boq_item_canonical_uri,
                     contract_price=contract_unit_price,
                     approved_qty=contract_quantity,
                     genesis_hash=genesis_hash,

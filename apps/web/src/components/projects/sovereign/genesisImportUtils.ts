@@ -36,7 +36,13 @@ export async function detectAsyncImportSupport() {
   try {
     const res = await fetch(`${API_BASE}/openapi.json`)
     const json = await res.json() as { paths?: Record<string, unknown> }
-    return Boolean(json?.paths?.['/v1/proof/smu/genesis/import-async'])
+    const candidatePaths = [
+      '/v1/qcspec/boqpeg/import-async',
+      '/v1/proof/boqpeg/import-async',
+      '/v1/proof/smu/genesis/import-async',
+      '/v1/docpeg/smu/genesis/import-async',
+    ]
+    return candidatePaths.some((path) => Boolean(json?.paths?.[path]))
   } catch {
     return false
   }

@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 from typing import Any
 
+from services.api.domain.specir.runtime.refs import resolve_spu_ref_pack
 from services.api.domain.smu.templates import (
     NORMREF_BY_PREFIX,
     ROLE_ALLOW_BY_PREFIX,
@@ -242,6 +243,17 @@ def _resolve_spu_template(item_no: str, item_name: str) -> dict[str, Any]:
     if from_name:
         template_id = from_name
     template = _as_dict(SPU_TEMPLATE_LIBRARY.get(template_id))
+    formula = _as_dict(template.get("formula"))
+    quantity_unit = _to_text(formula.get("quantity_unit") or "").strip()
+    ref_pack = resolve_spu_ref_pack(
+        item_code=code,
+        item_name=item_name,
+        quantity_unit=quantity_unit,
+        template_id=template_id,
+    )
+    ref_spu_uri = _to_text(ref_pack.get("ref_spu_uri") or "").strip()
+    ref_quota_uri = _to_text(ref_pack.get("ref_quota_uri") or "").strip()
+    ref_meter_rule_uri = _to_text(ref_pack.get("ref_meter_rule_uri") or "").strip()
     return {
         "spu_template_id": template_id,
         "spu_root_uri": SPU_LIBRARY_ROOT_URI,
@@ -249,9 +261,12 @@ def _resolve_spu_template(item_no: str, item_name: str) -> dict[str, Any]:
         "spu_label": _to_text(template.get("label") or template_id).strip(),
         "spu_contexts": list(template.get("contexts") or []),
         "spu_geometry": template.get("geometry") or {},
-        "spu_formula": template.get("formula") or {},
+        "spu_formula": formula,
         "spu_normpeg_refs": list(template.get("normpeg_refs") or []),
         "spu_form_schema": list(template.get("form_schema") or []),
+        "ref_spu_uri": ref_spu_uri,
+        "ref_quota_uri": ref_quota_uri,
+        "ref_meter_rule_uri": ref_meter_rule_uri,
         "match_hints": matched,
     }
 

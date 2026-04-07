@@ -11,10 +11,12 @@ from supabase import Client
 
 from services.api.domain.auth.runtime.auth import ensure_no_proxy_for_supabase, require_auth_user
 from services.api.core import DIDGuardService, NormRefResolverService, ProofUTXOService
+from services.api.core.docpeg import DocPegExecutionGateService
 from services.api.domain import (
     AuthService,
     AutoregService,
     BOQService,
+    BOQPegService,
     BOQSpecificationService,
     DocumentGovernanceService,
     ERPNextIntegrationService,
@@ -32,6 +34,7 @@ from services.api.domain import (
     TeamService,
     UTXOService,
 )
+from services.api.domain.specir import SpecirNormRefResolverAdapter
 from services.api.infrastructure.database import get_supabase_client
 from services.api.infrastructure.document.generator import (
     DocumentGenerator,
@@ -80,6 +83,10 @@ def get_document_governance_service(sb: Client = Depends(get_supabase)) -> Docum
 
 def get_boq_service(sb: Client = Depends(get_supabase)) -> BOQService:
     return BOQService(sb=sb)
+
+
+def get_boqpeg_service(sb: Client = Depends(get_supabase)) -> BOQPegService:
+    return BOQPegService(sb=sb)
 
 
 def get_autoreg_service(sb: Client = Depends(get_autoreg_supabase)) -> AutoregService:
@@ -140,7 +147,10 @@ def get_projects_service(sb: Client = Depends(get_supabase)) -> ProjectsService:
 
 @lru_cache(maxsize=1)
 def get_normref_resolver() -> NormRefResolverService:
-    return NormRefResolverService(sb=get_supabase_client())
+    return NormRefResolverService(
+        sb=get_supabase_client(),
+        port=SpecirNormRefResolverAdapter(),
+    )
 
 
 def get_document_generator() -> DocumentGenerator:
@@ -149,6 +159,10 @@ def get_document_generator() -> DocumentGenerator:
 
 def get_did_guard_service() -> DIDGuardService:
     return DIDGuardService()
+
+
+def get_docpeg_execution_gate_service(sb: Client = Depends(get_supabase)) -> DocPegExecutionGateService:
+    return DocPegExecutionGateService(sb=sb)
 
 
 def require_auth_identity(

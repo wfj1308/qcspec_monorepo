@@ -1,4 +1,4 @@
-﻿"""
+"""
 Flow helpers for reports router endpoints.
 """
 

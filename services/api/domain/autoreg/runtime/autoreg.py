@@ -1,4 +1,4 @@
-﻿"""
+"""
 Service helpers for GitPeg auto-registration.
 """
 

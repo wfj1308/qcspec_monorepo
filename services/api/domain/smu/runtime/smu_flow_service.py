@@ -26,7 +26,7 @@ from services.api.domain.utxo.integrations import ProofUTXOEngine
 from services.api.domain.execution.flows import (
     get_boq_realtime_status,
 )
-from services.api.domain.smu.runtime.smu_boq_upload_parser import parse_boq_upload
+from services.api.domain.boqpeg.integrations import parse_boq_upload
 from services.api.domain.smu.runtime.smu_docpeg_helpers import run_auto_docpeg_after_sign
 from services.api.domain.smu.runtime.smu_evidence_helpers import (
     resolve_boq_balance as _resolve_boq_balance,
@@ -83,6 +83,8 @@ from services.api.domain.smu.runtime.smu_rules import (
     _resolve_spu_template,
     list_spu_template_library,
 )
+from services.api.domain.specir.runtime.registry import ensure_specir_object
+from services.api.domain.specir.runtime.spu_schema import build_spu_ultimate_content
 from services.api.domain.smu.runtime.smu_state_helpers import (
     collect_smu_qualification as _collect_smu_qualification,
     is_smu_frozen as _is_smu_frozen,
@@ -123,6 +125,7 @@ from services.api.domain.smu.runtime.smu_validation_helpers import (
 
 def _build_genesis_enrichment_patch(
     *,
+    sb: Any,
     code: str,
     name: str,
     sd: dict[str, Any],
@@ -145,8 +148,71 @@ def _build_genesis_enrichment_patch(
         approved_quantity=approved_qty,
     )
     docpeg_template = _resolve_docpeg_template(code, name)
+    ref_spu_uri = _to_text(spu.get("ref_spu_uri") or "").strip()
+    ref_quota_uri = _to_text(spu.get("ref_quota_uri") or "").strip()
+    ref_meter_rule_uri = _to_text(spu.get("ref_meter_rule_uri") or "").strip()
+    quantity_unit = _to_text(_as_dict(spu.get("spu_formula")).get("quantity_unit") or "").strip()
+    try:
+        if ref_spu_uri:
+            ensure_specir_object(
+                sb=sb,
+                uri=ref_spu_uri,
+                kind="spu",
+                title=_to_text(spu.get("spu_label") or name or code).strip(),
+                content=build_spu_ultimate_content(
+                    spu_uri=ref_spu_uri,
+                    title=_to_text(spu.get("spu_label") or name or code).strip(),
+                    content={
+                        "industry": "Highway",
+                        "standard_codes": _as_list(spu.get("spu_normpeg_refs")),
+                        "unit": quantity_unit,
+                        "measure_statement": "Auto-registered from SMU genesis context; refine in SpecIR editor.",
+                        "measure_operator": _to_text(_as_dict(spu.get("spu_formula")).get("formula_key") or "smu-auto-register").strip(),
+                        "measure_expression": _to_text(_as_dict(spu.get("spu_formula")).get("expression") or "approved_quantity").strip(),
+                        "quota_ref": ref_quota_uri,
+                        "meter_rule_ref": ref_meter_rule_uri,
+                        "gate_refs": [],
+                        "extensions": {
+                            "template_id": _to_text(spu.get("spu_template_id") or "").strip(),
+                            "library_uri": _to_text(spu.get("spu_library_uri") or "").strip(),
+                            "contexts": _as_list(spu.get("spu_contexts")),
+                        },
+                    },
+                ),
+                metadata={"source": "smu.genesis", "item_code": code},
+            )
+        if ref_quota_uri:
+            ensure_specir_object(
+                sb=sb,
+                uri=ref_quota_uri,
+                kind="quota",
+                title=f"Quota {code}",
+                content={"spu_ref": ref_spu_uri, "item_code": code},
+                metadata={"source": "smu.genesis"},
+            )
+        if ref_meter_rule_uri:
+            ensure_specir_object(
+                sb=sb,
+                uri=ref_meter_rule_uri,
+                kind="meter_rule",
+                title=f"Meter Rule {code}",
+                content={
+                    "spu_ref": ref_spu_uri,
+                    "quantity_unit": quantity_unit,
+                },
+                metadata={"source": "smu.genesis"},
+            )
+    except Exception:
+        pass
     return {
-        **spu,
+        "spu_template_id": _to_text(spu.get("spu_template_id") or "").strip(),
+        "spu_label": _to_text(spu.get("spu_label") or "").strip(),
+        "spu_library_uri": _to_text(spu.get("spu_library_uri") or "").strip(),
+        "spu_contexts": _as_list(spu.get("spu_contexts")),
+        "match_hints": _as_list(spu.get("match_hints")),
+        "ref_spu_uri": ref_spu_uri,
+        "ref_quota_uri": ref_quota_uri,
+        "ref_meter_rule_uri": ref_meter_rule_uri,
         "formula_validation": formula_audit,
         "norm_refs": norm_refs,
         "docpeg_template": docpeg_template,
@@ -218,6 +284,7 @@ def import_genesis_trip(
     boq_root_uri: str = "",
     norm_context_root_uri: str = "",
     owner_uri: str = "",
+    bridge_mappings: dict[str, Any] | None = None,
     commit: bool = True,
     progress_hook: Callable[[str, int, str], None] | None = None,
 ) -> dict[str, Any]:
@@ -243,6 +310,7 @@ def import_genesis_trip(
         norm_root=norm_root,
         owner_uri=owner_uri,
         upload_file_name=upload_file_name,
+        bridge_mappings=bridge_mappings,
         commit=bool(commit),
     )
     total_nodes = int(result.get("total_nodes") or 0)
@@ -251,6 +319,7 @@ def import_genesis_trip(
     _emit_progress(progress_hook, "enriching_preview", 84, "补充 SPU 与模板绑定")
     effective_owner_uri = _to_text(result.get("owner_uri") or "").strip()
     _enrich_genesis_preview_rows(
+        sb=sb,
         result=result,
         upload_file_name=upload_file_name,
         owner_uri=effective_owner_uri,

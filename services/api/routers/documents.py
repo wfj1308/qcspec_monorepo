@@ -63,6 +63,8 @@ async def register_doc_upload(
     tags: str = Form(""),
     custom_metadata: str = Form(""),
     ai_metadata: str = Form(""),
+    doc_spec: str = Form(""),
+    dtorole_context: str = Form(""),
     auto_classify: bool = Form(True),
     documents_service: DocumentGovernanceService = Depends(get_document_governance_service),
 ):
@@ -76,5 +78,7 @@ async def register_doc_upload(
         tags=tags,
         custom_metadata=custom_metadata,
         ai_metadata=ai_metadata,
+        doc_spec=doc_spec,
+        dtorole_context=dtorole_context,
         auto_classify=auto_classify,
     )

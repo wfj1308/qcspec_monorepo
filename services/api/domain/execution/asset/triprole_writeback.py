@@ -76,11 +76,6 @@ def update_chain_with_result(*, sb: Any, gate_output: dict[str, Any]) -> dict[st
                 or gate_result.get("linked_gate_ids")
                 or state_data.get("linked_gate_ids")
             ),
-            "linked_gate_rules": as_list(
-                payload.get("linked_gate_rules")
-                or gate_result.get("linked_gate_rules")
-                or state_data.get("linked_gate_rules")
-            ),
             "spec_dict_key": to_text(
                 payload.get("spec_dict_key")
                 or gate_result.get("spec_dict_key")
@@ -91,6 +86,35 @@ def update_chain_with_result(*, sb: Any, gate_output: dict[str, Any]) -> dict[st
                 payload.get("spec_item")
                 or gate_result.get("spec_item")
                 or state_data.get("spec_item")
+                or ""
+            ).strip(),
+            "ref_gate_uri": to_text(
+                payload.get("ref_gate_uri")
+                or gate_result.get("ref_gate_uri")
+                or state_data.get("ref_gate_uri")
+                or ""
+            ).strip(),
+            "ref_gate_uris": as_list(
+                payload.get("ref_gate_uris")
+                or gate_result.get("ref_gate_uris")
+                or state_data.get("ref_gate_uris")
+            ),
+            "ref_spec_uri": to_text(
+                payload.get("ref_spec_uri")
+                or gate_result.get("ref_spec_uri")
+                or state_data.get("ref_spec_uri")
+                or ""
+            ).strip(),
+            "ref_spec_dict_uri": to_text(
+                payload.get("ref_spec_dict_uri")
+                or gate_result.get("ref_spec_dict_uri")
+                or state_data.get("ref_spec_dict_uri")
+                or ""
+            ).strip(),
+            "ref_spec_item_uri": to_text(
+                payload.get("ref_spec_item_uri")
+                or gate_result.get("ref_spec_item_uri")
+                or state_data.get("ref_spec_item_uri")
                 or ""
             ).strip(),
             "context_key": to_text(
