@@ -385,6 +385,34 @@ def _state_matrix(
     }
 
 
+def _empty_qc_state_matrix(
+    *,
+    total: int = 0,
+    generated: int = 0,
+    signed: int = 0,
+    pending: int | None = None,
+    component_count: int = 0,
+    forms_per_component: int = 0,
+) -> dict[str, int]:
+    total_val = max(int(total), 0)
+    generated_val = max(int(generated), 0)
+    signed_val = max(int(signed), 0)
+    pending_val = max(int(total_val - generated_val), 0) if pending is None else max(int(pending), 0)
+    return {
+        "component_count": max(int(component_count), 0),
+        "forms_per_component": max(int(forms_per_component), 0),
+        "expected_qc_table_count": total_val,
+        "generated_qc_table_count": generated_val,
+        "signed_pass_table_count": signed_val,
+        "pending_qc_table_count": pending_val,
+        "total_qc_tables": total_val,
+        "total": total_val,
+        "generated": generated_val,
+        "signed": signed_val,
+        "pending": pending_val,
+    }
+
+
 def _schema_qc_v1() -> dict[str, Any]:
     return {
         "uri": NORMREF_SCHEMA_QC_V1_URI,
@@ -453,7 +481,19 @@ def _schema_qc_v1() -> dict[str, Any]:
                 },
                 "state": {
                     "lifecycle_stage": "draft|inspecting|approved|rejected|archived",
-                    "state_matrix": "object(total/generated/signed/pending)",
+                    "state_matrix": {
+                        "component_count": "number",
+                        "forms_per_component": "number",
+                        "expected_qc_table_count": "number",
+                        "generated_qc_table_count": "number",
+                        "signed_pass_table_count": "number",
+                        "pending_qc_table_count": "number",
+                        "total_qc_tables": "number",
+                        "total": "number",
+                        "generated": "number",
+                        "signed": "number",
+                        "pending": "number",
+                    },
                     "next_action": "string",
                     "valid_until": "ISO-8601|string",
                 },
@@ -563,7 +603,7 @@ def _general_quality_template_v1() -> dict[str, Any]:
                     "result": "合格|不合格|警告",
                 }
             ],
-            state_matrix_schema={"total_tables": 0, "generated": 0, "signed": 0, "pending": 0},
+            state_matrix_schema=_empty_qc_state_matrix(),
             next_action="按具体协议块补齐 entry_rules 和 gates",
         ),
     }
@@ -642,7 +682,7 @@ def _seed_rebar_protocol_v1() -> dict[str, Any]:
             {"check_item": "spacing", "measured": 0, "result": "合格|不合格"},
             {"check_item": "protection", "measured": 0, "result": "合格|不合格"},
         ],
-        state_matrix_schema={"total_tables": 0, "generated": 0, "signed": 0, "pending": 0},
+        state_matrix_schema=_empty_qc_state_matrix(),
     )
     return protocol
 
@@ -713,7 +753,7 @@ def _concrete_compressive_protocol_v1() -> dict[str, Any]:
                 "result": "合格|不合格",
             }
         ],
-        state_matrix_schema={"total_groups": 0, "qualified_groups": 0},
+        state_matrix_schema={**_empty_qc_state_matrix(), "total_groups": 0, "qualified_groups": 0},
         next_action="完成组强度检测后自动生成混凝土强度 Proof",
     )
     return protocol
@@ -773,7 +813,7 @@ def _pile_foundation_protocol_v1() -> dict[str, Any]:
             {"item": "integrity", "measured": 0, "result": "合格|不合格"},
             {"item": "bearing_capacity", "measured": 0, "result": "合格|不合格"},
         ],
-        state_matrix_schema={"total_tables": 0, "generated": 0, "signed": 0, "pending": 0},
+        state_matrix_schema=_empty_qc_state_matrix(),
         next_action="完成桩基检测后自动关联桥级状态矩阵",
     )
     return protocol
@@ -891,7 +931,7 @@ def _raft_qc_protocol_v1() -> dict[str, Any]:
             {"item": "thickness", "standard": "<=10mm", "measured": 0, "unit": "mm", "result": "合格|不合格"},
             {"item": "concrete_strength", "standard": ">=30MPa", "measured": 0, "unit": "MPa", "result": "合格|不合格"},
         ],
-        state_matrix_schema={"total_tables": 0, "generated": 0, "signed": 0, "pending": 0},
+        state_matrix_schema=_empty_qc_state_matrix(),
     )
     return protocol
 
@@ -909,14 +949,16 @@ def _prompt_t2p_template() -> str:
         "Step 2: 计算检测频率和总质检表数量（根据规范 + 工程量 + 构件数）\n"
         "Step 3: 提取并参数化 Gate（把“允许偏差 ≤ 2%”转为 operator + value）\n"
         "Step 4: 生成五层结构（Header + Gate + Body + Proof + State）\n"
-        "Step 5: 计算 State Matrix（total_qc_tables、generated、signed、pending）\n"
+        "Step 5: 计算 State Matrix（兼容双命名）\n"
+        "  - 规范命名：expected_qc_table_count / generated_qc_table_count / signed_pass_table_count / pending_qc_table_count\n"
+        "  - 展示命名：total_qc_tables / generated / signed / pending\n"
         "Step 6: 输出完整 Markdown（带 v:// URI）\n\n"
         "输出必须严格使用以下五层结构：\n"
         "Layer 1: Header -> doc_type, v_uri, jurisdiction, trip_role\n"
         "Layer 2: Gate -> required_trip_roles, entry_rules\n"
         "Layer 3: Body -> basic, test_data, relations\n"
         "Layer 4: Proof -> proof_hash, signatures\n"
-        "Layer 5: State -> lifecycle_stage, state_matrix, next_action\n\n"
+        "Layer 5: State -> lifecycle_stage, state_matrix(expected/generated_qc/signed_pass/pending_qc + total/generated/signed/pending), next_action\n\n"
         "现在处理以下质检表格输入：\n"
         "BOQItem: {{boq_item}}\n"
         "工程量: {{quantity}} {{unit}}\n"

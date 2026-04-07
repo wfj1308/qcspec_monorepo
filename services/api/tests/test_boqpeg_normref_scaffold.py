@@ -56,6 +56,12 @@ def test_bootstrap_normref_logic_scaffold_writes_seed_files(tmp_path: Path) -> N
     assert "v://normref.com/qc/pile-foundation@v1" in pile_protocol_md.read_text(encoding="utf-8")
     assert "v://normref.com/spu/raft-foundation@v1" in raft_spu_md.read_text(encoding="utf-8")
     assert "v://normref.com/qc/raft-foundation@v1" in raft_protocol_md.read_text(encoding="utf-8")
+    prompt_text = prompt_md.read_text(encoding="utf-8")
+    assert "expected_qc_table_count" in prompt_text
+    assert "signed_pass_table_count" in prompt_text
+    assert "total_qc_tables" in prompt_text
+    assert out["seed_protocol"]["layers"]["state"]["state_matrix"]["expected_qc_table_count"] == 0
+    assert out["seed_protocol"]["layers"]["state"]["state_matrix"]["total_qc_tables"] == 0
 
 
 def test_table_to_protocol_block_parses_gates_and_thresholds(tmp_path: Path) -> None:
