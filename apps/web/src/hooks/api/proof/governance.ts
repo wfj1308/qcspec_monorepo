@@ -67,7 +67,7 @@ export function useProofGovernance(request: ApiRequestFn) {
       ...(typeof query.max_rows === 'number' ? { max_rows: String(query.max_rows) } : {}),
       ...(typeof query.limit_items === 'number' ? { limit_items: String(query.limit_items) } : {}),
     }).toString()
-    return request(`/v1/proof/boq/reconciliation?${p}`)
+    return request(`/v1/proof/boq/reconciliation?${p}`, { timeoutMs: 120000 })
   }, [request])
 
   const docFinalContext = useCallback(async (boq_item_uri: string) => {

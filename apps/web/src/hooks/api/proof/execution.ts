@@ -57,7 +57,7 @@ export function useProofExecution(request: ApiRequestFn) {
       project_uri,
       limit_items: String(limit_items),
     }).toString()
-    return request(`/v1/proof/frequency/dashboard?${qs}`)
+    return request(`/v1/proof/frequency/dashboard?${qs}`, { timeoutMs: 120000 })
   }, [request])
 
   const openRemediation = useCallback(async (body: {
@@ -123,7 +123,7 @@ export function useProofExecution(request: ApiRequestFn) {
   }, [request])
 
   const spatialDashboard = useCallback(async (project_uri: string, limit = 5000) => {
-    return request(`/v1/proof/spatial/dashboard?project_uri=${encodeURIComponent(project_uri)}&limit=${encodeURIComponent(String(limit))}`)
+    return request(`/v1/proof/spatial/dashboard?project_uri=${encodeURIComponent(project_uri)}&limit=${encodeURIComponent(String(limit))}`, { timeoutMs: 120000 })
   }, [request])
 
   const predictiveQualityAnalysis = useCallback(async (body: {
@@ -216,6 +216,7 @@ export function useProofExecution(request: ApiRequestFn) {
     return request('/v1/proof/triprole/offline/replay', {
       method: 'POST',
       body: JSON.stringify(body),
+      timeoutMs: 120000,
     })
   }, [request])
 

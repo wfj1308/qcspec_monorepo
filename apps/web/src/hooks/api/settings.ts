@@ -113,7 +113,7 @@ export function useSettings() {
         body: form,
         headers: withAuthHeaders(token),
       })
-      if (res.status === 401 || res.status === 403) {
+      if (res.status === 401) {
         logout()
         throw new Error('Login expired. Please sign in again.')
       }

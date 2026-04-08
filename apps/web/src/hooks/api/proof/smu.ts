@@ -73,6 +73,7 @@ export function useProofSmu(request: ApiRequestFn) {
         method: 'POST',
         body: form,
         timeoutMs: 10 * 60 * 1000,
+        skipAuthRedirect: true,
       },
     )
   }, [requestWithFallback])
@@ -89,6 +90,7 @@ export function useProofSmu(request: ApiRequestFn) {
         method: 'POST',
         body: form,
         timeoutMs: 12000,
+        skipAuthRedirect: true,
       },
     )
   }, [requestWithFallback])
@@ -267,12 +269,14 @@ export function useProofSmu(request: ApiRequestFn) {
 
   const boqRealtimeStatus = useCallback(async (project_uri: string) => {
     return request(`/v1/proof/boq/realtime-status?project_uri=${encodeURIComponent(project_uri)}`, {
+      timeoutMs: 120000,
       skipAuthRedirect: true,
     })
   }, [request])
 
   const projectReadinessCheck = useCallback(async (project_uri: string) => {
     return request(`/v1/proof/project-readiness-check?project_uri=${encodeURIComponent(project_uri)}`, {
+      timeoutMs: 120000,
       skipAuthRedirect: true,
     })
   }, [request])

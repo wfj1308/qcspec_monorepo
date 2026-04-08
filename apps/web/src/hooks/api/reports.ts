@@ -33,11 +33,11 @@ export function useReports() {
   }, [request])
 
   const list = useCallback(async (project_id: string) => {
-    return request(`/v1/reports/?project_id=${project_id}`)
+    return request(`/v1/reports/?project_id=${project_id}`, { timeoutMs: 90000 })
   }, [request])
 
   const getById = useCallback(async (report_id: string) => {
-    return request(`/v1/reports/${report_id}`)
+    return request(`/v1/reports/${report_id}`, { timeoutMs: 60000 })
   }, [request])
 
   return { generate, exportDocpeg, list, getById, loading }

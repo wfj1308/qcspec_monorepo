@@ -533,6 +533,7 @@ export default function App() {
       inspectionTypeLabel: INSPECTION_TYPE_LABEL,
       typeIcon: TYPE_ICON,
       typeLabel: TYPE_LABEL,
+      sidebarOpen,
       normalizeKmInterval,
       toggleInspectionType: registerController.toggleInspectionType,
       onCreateProject: openRegisterWorkspace,

@@ -89,7 +89,7 @@ export function useProjects() {
       const res = await fetch(`${API_BASE}/v1/projects/export?${qs}`, {
         headers: withAuthHeaders(token),
       })
-      if (res.status === 401 || res.status === 403) {
+      if (res.status === 401) {
         logout()
         throw new Error('Login expired. Please sign in again.')
       }

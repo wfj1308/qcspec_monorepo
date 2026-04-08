@@ -111,7 +111,7 @@ export function useRequest<T = unknown>() {
         if (!res.ok) {
           const isAuthMeRequest = path.startsWith('/v1/auth/me')
           const shouldHandleAsSessionExpired =
-            (res.status === 401 || res.status === 403) &&
+            res.status === 401 &&
             !!token &&
             !path.startsWith('/v1/auth/login') &&
             !path.startsWith('/v1/auth/register-enterprise')

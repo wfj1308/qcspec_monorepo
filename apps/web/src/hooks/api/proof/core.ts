@@ -47,7 +47,7 @@ export function useProofCore(request: ApiRequestFn) {
   }, [request])
 
   const nodeTree = useCallback(async (root_uri: string) => {
-    return request(`/v1/proof/node-tree?root_uri=${encodeURIComponent(root_uri)}`)
+    return request(`/v1/proof/node-tree?root_uri=${encodeURIComponent(root_uri)}`, { timeoutMs: 120000 })
   }, [request])
 
   return {

@@ -14,6 +14,10 @@ type QueueOfflinePacketOptions = {
   did: string
 }
 
+type ReplayOfflineOptions = {
+  silentFailure?: boolean
+}
+
 type UseOfflinePacketsArgs = {
   storageKey: string
   autoReplayEnabled: boolean
@@ -122,7 +126,8 @@ export function useOfflinePackets({
     persistOfflinePackets(next)
   }, [persistOfflinePackets])
 
-  const replayOffline = useCallback(async () => {
+  const replayOffline = useCallback(async (options: ReplayOfflineOptions = {}) => {
+    const { silentFailure = false } = options
     if (!packetsRef.current.length) {
       showToast('离线队列为空')
       return
@@ -136,7 +141,9 @@ export function useOfflinePackets({
         default_executor_role: 'TRIPROLE',
       }) as Record<string, unknown> | null
       if (!payload) {
-        showToast('离线重放失败')
+        if (!silentFailure) {
+          showToast('离线重放失败')
+        }
         return
       }
       setOfflineReplay(payload)
@@ -168,7 +175,7 @@ export function useOfflinePackets({
 
   useEffect(() => {
     if (!isOnline || !autoReplayEnabled || !offlinePackets.length || offlineReplaying) return
-    void replayOffline()
+    void replayOffline({ silentFailure: true })
   }, [autoReplayEnabled, isOnline, offlinePackets.length, offlineReplaying, replayOffline])
 
   const removeOfflinePacket = useCallback((packetId: string) => {

@@ -33,7 +33,7 @@ export function usePhotos() {
         body: form,
         headers: withAuthHeaders(token),
       })
-      if (res.status === 401 || res.status === 403) {
+      if (res.status === 401) {
         logout()
         throw new Error('Login expired. Please sign in again.')
       }
@@ -61,7 +61,7 @@ export function usePhotos() {
     const res = await fetch(`${API_BASE}/v1/photos/?${qs}`, {
       headers: withAuthHeaders(token),
     })
-    if (res.status === 401 || res.status === 403) {
+    if (res.status === 401) {
       logout()
       return null
     }
@@ -73,7 +73,7 @@ export function usePhotos() {
       method: 'DELETE',
       headers: withAuthHeaders(token),
     })
-    if (res.status === 401 || res.status === 403) {
+    if (res.status === 401) {
       logout()
       return null
     }

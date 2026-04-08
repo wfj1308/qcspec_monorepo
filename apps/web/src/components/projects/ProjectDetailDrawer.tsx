@@ -116,6 +116,7 @@ interface ProjectDetailDrawerProps {
   boqSovereignLoadingCode?: string
   onOpenBoqProofChain?: (boqItemUri: string) => void
   onOpenBoqSovereignHistory?: (subitemCode: string) => void
+  sidebarOpen?: boolean
 }
 
 const btn: React.CSSProperties = {
@@ -183,20 +184,33 @@ export default function ProjectDetailDrawer({
   boqSovereignLoadingCode,
   onOpenBoqProofChain,
   onOpenBoqSovereignHistory,
+  sidebarOpen = true,
 }: ProjectDetailDrawerProps) {
   if (!open || !detailProject) return null
 
   const draftInspection = asArray<string>(detailDraft?.inspectionTypes)
+  const viewportWidth = typeof window !== 'undefined' ? window.innerWidth : 1440
+  const drawerInsetLeft = viewportWidth > 768 && sidebarOpen ? 220 : 0
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.35)', zIndex: 998 }} onClick={onClose}>
+    <div
+      style={{
+        position: 'fixed',
+        top: 0,
+        right: 0,
+        bottom: 0,
+        left: drawerInsetLeft,
+        background: 'rgba(15,23,42,0.35)',
+        zIndex: 998,
+      }}
+    >
       <div
         style={{
           position: 'absolute',
           top: 0,
           right: 0,
-          width: 'min(96vw, 1500px)',
-          maxWidth: '96vw',
+          width: `min(calc(100vw - ${drawerInsetLeft + 16}px), 1500px)`,
+          maxWidth: `calc(100vw - ${drawerInsetLeft + 16}px)`,
           height: '100%',
           background: '#fff',
           borderLeft: '1px solid #E2E8F0',

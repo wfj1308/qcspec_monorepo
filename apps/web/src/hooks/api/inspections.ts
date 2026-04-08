@@ -9,7 +9,7 @@ export function useInspections() {
     params: Record<string, string> = {},
   ) => {
     const qs = new URLSearchParams({ project_id, ...params }).toString()
-    return request(`/v1/inspections/?${qs}`)
+    return request(`/v1/inspections/?${qs}`, { timeoutMs: 90000 })
   }, [request])
 
   const submit = useCallback(async (body: Record<string, unknown>) => {

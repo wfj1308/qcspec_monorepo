@@ -42,6 +42,7 @@ type BuildProjectsWorkspaceArgs = {
   inspectionTypeLabel: ProjectsWorkspaceProps['projectDetailDrawerProps']['inspectionTypeLabel']
   typeIcon: ProjectsWorkspaceProps['projectsPanelProps']['typeIcon']
   typeLabel: ProjectsWorkspaceProps['projectsPanelProps']['typeLabel']
+  sidebarOpen: boolean
   normalizeKmInterval: ProjectsWorkspaceProps['projectDetailDrawerProps']['normalizeKmInterval']
   toggleInspectionType: ProjectsWorkspaceProps['projectDetailDrawerProps']['toggleInspectionType']
   onCreateProject: () => void
@@ -156,6 +157,7 @@ export function buildProjectsWorkspace({
   inspectionTypeLabel,
   typeIcon,
   typeLabel,
+  sidebarOpen,
   normalizeKmInterval,
   toggleInspectionType,
   onCreateProject,
@@ -203,6 +205,7 @@ export function buildProjectsWorkspace({
       inspectionTypeOptions,
       inspectionTypeLabel,
       typeLabel,
+      sidebarOpen,
       onClose: projectDetailController.closeProjectDetail,
       onStartEdit: projectDetailController.startEditDetail,
       onSave: projectDetailController.saveDetailMeta,
