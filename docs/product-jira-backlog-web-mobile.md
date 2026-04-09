@@ -77,6 +77,70 @@
   Depends: TASK-P0-AUTH-02-02  
   DoD: 非本角色、资质不足、已签状态均有明确 UI
 
+- TASK-P0-AUTH-02-04  
+  Summary: 配置施工资料/监理资料签署链模板（测量表/质量检查表/抽检表）  
+  Owner: Backend  
+  Estimate: 1.5 PD  
+  Depends: TASK-P0-AUTH-02-02  
+  DoD: 按序号下发签署链，支持施工资料 1-8 位与监理资料 1-7 位，且状态接口可返回 `current_slot/next_slot`
+
+- TASK-P0-AUTH-02-05  
+  Summary: Gate 串行签署与互斥校验（禁止跳签、禁止同单自审）  
+  Owner: Backend  
+  Estimate: 1.2 PD  
+  Depends: TASK-P0-AUTH-02-04  
+  DoD: 跳签返回标准阻断码，自审冲突返回 `mutex_conflict`
+
+- TASK-P0-AUTH-02-06  
+  Summary: 评定表来源位映射与自动回填（施工/监理）  
+  Owner: Backend + Web + Mobile  
+  Estimate: 1.5 PD  
+  Depends: TASK-P0-AUTH-02-04  
+  DoD: 支持评定表按来源位继承签署信息（人员/时间/签名摘要），并可穿透到来源 Trip
+
+### STORY-P0-AUTH-03 组织主账号与子账号自治
+- TASK-P0-AUTH-03-01  
+  Summary: 组织主账号（Org Admin）开通与初始化流程  
+  Owner: Backend  
+  Estimate: 1.0 PD  
+  Depends: TASK-P0-AUTH-01-02  
+  DoD: 每个参建组织可创建唯一主账号并绑定 `org_uri`（施工/监理/业主/检测/分包/设计）
+
+- TASK-P0-AUTH-03-02  
+  Summary: 子账号管理 API（创建/禁用/重置/角色分配/项目分配）  
+  Owner: Backend  
+  Estimate: 2.0 PD  
+  Depends: TASK-P0-AUTH-03-01  
+  DoD: 支持组织内角色分配与项目作用域控制，禁止跨组织提权；支持多组织类型共用接口
+
+- TASK-P0-AUTH-03-03  
+  Summary: Web 组织账号管理页（主账号自助管理成员）  
+  Owner: Web  
+  Estimate: 2.0 PD  
+  Depends: TASK-P0-AUTH-03-02  
+  DoD: 支持成员增删改、角色配置、项目绑定、账号状态启停；可按组织类型切换角色模板
+
+- TASK-P0-AUTH-03-04  
+  Summary: 账号与执行体绑定机制（可切换当前执行体）  
+  Owner: Backend + Web + Mobile  
+  Estimate: 1.5 PD  
+  Depends: TASK-P0-AUTH-03-02  
+  DoD: 动作提交必须带当前执行体，签名链可追踪到 executor_uri
+
+- TASK-P0-AUTH-03-05  
+  Summary: 组织账号治理审计日志  
+  Owner: Backend  
+  Estimate: 1.0 PD  
+  Depends: TASK-P0-AUTH-03-02  
+  DoD: 记录创建/禁用/重置密码/角色变更/项目调入调出并支持检索
+
+- TASK-P0-AUTH-03-06  
+  Summary: 组织类型角色模板中心（施工/监理/业主/检测/分包/设计）  
+  Owner: Backend + Web  
+  Estimate: 1.5 PD  
+  Depends: TASK-P0-AUTH-03-01  
+  DoD: 支持按 `org_type` 配置可分配角色白名单，模板变更可灰度生效
+
 ## EPIC-P0-MOBILE 移动端 SDUI 最小闭环
 
 ### STORY-P0-MOBILE-01 SDUI 协议
@@ -114,6 +178,13 @@
   Estimate: 1.5 PD  
   Depends: TASK-P0-MOBILE-01-01  
   DoD: 新旧客户端可通过版本协商正常运行，不兼容时自动降级为安全最小指令集
+
+- TASK-P0-MOBILE-01-06  
+  Summary: 移动端签署链分段渲染（施工资料/监理资料）  
+  Owner: Mobile  
+  Estimate: 1.0 PD  
+  Depends: TASK-P0-MOBILE-01-03, TASK-P0-AUTH-02-04  
+  DoD: 同一表单可按签署链展示“已签/待签/禁用”状态，点击禁用项展示阻断原因
 
 ### STORY-P0-MOBILE-02 离线补传
 - TASK-P0-MOBILE-02-01  
@@ -289,6 +360,7 @@
 5. `DocFinal` 是 CA 和 Public Verify 前置。
 6. `阻断码字典` 是 Web/Mobile 权限反馈一致性的共同前置。
 7. `SDUI 协议版本协商` 是移动端灰度发布与向后兼容前置。
+8. `签署链模板配置` 是签字区渲染、Gate 串行校验、签署状态接口的一致前置。
 
 ## 7. Jira 字段建议
 1. Issue Type: Epic / Story / Task / Bug
@@ -337,3 +409,75 @@
 WIP 建议：
 1. 每位开发同时进行任务不超过 2 条。
 2. 每个客户端（Web/Mobile）同时进行 Story 不超过 2 个。
+
+## 10. 本轮新增治理与合规任务（10条）
+
+- TASK-P1-GOV-01  
+  Summary: SignPeg/CA 节点边界策略中心  
+  Owner: Backend + Web  
+  Estimate: 2.0 PD  
+  Depends: TASK-P2-DOC-02  
+  DoD: 按表单类型+签位可配置签章策略，并在 Gate 生效
+
+- TASK-P1-GOV-02  
+  Summary: 组织类型角色-签位-动作真值矩阵服务  
+  Owner: Backend  
+  Estimate: 2.0 PD  
+  Depends: TASK-P0-AUTH-03-06  
+  DoD: 六类组织矩阵可配置，接口返回唯一判定结果
+
+- TASK-P1-GOV-03  
+  Summary: 账号与执行体生命周期状态机  
+  Owner: Backend  
+  Estimate: 1.5 PD  
+  Depends: TASK-P0-AUTH-03-02  
+  DoD: 覆盖入职/转岗/离职/冻结/恢复/销户并全量留痕
+
+- TASK-P1-GOV-04  
+  Summary: 委托与替岗规则引擎（含 delegation_uri）  
+  Owner: Backend  
+  Estimate: 2.0 PD  
+  Depends: TASK-P0-AUTH-02-02  
+  DoD: 支持有效期、作用域、自动失效与禁止再委托配置
+
+- TASK-P1-GOV-05  
+  Summary: 离线冲突仲裁 SOP 与补偿 Trip 流程  
+  Owner: Backend + Web  
+  Estimate: 2.0 PD  
+  Depends: TASK-P0-MOBILE-02-02  
+  DoD: 冲突分级、裁决留痕、补偿 Trip 闭环可运行
+
+- TASK-P1-GOV-06  
+  Summary: SnapPeg 证据质量门槛校验  
+  Owner: Mobile + Backend  
+  Estimate: 1.5 PD  
+  Depends: TASK-P0-MOBILE-01-03  
+  DoD: 照片张数/EXIF/GPS/时间戳不达标时阻断或进入人工复核
+
+- TASK-P2-GOV-01  
+  Summary: Trip/SKU/SMU 到财务科目映射中心  
+  Owner: Backend  
+  Estimate: 2.0 PD  
+  Depends: TASK-P2-SET-01  
+  DoD: 支持映射版本化、Proof 反查与财务对账导出
+
+- TASK-P2-GOV-02  
+  Summary: 审计与监管导出标准化（PDF/JSON/验签指引）  
+  Owner: Backend + Web  
+  Estimate: 1.5 PD  
+  Depends: TASK-P2-DOC-01  
+  DoD: 导出包包含哈希、签名摘要、证据索引和校验说明
+
+- TASK-P2-GOV-03  
+  Summary: 告警分级中心（L1/L2/L3）与响应SLA  
+  Owner: Infra + Backend  
+  Estimate: 1.5 PD  
+  Depends: TASK-P0-CHAIN-01-02  
+  DoD: 告警分级、通知策略、恢复条件可配置并可观测
+
+- TASK-P2-GOV-04  
+  Summary: 发布治理与灰度回滚流程产品化  
+  Owner: Infra + Backend + Web + Mobile  
+  Estimate: 2.0 PD  
+  Depends: TASK-P0-MOBILE-01-05  
+  DoD: 支持灰度比例、回滚阈值、试点放量记录与发布审计
