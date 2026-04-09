@@ -34,3 +34,9 @@ tmp/docpeg_smoke/
 # local acceptance configs (real tokens/project IDs)
 tools/acceptance/config/*.local.json
 tools/acceptance/out/
+
+# NormRef parser generated artifacts (local runs)
+docs/normref/rule/imported/
+docs/normref/std/*.json
+docs/normref/rule/**/*.json
+docs/normref/std/**

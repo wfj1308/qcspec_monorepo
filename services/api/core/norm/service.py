@@ -19,6 +19,16 @@ class NormRefResolverService(BaseService):
     _threshold_cache: dict[tuple[str, str], dict[str, Any]] = {}
     _spec_cache: dict[str, dict[str, Any]] = {}
     _protocol_cache: dict[str, dict[str, Any]] = {}
+    _rule_catalog_cache: list[dict[str, Any]] | None = None
+    _rule_override_cache: dict[str, dict[str, Any]] | None = None
+    _SCOPE_PRIORITY: dict[str, int] = {
+        "national": 500,
+        "industry": 400,
+        "local": 300,
+        "enterprise": 200,
+        "project": 100,
+        "unknown": 0,
+    }
 
     def __init__(self, *, sb: Any | None = None, port: NormRefResolverPort) -> None:
         super().__init__(sb=sb)
@@ -393,6 +403,526 @@ class NormRefResolverService(BaseService):
             out["schema_uri"] = self._to_text(protocol.get("schema_uri") or resolved.get("schema_uri")).strip()
             out["protocol_version"] = self._to_text(protocol.get("version") or resolved.get("version")).strip()
         return out
+
+    @classmethod
+    def _version_sort_key(cls, version: str) -> tuple[int, int, int, str]:
+        text = cls._to_text(version).strip()
+        if not text:
+            return (0, 0, 0, "")
+        date_match = re.fullmatch(r"(\d{4})-(\d{2})", text)
+        if date_match:
+            return (3, int(date_match.group(1)), int(date_match.group(2)), text)
+        semver_match = re.fullmatch(r"v?(\d+)\.(\d+)\.(\d+)", text)
+        if semver_match:
+            return (2, int(semver_match.group(1)), int(semver_match.group(2)), text)
+        return (1, 0, 0, text)
+
+    @classmethod
+    def _extract_version_from_uri(cls, uri: str) -> str:
+        text = cls._to_text(uri).strip()
+        if "@" not in text:
+            return ""
+        return text.rsplit("@", 1)[-1].strip()
+
+    @classmethod
+    def _normalize_scope(cls, value: Any) -> str:
+        raw = cls._to_text(value).strip().lower()
+        alias_map = {
+            "country": "national",
+            "nation": "national",
+            "国家": "national",
+            "行业": "industry",
+            "地方": "local",
+            "企业": "enterprise",
+            "项目": "project",
+        }
+        return alias_map.get(raw, raw or "unknown")
+
+    @classmethod
+    def _scope_rank(cls, scope: str) -> int:
+        return int(cls._SCOPE_PRIORITY.get(cls._normalize_scope(scope), cls._SCOPE_PRIORITY["unknown"]))
+
+    @classmethod
+    def _rule_rank_key(cls, row: dict[str, Any]) -> tuple[int, int, int, str]:
+        version_key = cls._version_sort_key(cls._to_text(row.get("version")).strip())
+        scope_rank = cls._scope_rank(cls._to_text(row.get("scope")))
+        source_priority = int(row.get("source_priority") or scope_rank)
+        uri = cls._to_text(row.get("uri")).strip()
+        return (version_key[0] * 1_000_000 + version_key[1] * 10_000 + version_key[2] * 100, source_priority, scope_rank, uri)
+
+    @classmethod
+    def _rule_overrides_path(cls) -> Path:
+        return (cls._normref_docs_root() / "rule" / "overrides.json").resolve()
+
+    @classmethod
+    def _load_rule_overrides(cls) -> dict[str, dict[str, Any]]:
+        if cls._rule_override_cache is not None:
+            return dict(cls._rule_override_cache)
+        path = cls._rule_overrides_path()
+        if not path.exists():
+            cls._rule_override_cache = {}
+            return {}
+        try:
+            payload = cls._as_dict(json.loads(path.read_text(encoding="utf-8")))
+        except Exception:
+            payload = {}
+        normalized: dict[str, dict[str, Any]] = {}
+        for key, value in payload.items():
+            entry = cls._as_dict(value)
+            if not entry:
+                continue
+            normalized[str(key)] = {
+                "rule_id": cls._to_text(entry.get("rule_id")).strip(),
+                "version": cls._to_text(entry.get("version")).strip(),
+                "selected_uri": cls._to_text(entry.get("selected_uri")).strip(),
+                "reason": cls._to_text(entry.get("reason")).strip(),
+                "updated_at": cls._to_text(entry.get("updated_at")).strip(),
+                "updated_by": cls._to_text(entry.get("updated_by")).strip(),
+            }
+        cls._rule_override_cache = normalized
+        return dict(normalized)
+
+    @classmethod
+    def _save_rule_overrides(cls, overrides: dict[str, dict[str, Any]]) -> None:
+        path = cls._rule_overrides_path()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(overrides, ensure_ascii=False, indent=2), encoding="utf-8")
+        cls._rule_override_cache = dict(overrides)
+
+    @classmethod
+    def _override_key(cls, rule_id: str, version: str) -> str:
+        return f"{cls._to_text(rule_id).strip()}@{cls._to_text(version).strip()}"
+
+    @classmethod
+    def _find_override_uri(
+        cls,
+        *,
+        rule_id: str,
+        requested_version: str,
+        resolved_version: str,
+    ) -> str:
+        overrides = cls._load_rule_overrides()
+        key_exact = cls._override_key(rule_id, requested_version)
+        if key_exact in overrides:
+            return cls._to_text(overrides[key_exact].get("selected_uri")).strip()
+        key_resolved = cls._override_key(rule_id, resolved_version)
+        if key_resolved in overrides:
+            return cls._to_text(overrides[key_resolved].get("selected_uri")).strip()
+        return ""
+
+    @classmethod
+    def _load_rule_catalog(cls) -> list[dict[str, Any]]:
+        if cls._rule_catalog_cache is not None:
+            return list(cls._rule_catalog_cache)
+
+        root = cls._normref_docs_root()
+        rule_root = root / "rule"
+        out: list[dict[str, Any]] = []
+        if not rule_root.exists():
+            cls._rule_catalog_cache = []
+            return []
+
+        for json_path in sorted(rule_root.rglob("*.json")):
+            try:
+                payload = cls._as_dict(json.loads(json_path.read_text(encoding="utf-8")))
+            except Exception:
+                continue
+            if not payload:
+                continue
+
+            rel = json_path.relative_to(root).as_posix()
+            uri = cls._to_text(payload.get("uri")).strip() or f"v://normref.com/{rel[:-5]}"
+            rid = cls._to_text(payload.get("rule_id")).strip()
+            if not rid:
+                stem = json_path.stem
+                rid = stem.split("@", 1)[0]
+            version = cls._to_text(payload.get("version")).strip() or cls._extract_version_from_uri(uri)
+            category = cls._to_text(payload.get("category")).strip()
+            if not category:
+                rel_from_rule = json_path.relative_to(rule_root).as_posix()
+                parts = rel_from_rule.split("/")
+                category = "/".join(parts[:-1]) if len(parts) > 1 else ""
+            source_level = cls._normalize_scope(payload.get("source_level") or payload.get("level") or payload.get("scope"))
+            source_priority = cls._scope_rank(source_level)
+            content_hash = "sha256:" + hashlib.sha256(
+                json.dumps(payload, ensure_ascii=False, sort_keys=True, default=str).encode("utf-8")
+            ).hexdigest()
+            out.append(
+                {
+                    "rule_id": rid,
+                    "version": version,
+                    "uri": uri,
+                    "category": category,
+                    "hash": content_hash,
+                    "scope": source_level,
+                    "source_std_code": cls._to_text(payload.get("source_std_code")).strip(),
+                    "source_level": source_level,
+                    "source_priority": source_priority,
+                    "source_path": json_path.as_posix(),
+                    "payload": payload,
+                }
+            )
+
+        cls._rule_catalog_cache = out
+        return list(out)
+
+    @classmethod
+    def clear_rule_catalog_cache(cls) -> None:
+        cls._rule_catalog_cache = None
+        cls._rule_override_cache = None
+
+    def refresh_rule_catalog(self) -> dict[str, Any]:
+        self.clear_rule_catalog_cache()
+        rows = self._load_rule_catalog()
+        overrides = self._load_rule_overrides()
+        return {"ok": True, "count": len(rows), "override_count": len(overrides)}
+
+    def list_rule_overrides(self) -> dict[str, Any]:
+        overrides = self._load_rule_overrides()
+        rows = sorted(overrides.values(), key=lambda x: (self._to_text(x.get("rule_id")), self._to_text(x.get("version"))))
+        return {"ok": True, "count": len(rows), "overrides": rows}
+
+    def set_rule_override(
+        self,
+        *,
+        rule_id: str,
+        version: str,
+        selected_uri: str,
+        reason: str = "",
+        updated_by: str = "",
+    ) -> dict[str, Any]:
+        rid = self._to_text(rule_id).strip()
+        ver = self._to_text(version).strip()
+        uri = self._to_text(selected_uri).strip()
+        if not rid:
+            return {"ok": False, "error": "rule_id_required"}
+        if not ver:
+            return {"ok": False, "error": "version_required"}
+        if not uri:
+            return {"ok": False, "error": "selected_uri_required"}
+
+        candidates = [
+            r
+            for r in self._load_rule_catalog()
+            if self._to_text(r.get("rule_id")).strip() == rid and self._to_text(r.get("version")).strip() == ver
+        ]
+        if not candidates:
+            return {"ok": False, "error": "rule_not_found", "rule_id": rid, "version": ver}
+        if not any(self._to_text(x.get("uri")).strip() == uri for x in candidates):
+            return {"ok": False, "error": "selected_uri_not_in_candidates", "rule_id": rid, "version": ver}
+
+        overrides = self._load_rule_overrides()
+        key = self._override_key(rid, ver)
+        overrides[key] = {
+            "rule_id": rid,
+            "version": ver,
+            "selected_uri": uri,
+            "reason": self._to_text(reason).strip(),
+            "updated_at": datetime.now(UTC).isoformat(),
+            "updated_by": self._to_text(updated_by).strip(),
+        }
+        self._save_rule_overrides(overrides)
+        return {"ok": True, "override": overrides[key]}
+
+    def clear_rule_override(self, *, rule_id: str, version: str) -> dict[str, Any]:
+        rid = self._to_text(rule_id).strip()
+        ver = self._to_text(version).strip()
+        if not rid:
+            return {"ok": False, "error": "rule_id_required"}
+        if not ver:
+            return {"ok": False, "error": "version_required"}
+        overrides = self._load_rule_overrides()
+        key = self._override_key(rid, ver)
+        existed = key in overrides
+        if existed:
+            overrides.pop(key, None)
+            self._save_rule_overrides(overrides)
+        return {"ok": True, "removed": bool(existed), "rule_id": rid, "version": ver}
+
+    def get_rule(self, *, rule_id: str, version: str = "latest", scope: str = "") -> dict[str, Any]:
+        rid = self._to_text(rule_id).strip()
+        if not rid:
+            return {"ok": False, "error": "rule_id_required"}
+        requested = self._to_text(version).strip() or "latest"
+        requested_scope = self._normalize_scope(scope)
+
+        candidates = [r for r in self._load_rule_catalog() if self._to_text(r.get("rule_id")).strip() == rid]
+        if not candidates:
+            return {"ok": False, "error": "rule_not_found", "rule_id": rid}
+
+        if scope.strip():
+            scoped = [r for r in candidates if self._normalize_scope(r.get("scope")) == requested_scope]
+            if not scoped:
+                return {"ok": False, "error": "rule_scope_not_found", "rule_id": rid, "scope": requested_scope}
+            candidates = scoped
+
+        if requested.lower() == "latest":
+            latest_version = max(
+                [self._to_text(x.get("version")).strip() for x in candidates],
+                key=self._version_sort_key,
+            )
+            latest_rows = [r for r in candidates if self._to_text(r.get("version")).strip() == latest_version]
+            selected = max(latest_rows, key=self._rule_rank_key)
+            selected_rows = latest_rows
+        else:
+            filtered = [r for r in candidates if self._to_text(r.get("version")).strip() == requested]
+            if not filtered:
+                return {"ok": False, "error": "rule_version_not_found", "rule_id": rid, "version": requested}
+            selected = max(filtered, key=self._rule_rank_key)
+            selected_rows = filtered
+
+        override_uri = self._find_override_uri(
+            rule_id=rid,
+            requested_version=requested,
+            resolved_version=self._to_text(selected.get("version")).strip(),
+        )
+        override_applied = False
+        if override_uri:
+            override_hit = next((x for x in selected_rows if self._to_text(x.get("uri")).strip() == override_uri), None)
+            if override_hit is not None:
+                selected = override_hit
+                override_applied = True
+
+        return {
+            "ok": True,
+            "rule_id": rid,
+            "requested_version": requested,
+            "requested_scope": requested_scope if scope.strip() else "",
+            "resolved_version": self._to_text(selected.get("version")).strip(),
+            "resolved_scope": self._normalize_scope(selected.get("scope")),
+            "uri": self._to_text(selected.get("uri")).strip(),
+            "category": self._to_text(selected.get("category")).strip(),
+            "hash": self._to_text(selected.get("hash")).strip(),
+            "source_std_code": self._to_text(selected.get("source_std_code")).strip(),
+            "override_applied": override_applied,
+            "rule": self._as_dict(selected.get("payload")),
+        }
+
+    def list_rules(self, *, category: str = "", version: str = "latest", scope: str = "") -> dict[str, Any]:
+        requested_category = self._to_text(category).strip().lower()
+        requested_version = self._to_text(version).strip() or "latest"
+        requested_scope = self._normalize_scope(scope)
+        catalog = self._load_rule_catalog()
+
+        if requested_category:
+            catalog = [r for r in catalog if requested_category in self._to_text(r.get("category")).strip().lower()]
+        if scope.strip():
+            catalog = [r for r in catalog if self._normalize_scope(r.get("scope")) == requested_scope]
+
+        grouped: dict[str, list[dict[str, Any]]] = {}
+        for row in catalog:
+            rid = self._to_text(row.get("rule_id")).strip()
+            if not rid:
+                continue
+            grouped.setdefault(rid, []).append(row)
+
+        selected_rows: list[dict[str, Any]] = []
+        for rid, rows in grouped.items():
+            if requested_version.lower() == "latest":
+                latest_version = max([self._to_text(x.get("version")).strip() for x in rows], key=self._version_sort_key)
+                latest_rows = [r for r in rows if self._to_text(r.get("version")).strip() == latest_version]
+                pick = max(latest_rows, key=self._rule_rank_key)
+                candidate_rows = latest_rows
+            else:
+                hits = [r for r in rows if self._to_text(r.get("version")).strip() == requested_version]
+                if not hits:
+                    continue
+                pick = max(hits, key=self._rule_rank_key)
+                candidate_rows = hits
+
+            override_uri = self._find_override_uri(
+                rule_id=rid,
+                requested_version=requested_version,
+                resolved_version=self._to_text(pick.get("version")).strip(),
+            )
+            override_applied = False
+            if override_uri:
+                override_hit = next((x for x in candidate_rows if self._to_text(x.get("uri")).strip() == override_uri), None)
+                if override_hit is not None:
+                    pick = override_hit
+                    override_applied = True
+            selected_rows.append(
+                {
+                    "rule_id": rid,
+                    "version": self._to_text(pick.get("version")).strip(),
+                    "uri": self._to_text(pick.get("uri")).strip(),
+                    "category": self._to_text(pick.get("category")).strip(),
+                    "hash": self._to_text(pick.get("hash")).strip(),
+                    "scope": self._normalize_scope(pick.get("scope")),
+                    "source_std_code": self._to_text(pick.get("source_std_code")).strip(),
+                    "override_applied": override_applied,
+                }
+            )
+
+        selected_rows.sort(key=lambda x: (self._to_text(x.get("category")).strip(), self._to_text(x.get("rule_id")).strip()))
+        return {
+            "ok": True,
+            "category": requested_category,
+            "requested_version": requested_version,
+            "requested_scope": requested_scope if scope.strip() else "",
+            "count": len(selected_rows),
+            "rules": selected_rows,
+        }
+
+    def list_rule_conflicts(self, *, category: str = "", version: str = "latest", scope: str = "") -> dict[str, Any]:
+        requested_category = self._to_text(category).strip().lower()
+        requested_version = self._to_text(version).strip() or "latest"
+        requested_scope = self._normalize_scope(scope)
+        catalog = self._load_rule_catalog()
+
+        if requested_category:
+            catalog = [r for r in catalog if requested_category in self._to_text(r.get("category")).strip().lower()]
+        if scope.strip():
+            catalog = [r for r in catalog if self._normalize_scope(r.get("scope")) == requested_scope]
+
+        by_rule: dict[str, list[dict[str, Any]]] = {}
+        for row in catalog:
+            rid = self._to_text(row.get("rule_id")).strip()
+            if not rid:
+                continue
+            by_rule.setdefault(rid, []).append(row)
+
+        conflicts: list[dict[str, Any]] = []
+        for rid, rows in by_rule.items():
+            if requested_version.lower() == "latest":
+                latest_version = max([self._to_text(x.get("version")).strip() for x in rows], key=self._version_sort_key)
+                target = [r for r in rows if self._to_text(r.get("version")).strip() == latest_version]
+            else:
+                target = [r for r in rows if self._to_text(r.get("version")).strip() == requested_version]
+            if len(target) <= 1:
+                continue
+            hashes = {self._to_text(r.get("hash")).strip() for r in target}
+            if len(hashes) <= 1:
+                continue
+            selected = max(target, key=self._rule_rank_key)
+            override_uri = self._find_override_uri(
+                rule_id=rid,
+                requested_version=requested_version,
+                resolved_version=self._to_text(selected.get("version")).strip(),
+            )
+            override_applied = False
+            if override_uri:
+                override_hit = next((x for x in target if self._to_text(x.get("uri")).strip() == override_uri), None)
+                if override_hit is not None:
+                    selected = override_hit
+                    override_applied = True
+            candidates = sorted(target, key=self._rule_rank_key, reverse=True)
+            conflicts.append(
+                {
+                    "rule_id": rid,
+                    "version": self._to_text(selected.get("version")).strip(),
+                    "selected_uri": self._to_text(selected.get("uri")).strip(),
+                    "selected_scope": self._normalize_scope(selected.get("scope")),
+                    "override_applied": override_applied,
+                    "candidate_count": len(candidates),
+                    "candidates": [
+                        {
+                            "uri": self._to_text(x.get("uri")).strip(),
+                            "scope": self._normalize_scope(x.get("scope")),
+                            "source_std_code": self._to_text(x.get("source_std_code")).strip(),
+                            "hash": self._to_text(x.get("hash")).strip(),
+                        }
+                        for x in candidates
+                    ],
+                }
+            )
+
+        conflicts.sort(key=lambda x: (self._to_text(x.get("rule_id")), self._to_text(x.get("version"))))
+        return {
+            "ok": True,
+            "category": requested_category,
+            "requested_version": requested_version,
+            "requested_scope": requested_scope if scope.strip() else "",
+            "count": len(conflicts),
+            "conflicts": conflicts,
+        }
+
+    def validate_rules(
+        self,
+        *,
+        rules: list[str],
+        data: dict[str, Any] | None = None,
+        normref_version: str = "latest",
+        scope: str = "",
+    ) -> dict[str, Any]:
+        requested_version = self._to_text(normref_version).strip() or "latest"
+        actual_data_raw = self._as_dict(data)
+        actual_data = self._as_dict(actual_data_raw.get("actual_data")) if isinstance(actual_data_raw.get("actual_data"), dict) else actual_data_raw
+        design_data = self._as_dict(actual_data_raw.get("design_data"))
+        context = self._as_dict(actual_data_raw.get("context"))
+        effective_scope = self._to_text(scope or context.get("norm_scope") or context.get("scope")).strip()
+        requested_scope = self._normalize_scope(effective_scope) if effective_scope else ""
+
+        results: list[dict[str, Any]] = []
+        failed_rules: list[str] = []
+        snapshots: list[dict[str, str]] = []
+
+        for item in rules:
+            rid = self._to_text(item).strip()
+            if not rid:
+                continue
+            resolved = self.get_rule(rule_id=rid, version=requested_version, scope=requested_scope)
+            if not bool(resolved.get("ok")):
+                failed_rules.append(rid)
+                results.append(
+                    {
+                        "rule_id": rid,
+                        "ok": False,
+                        "error": self._to_text(resolved.get("error")).strip() or "rule_resolve_failed",
+                    }
+                )
+                continue
+
+            protocol = self._as_dict(resolved.get("rule"))
+            verify = self.verify_against_protocol(
+                protocol=protocol,
+                uri=self._to_text(resolved.get("uri")).strip(),
+                actual_data=actual_data,
+                design_data=design_data,
+                context=context,
+            )
+            passed = bool(verify.get("ok")) and self._to_text(verify.get("result")).strip().upper() != "FAIL"
+            if not passed:
+                failed_rules.append(rid)
+            results.append(
+                {
+                    "rule_id": rid,
+                    "ok": bool(verify.get("ok")),
+                    "passed": passed,
+                    "result": self._to_text(verify.get("result")).strip() or "FAIL",
+                    "failed_gates": self._as_list(verify.get("failed_gates")),
+                    "resolved_version": self._to_text(resolved.get("resolved_version")).strip(),
+                    "resolved_scope": self._to_text(resolved.get("resolved_scope")).strip(),
+                    "override_applied": bool(resolved.get("override_applied")),
+                    "uri": self._to_text(resolved.get("uri")).strip(),
+                    "proof_hash": self._to_text(verify.get("proof_hash")).strip(),
+                    "sealed_at": self._to_text(verify.get("sealed_at")).strip(),
+                    "explain": self._to_text(verify.get("explain")).strip(),
+                }
+            )
+            snapshots.append(
+                {
+                    "rule_id": rid,
+                    "version": self._to_text(resolved.get("resolved_version")).strip(),
+                    "scope": self._to_text(resolved.get("resolved_scope")).strip(),
+                    "hash": self._to_text(resolved.get("hash")).strip(),
+                }
+            )
+
+        snapshot_hash = "sha256:" + hashlib.sha256(
+            json.dumps(sorted(snapshots, key=lambda x: (x.get("rule_id", ""), x.get("version", ""))), ensure_ascii=False, sort_keys=True).encode("utf-8")
+        ).hexdigest()
+
+        return {
+            "ok": True,
+            "requested_version": requested_version,
+            "requested_scope": requested_scope,
+            "passed": len(failed_rules) == 0,
+            "failed_rules": failed_rules,
+            "results": results,
+            "rule_snapshots": snapshots,
+            "normref_snapshot_hash": snapshot_hash,
+        }
     @classmethod
     def _derive_logic_inputs(cls, gates: list[dict[str, Any]], description: str = "") -> list[dict[str, str]]:
         text = " ".join(

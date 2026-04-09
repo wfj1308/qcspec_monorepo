@@ -37,6 +37,7 @@ from services.api.domain import (
     UTXOService,
 )
 from services.api.domain.specir import SpecirNormRefResolverAdapter
+from services.api.domain.specir.runtime.normref_ingest import NormRefIngestEngine
 from services.api.infrastructure.database import get_supabase_client
 from services.api.infrastructure.document.generator import (
     DocumentGenerator,
@@ -161,6 +162,11 @@ def get_normref_resolver() -> NormRefResolverService:
         sb=get_supabase_client(),
         port=SpecirNormRefResolverAdapter(),
     )
+
+
+@lru_cache(maxsize=1)
+def get_normref_ingest_engine() -> NormRefIngestEngine:
+    return NormRefIngestEngine()
 
 
 def get_document_generator() -> DocumentGenerator:

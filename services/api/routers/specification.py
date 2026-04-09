@@ -24,6 +24,26 @@ class NormRefVerifyBody(BaseModel):
     context: dict[str, Any] = Field(default_factory=dict)
 
 
+class NormRefBatchValidateBody(BaseModel):
+    rules: list[str] = Field(default_factory=list)
+    data: dict[str, Any] = Field(default_factory=dict)
+    normref_version: str = "latest"
+    scope: str = ""
+
+
+class NormRefOverrideSetBody(BaseModel):
+    rule_id: str
+    version: str
+    selected_uri: str
+    reason: str = ""
+    updated_by: str = ""
+
+
+class NormRefOverrideClearBody(BaseModel):
+    rule_id: str
+    version: str
+
+
 def _resolve_verify_uri(*, uri: str, protocol_uri: str, spu_uri: str) -> str:
     direct = (uri or protocol_uri).strip()
     if direct:
@@ -140,3 +160,102 @@ async def verify_normref_protocol(
             raise HTTPException(404, "protocol_not_found")
         raise HTTPException(400, str(out.get("error") or "verify_failed"))
     return out
+
+
+@router.get("/rules/{rule_id}")
+async def get_normref_rule(
+    rule_id: str,
+    version: str = "latest",
+    scope: str = "",
+    resolver: NormRefResolverService = Depends(get_normref_resolver),
+):
+    out = resolver.get_rule(rule_id=rule_id, version=version, scope=scope)
+    if not bool(out.get("ok")):
+        error = str(out.get("error") or "")
+        if error in {"rule_not_found", "rule_version_not_found", "rule_scope_not_found"}:
+            raise HTTPException(404, error)
+        raise HTTPException(400, error or "get_rule_failed")
+    return out
+
+
+@router.get("/rules")
+async def list_normref_rules(
+    category: str = "",
+    version: str = "latest",
+    scope: str = "",
+    refresh: bool = False,
+    resolver: NormRefResolverService = Depends(get_normref_resolver),
+):
+    if refresh:
+        resolver.refresh_rule_catalog()
+    return resolver.list_rules(category=category, version=version, scope=scope)
+
+
+@router.get("/rules-conflicts")
+async def list_normref_rule_conflicts(
+    category: str = "",
+    version: str = "latest",
+    scope: str = "",
+    resolver: NormRefResolverService = Depends(get_normref_resolver),
+):
+    return resolver.list_rule_conflicts(category=category, version=version, scope=scope)
+
+
+@router.post("/rules/refresh")
+async def refresh_normref_rules(
+    resolver: NormRefResolverService = Depends(get_normref_resolver),
+):
+    return resolver.refresh_rule_catalog()
+
+
+@router.get("/rules-overrides")
+async def list_normref_rule_overrides(
+    resolver: NormRefResolverService = Depends(get_normref_resolver),
+):
+    return resolver.list_rule_overrides()
+
+
+@router.post("/rules-overrides/set")
+async def set_normref_rule_override(
+    body: NormRefOverrideSetBody,
+    resolver: NormRefResolverService = Depends(get_normref_resolver),
+):
+    out = resolver.set_rule_override(
+        rule_id=body.rule_id,
+        version=body.version,
+        selected_uri=body.selected_uri,
+        reason=body.reason,
+        updated_by=body.updated_by,
+    )
+    if not bool(out.get("ok")):
+        error = str(out.get("error") or "set_override_failed")
+        if error in {"rule_not_found", "selected_uri_not_in_candidates"}:
+            raise HTTPException(404, error)
+        raise HTTPException(400, error)
+    return out
+
+
+@router.post("/rules-overrides/clear")
+async def clear_normref_rule_override(
+    body: NormRefOverrideClearBody,
+    resolver: NormRefResolverService = Depends(get_normref_resolver),
+):
+    out = resolver.clear_rule_override(rule_id=body.rule_id, version=body.version)
+    if not bool(out.get("ok")):
+        raise HTTPException(400, str(out.get("error") or "clear_override_failed"))
+    return out
+
+
+@router.post("/validate")
+async def validate_normref_rules(
+    body: NormRefBatchValidateBody,
+    resolver: NormRefResolverService = Depends(get_normref_resolver),
+):
+    if not body.rules:
+        raise HTTPException(400, "rules is required")
+    return resolver.validate_rules(
+        rules=[str(x).strip() for x in body.rules if str(x).strip()],
+        data=dict(body.data or {}),
+        normref_version=str(body.normref_version or "latest"),
+        scope=str(body.scope or ""),
+    )

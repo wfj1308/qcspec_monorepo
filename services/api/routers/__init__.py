@@ -6,7 +6,7 @@ from fastapi import Depends
 
 from services.api.dependencies import require_auth_identity
 
-from . import auth, autoreg, boq, boqpeg, documents, erpnext, execution, finance, inspections, intelligence, logpeg, mobile, photos, process_iqc, projects, proof, reporting, settings, signpeg, smu, specification, specir, team, trip_mock, utxo, verify
+from . import auth, autoreg, boq, boqpeg, documents, erpnext, execution, finance, inspections, intelligence, logpeg, mobile, normref_ingest, photos, process_iqc, projects, proof, reporting, settings, signpeg, smu, specification, specir, team, trip_mock, utxo, verify
 
 AUTH_DEP = [Depends(require_auth_identity)]
 
@@ -63,6 +63,8 @@ ROUTER_REGISTRY = [
     {"router": finance.router, "prefix": "/v1/railpact", "tags": ["railpact-finance"], "dependencies": AUTH_DEP},
     {"router": specification.router, "prefix": "/v1/normref", "tags": ["normref-specification"], "dependencies": AUTH_DEP},
     {"router": specification.router, "prefix": "/api/normref", "tags": ["normref-specification-api"], "dependencies": AUTH_DEP},
+    {"router": normref_ingest.router, "prefix": "/v1/normref/ingest", "tags": ["normref-ingest"], "dependencies": AUTH_DEP},
+    {"router": normref_ingest.router, "prefix": "/api/normref/ingest", "tags": ["normref-ingest-api"], "dependencies": AUTH_DEP},
     {"router": specir.router, "prefix": "/v1/normref/specir", "tags": ["normref-specir"], "dependencies": AUTH_DEP},
 ]
 
