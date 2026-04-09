@@ -5,6 +5,7 @@ import Dashboard from '../pages/Dashboard'
 import InspectionPage from '../pages/InspectionPage'
 import PhotosPage from '../pages/PhotosPage'
 import ReportsPage from '../pages/ReportsPage'
+import LogPegPage from '../pages/LogPegPage'
 import ProofPanel from '../components/proof/ProofPanel'
 import PaymentAuditPanel from '../components/proof/PaymentAuditPanel'
 import SpatialGovernancePanel from '../components/proof/SpatialGovernancePanel'
@@ -70,6 +71,7 @@ export default function AppWorkspaceContent({
       {activeTab === 'inspection' && <InspectionPage />}
       {activeTab === 'photos' && <PhotosPage />}
       {activeTab === 'reports' && <ReportsPage />}
+      {activeTab === 'logpeg' && <LogPegPage />}
 
       {activeTab === 'proof' && (
         <>

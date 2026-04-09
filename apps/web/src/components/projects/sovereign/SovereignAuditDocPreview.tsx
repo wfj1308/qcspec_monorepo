@@ -1,4 +1,5 @@
 import type { MutableRefObject } from 'react'
+import BridgeSignPegPanel from '../../signpeg/BridgeSignPegPanel'
 
 type SignRole = 'contractor' | 'supervisor' | 'owner'
 
@@ -274,6 +275,32 @@ export default function SovereignAuditDocPreview({
                     <div className="mt-1 text-[10px] text-slate-500">最终共识与哈希锁定</div>
                   </div>
                 </div>
+                <BridgeSignPegPanel
+                  docId={sampleId || activeCode || finalProofId}
+                  bodyHash={totalHash}
+                  projectTripRoot={activeUri}
+                  projectUri={activeUri.includes('/bridge/') ? activeUri.split('/bridge/')[0] : activeUri}
+                  componentUri={activeUri}
+                  stepId="pile-pour-04"
+                  processStatus={gateTotal > 0 && gatePass < gateTotal ? 'locked' : 'active'}
+                  gateResult={{
+                    result: gateTotal > 0 && gatePass < gateTotal ? 'FAIL' : 'PASS',
+                    checks: [
+                      {
+                        check_id: 'gate_pass_rate',
+                        label: 'Gate通过率',
+                        pass: !(gateTotal > 0 && gatePass < gateTotal),
+                        severity: 'mandatory',
+                        expected: gateTotal > 0 ? `${gateTotal}/${gateTotal}` : '-',
+                        actual: gateTotal > 0 ? `${gatePass}/${gateTotal}` : '-',
+                        norm_ref: 'v://normref.com/schema/qc-v1',
+                      },
+                    ],
+                  }}
+                  normContext={{
+                    protocol_uri: templateSourceText || activeUri || 'v://normref.com/schema/qc-v1',
+                  }}
+                />
                 <div className="mt-3 rounded-lg border border-slate-200 bg-white px-2 py-2">
                   <div className="text-[10px] uppercase tracking-[0.14em] text-slate-400">验真链路</div>
                   <div className="mt-1 break-all font-mono text-[10px] text-slate-600">{verifyUri || '-'}</div>

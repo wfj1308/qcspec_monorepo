@@ -345,12 +345,12 @@ export default function App() {
 
   const currentDtoRole = String(user?.dto_role || 'PUBLIC').toUpperCase()
   const globalAllowedNavKeys = currentDtoRole === 'AI'
-    ? ['dashboard', 'inspection', 'photos', 'proof', 'projects']
+    ? ['dashboard', 'inspection', 'photos', 'proof', 'projects', 'logpeg']
     : currentDtoRole === 'SUPERVISOR'
-      ? ['dashboard', 'inspection', 'photos', 'proof', 'reports', 'projects', 'register']
+      ? ['dashboard', 'inspection', 'photos', 'proof', 'reports', 'projects', 'register', 'logpeg']
       : currentDtoRole === 'OWNER'
-        ? ['dashboard', 'inspection', 'photos', 'proof', 'reports', 'projects', 'register', 'team', 'permissions', 'settings']
-        : ['dashboard', 'proof', 'reports', 'projects']
+        ? ['dashboard', 'inspection', 'photos', 'proof', 'reports', 'projects', 'register', 'team', 'permissions', 'settings', 'logpeg']
+        : ['dashboard', 'proof', 'reports', 'projects', 'logpeg']
   const roleAwareNavItems = NAV.filter((item) => globalAllowedNavKeys.includes(item.key))
   const roleAwareNavSections = NAV_SECTIONS
     .map((section) => ({ ...section, keys: section.keys.filter((key) => globalAllowedNavKeys.includes(key)) }))

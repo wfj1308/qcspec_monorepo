@@ -30,6 +30,8 @@ from services.api.domain import (
     PublicVerifyService,
     ReportingService,
     SettingsService,
+    SignPegService,
+    LogPegService,
     SMUService,
     TeamService,
     UTXOService,
@@ -143,6 +145,14 @@ def get_public_verify_service(sb: Client = Depends(get_supabase)) -> PublicVerif
 
 def get_projects_service(sb: Client = Depends(get_supabase)) -> ProjectsService:
     return ProjectsService(sb=sb)
+
+
+def get_signpeg_service(sb: Client = Depends(get_supabase)) -> SignPegService:
+    return SignPegService(sb=sb)
+
+
+def get_logpeg_service(sb: Client = Depends(get_supabase)) -> LogPegService:
+    return LogPegService(sb=sb)
 
 
 @lru_cache(maxsize=1)

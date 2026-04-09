@@ -6,7 +6,7 @@ from fastapi import Depends
 
 from services.api.dependencies import require_auth_identity
 
-from . import auth, autoreg, boq, boqpeg, documents, erpnext, execution, finance, inspections, intelligence, mobile, photos, projects, proof, reporting, settings, smu, specification, specir, team, trip_mock, utxo, verify
+from . import auth, autoreg, boq, boqpeg, documents, erpnext, execution, finance, inspections, intelligence, logpeg, mobile, photos, process_iqc, projects, proof, reporting, settings, signpeg, smu, specification, specir, team, trip_mock, utxo, verify
 
 AUTH_DEP = [Depends(require_auth_identity)]
 
@@ -23,6 +23,9 @@ ROUTER_REGISTRY = [
     {"router": reporting.router, "prefix": "/api/reports", "tags": ["reporting-api"], "dependencies": AUTH_DEP},
     {"router": mobile.router, "prefix": "/api/v1/mobile", "tags": ["mobile"]},
     {"router": trip_mock.router, "prefix": "/api/trip", "tags": ["trip-api"], "dependencies": AUTH_DEP},
+    {"router": signpeg.router, "tags": ["signpeg"], "dependencies": AUTH_DEP},
+    {"router": logpeg.router, "tags": ["logpeg"], "dependencies": AUTH_DEP},
+    {"router": process_iqc.router, "tags": ["process-iqc"], "dependencies": AUTH_DEP},
     {"router": verify.router, "prefix": "/v1/verify", "tags": ["verify"], "dependencies": AUTH_DEP},
     {"router": verify.public_router, "prefix": "/api/verify", "tags": ["verify-public"]},
     {"router": verify.public_router, "prefix": "/api/v1/verify", "tags": ["verify-public-v1"]},

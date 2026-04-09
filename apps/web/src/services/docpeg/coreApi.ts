@@ -94,6 +94,15 @@ export type ProcessChainStep = {
   name: string
   required_tables: string[]
   pre_conditions: string[]
+  material_requirements?: Array<{
+    material_code: string
+    material_name: string
+    iqc_form_code: string
+    required: boolean
+    status: 'pending' | 'approved' | 'rejected'
+    iqc_uri?: string
+    batch_no?: string
+  }>
   next_steps: string[]
   normref_uris: string[]
 }
@@ -115,7 +124,121 @@ export type ProcessChainState = {
     completion_ratio: number
     finalproof_ready: boolean
     current_step: string
+    total_required_materials?: number
+    approved_required_materials?: number
+    pending_required_materials?: number
+    blocked_details?: Array<Record<string, unknown>>
   }
+}
+
+export type ProcessMaterialItem = {
+  material_code: string
+  material_name: string
+  iqc_form_code: string
+  required: boolean
+  status: 'pending' | 'approved' | 'rejected'
+  iqc_uri?: string
+  batch_no?: string
+  executor_uri?: string
+  submitted_at?: string
+  proof_id?: string
+  proof_hash?: string
+}
+
+export type ProcessStepMaterialGroup = {
+  step_id: string
+  step_name: string
+  materials: ProcessMaterialItem[]
+}
+
+export type ProcessMaterialsResponse = {
+  ok: boolean
+  project_uri: string
+  component_uri: string
+  materials: ProcessStepMaterialGroup[]
+  summary: {
+    total_required: number
+    approved: number
+    pending: number
+  }
+}
+
+export type SubmitIqcResponse = {
+  ok: boolean
+  iqc: {
+    material_code: string
+    material_name: string
+    iqc_form_code: string
+    batch_no: string
+    total_qty: number
+    unit: string
+    unit_price: number
+    supplier: string
+    status: 'pending' | 'approved' | 'rejected'
+    iqc_uri: string
+    submitted_at: string
+    proof_id: string
+    proof_hash: string
+    committed: boolean
+    component_uri: string
+    project_uri: string
+    executor_uri: string
+  }
+}
+
+export type MaterialUtxoRecord = {
+  utxo_id: string
+  material_code: string
+  batch_no: string
+  iqc_uri: string
+  total_qty: number
+  used_qty: number
+  remaining: number
+  unit: string
+  unit_price: number
+  supplier: string
+  inspection_batch_no: string
+  inspection_form: string
+  inspection_uri: string
+  inspection_result: 'approved' | 'rejected' | 'pending'
+  component_uri: string
+  process_step: string
+  quantity: number
+  status: 'available' | 'reserved' | 'consumed' | 'rejected'
+  v_uri: string
+  data_hash: string
+  signed_by: string
+  created_at: string
+  proof_id: string
+  proof_hash: string
+}
+
+export type InspectionBatchResponse = {
+  ok: boolean
+  inspection_batch: {
+    iqc_uri: string
+    component_uri: string
+    process_step: string
+    quantity: number
+    unit: string
+    total_qty: number
+    used_qty: number
+    remaining: number
+    material_code: string
+    inspection_batch_no: string
+    inspection_uri: string
+    inspection_result: 'approved' | 'rejected' | 'pending'
+    committed: boolean
+    utxo: MaterialUtxoRecord
+  }
+}
+
+export type MaterialUtxoQueryResponse = {
+  ok: boolean
+  scope: 'iqc' | 'component'
+  key: string
+  records: MaterialUtxoRecord[]
+  summary: Record<string, unknown>
 }
 
 type RequestInitEx = RequestInit & {
@@ -614,6 +737,100 @@ export class DocPegCoreAPI {
         }),
       },
     )
+  }
+
+  async getProcessMaterials(params: {
+    projectUri: string
+    componentUri: string
+  }): Promise<ProcessMaterialsResponse> {
+    const encodedComponent = encodeURIComponent(params.componentUri)
+    return this.request(`/api/v1/process/${encodedComponent}/materials?project_uri=${encodeURIComponent(params.projectUri)}`, {
+      method: 'GET',
+    }) as Promise<ProcessMaterialsResponse>
+  }
+
+  async submitIqc(params: {
+    projectUri: string
+    componentUri: string
+    stepId?: string
+    materialCode: string
+    materialName?: string
+    iqcFormCode?: string
+    batchNo: string
+    totalQty?: number
+    unit?: string
+    unitPrice?: number
+    supplier?: string
+    testResults?: Record<string, unknown>
+    executorUri: string
+    ownerUri?: string
+    status?: 'pending' | 'approved' | 'rejected'
+    commit?: boolean
+  }): Promise<SubmitIqcResponse> {
+    return this.request(`/api/v1/iqc/submit?commit=${params.commit === false ? 'false' : 'true'}`, {
+      method: 'POST',
+      body: JSON.stringify({
+        project_uri: params.projectUri,
+        component_uri: params.componentUri,
+        step_id: params.stepId || '',
+        material_code: params.materialCode,
+        material_name: params.materialName || '',
+        iqc_form_code: params.iqcFormCode || '',
+        batch_no: params.batchNo,
+        total_qty: Number(params.totalQty || 0),
+        unit: params.unit || '',
+        unit_price: Number(params.unitPrice || 0),
+        supplier: params.supplier || '',
+        test_results: params.testResults || {},
+        executor_uri: params.executorUri,
+        owner_uri: params.ownerUri || '',
+        status: params.status || 'approved',
+      }),
+    }) as Promise<SubmitIqcResponse>
+  }
+
+  async createInspectionBatch(params: {
+    projectUri: string
+    iqcUri: string
+    componentUri: string
+    processStep: string
+    quantity: number
+    unit?: string
+    inspectionForm?: string
+    inspectionBatchNo?: string
+    inspectionResult?: 'approved' | 'rejected' | 'pending'
+    testResults?: Record<string, unknown>
+    executorUri: string
+    ownerUri?: string
+    commit?: boolean
+  }): Promise<InspectionBatchResponse> {
+    return this.request(`/api/v1/inspection-batch/create?commit=${params.commit === false ? 'false' : 'true'}`, {
+      method: 'POST',
+      body: JSON.stringify({
+        project_uri: params.projectUri,
+        iqc_uri: params.iqcUri,
+        component_uri: params.componentUri,
+        process_step: params.processStep,
+        quantity: Number(params.quantity || 0),
+        unit: params.unit || '',
+        inspection_form: params.inspectionForm || '',
+        inspection_batch_no: params.inspectionBatchNo || '',
+        inspection_result: params.inspectionResult || 'approved',
+        test_results: params.testResults || {},
+        executor_uri: params.executorUri,
+        owner_uri: params.ownerUri || '',
+      }),
+    }) as Promise<InspectionBatchResponse>
+  }
+
+  async getMaterialUtxoByIqc(iqcUri: string): Promise<MaterialUtxoQueryResponse> {
+    const encoded = encodeURIComponent(iqcUri)
+    return this.request(`/api/v1/material-utxo/${encoded}`, { method: 'GET' }) as Promise<MaterialUtxoQueryResponse>
+  }
+
+  async getMaterialUtxoByComponent(componentUri: string): Promise<MaterialUtxoQueryResponse> {
+    const encoded = encodeURIComponent(componentUri)
+    return this.request(`/api/v1/material-utxo/component/${encoded}`, { method: 'GET' }) as Promise<MaterialUtxoQueryResponse>
   }
 }
 

@@ -10,6 +10,7 @@ from supabase import Client
 
 from services.api.dependencies import get_supabase
 from services.api.domain.specir import (
+    compile_specir_process_chain,
     get_specir_object,
     list_spu_library,
     resolve_spu_ref_pack,
@@ -86,3 +87,24 @@ async def resolve_spu_ref(
         "ref_quota_uri": pack.get("ref_quota_uri") or "",
         "ref_meter_rule_uri": pack.get("ref_meter_rule_uri") or "",
     }
+
+
+@router.get("/process-chain/compile")
+async def compile_process_chain_from_specir(
+    spec_uri: str = Query(default="v://normref.com/std/JTG-F80-1-2017"),
+    component_type: str = Query(default="drilled_pile"),
+    chapter: str = "",
+    chain_kind: str = "",
+    component_uri: str = "",
+    boq_item_ref: str = "",
+    sb: Client = Depends(get_supabase),
+):
+    return compile_specir_process_chain(
+        sb=sb,
+        spec_uri=spec_uri,
+        component_type=component_type,
+        chapter=chapter,
+        chain_kind=chain_kind,
+        component_uri=component_uri,
+        boq_item_ref=boq_item_ref,
+    )

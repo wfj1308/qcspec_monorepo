@@ -13,6 +13,7 @@ from services.api.domain.boqpeg.helpers import (
     boqpeg_bind_bridge_items_flow,
     boqpeg_bridge_piles_flow,
     boqpeg_create_bridge_entity_flow,
+    boqpeg_create_inspection_batch_flow,
     boqpeg_create_pile_entity_flow,
     boqpeg_create_bridge_schedule_flow,
     boqpeg_create_process_chain_flow,
@@ -24,6 +25,17 @@ from services.api.domain.boqpeg.helpers import (
     boqpeg_full_line_schedule_flow,
     boqpeg_forward_bom_flow,
     boqpeg_get_bridge_schedule_flow,
+    boqpeg_get_material_utxo_by_component_flow,
+    boqpeg_get_material_utxo_by_iqc_flow,
+    boqpeg_get_equipment_history_flow,
+    boqpeg_get_equipment_status_flow,
+    boqpeg_submit_welding_trip_flow,
+    boqpeg_submit_formwork_use_trip_flow,
+    boqpeg_submit_prestressing_trip_flow,
+    boqpeg_register_tool_asset_flow,
+    boqpeg_submit_equipment_trip_flow,
+    boqpeg_calculate_component_cost_flow,
+    boqpeg_get_process_materials_flow,
     boqpeg_get_process_chain_flow,
     boqpeg_import_active_job_flow,
     boqpeg_import_async_flow,
@@ -38,6 +50,7 @@ from services.api.domain.boqpeg.helpers import (
     boqpeg_tab_to_peg_flow,
     boqpeg_sync_bridge_schedule_flow,
     boqpeg_submit_process_table_flow,
+    boqpeg_submit_iqc_flow,
     boqpeg_update_pile_state_flow,
     boqpeg_unified_alignment_flow,
 )
@@ -249,6 +262,16 @@ class BOQPegService(BaseService):
             component_uri=component_uri,
         )
 
+    async def get_process_materials(self, *, project_uri: str, component_uri: str) -> Any:
+        supabase = self.require_supabase()
+        return await self.run_guarded(
+            "boqpeg_get_process_materials",
+            boqpeg_get_process_materials_flow,
+            sb=supabase,
+            project_uri=project_uri,
+            component_uri=component_uri,
+        )
+
     async def submit_process_table(self, *, body: dict[str, Any], commit: bool = False) -> Any:
         supabase = self.require_supabase()
         return await self.run_guarded(
@@ -257,6 +280,128 @@ class BOQPegService(BaseService):
             sb=supabase,
             body=body,
             commit=bool(commit),
+        )
+
+    async def submit_iqc(self, *, body: dict[str, Any], commit: bool = True) -> Any:
+        supabase = self.require_supabase()
+        return await self.run_guarded(
+            "boqpeg_submit_iqc",
+            boqpeg_submit_iqc_flow,
+            sb=supabase,
+            body=body,
+            commit=bool(commit),
+        )
+
+    async def create_inspection_batch(self, *, body: dict[str, Any], commit: bool = True) -> Any:
+        supabase = self.require_supabase()
+        return await self.run_guarded(
+            "boqpeg_create_inspection_batch",
+            boqpeg_create_inspection_batch_flow,
+            sb=supabase,
+            body=body,
+            commit=bool(commit),
+        )
+
+    async def get_material_utxo_by_iqc(self, *, iqc_uri: str) -> Any:
+        supabase = self.require_supabase()
+        return await self.run_guarded(
+            "boqpeg_get_material_utxo_by_iqc",
+            boqpeg_get_material_utxo_by_iqc_flow,
+            sb=supabase,
+            iqc_uri=iqc_uri,
+        )
+
+    async def get_material_utxo_by_component(self, *, component_uri: str) -> Any:
+        supabase = self.require_supabase()
+        return await self.run_guarded(
+            "boqpeg_get_material_utxo_by_component",
+            boqpeg_get_material_utxo_by_component_flow,
+            sb=supabase,
+            component_uri=component_uri,
+        )
+
+    async def submit_welding_trip(self, *, body: dict[str, Any], commit: bool = True) -> Any:
+        supabase = self.require_supabase()
+        return await self.run_guarded(
+            "boqpeg_submit_welding_trip",
+            boqpeg_submit_welding_trip_flow,
+            sb=supabase,
+            body=body,
+            commit=bool(commit),
+        )
+
+    async def submit_formwork_use_trip(self, *, body: dict[str, Any], commit: bool = True) -> Any:
+        supabase = self.require_supabase()
+        return await self.run_guarded(
+            "boqpeg_submit_formwork_use_trip",
+            boqpeg_submit_formwork_use_trip_flow,
+            sb=supabase,
+            body=body,
+            commit=bool(commit),
+        )
+
+    async def submit_prestressing_trip(self, *, body: dict[str, Any], commit: bool = True) -> Any:
+        supabase = self.require_supabase()
+        return await self.run_guarded(
+            "boqpeg_submit_prestressing_trip",
+            boqpeg_submit_prestressing_trip_flow,
+            sb=supabase,
+            body=body,
+            commit=bool(commit),
+        )
+
+    async def register_tool_asset(self, *, body: dict[str, Any], commit: bool = True) -> Any:
+        supabase = self.require_supabase()
+        return await self.run_guarded(
+            "boqpeg_register_tool_asset",
+            boqpeg_register_tool_asset_flow,
+            sb=supabase,
+            body=body,
+            commit=bool(commit),
+        )
+
+    async def submit_equipment_trip(self, *, body: dict[str, Any], commit: bool = True) -> Any:
+        supabase = self.require_supabase()
+        return await self.run_guarded(
+            "boqpeg_submit_equipment_trip",
+            boqpeg_submit_equipment_trip_flow,
+            sb=supabase,
+            body=body,
+            commit=bool(commit),
+        )
+
+    async def get_equipment_status(self, *, equipment_uri: str, operator_executor_uri: str = "") -> Any:
+        supabase = self.require_supabase()
+        return await self.run_guarded(
+            "boqpeg_get_equipment_status",
+            boqpeg_get_equipment_status_flow,
+            sb=supabase,
+            equipment_uri=equipment_uri,
+            operator_executor_uri=operator_executor_uri,
+        )
+
+    async def get_equipment_history(self, *, equipment_uri: str) -> Any:
+        supabase = self.require_supabase()
+        return await self.run_guarded(
+            "boqpeg_get_equipment_history",
+            boqpeg_get_equipment_history_flow,
+            sb=supabase,
+            equipment_uri=equipment_uri,
+        )
+
+    async def calculate_component_cost(
+        self,
+        *,
+        component_uri: str,
+        overhead_ratio: float = 0.08,
+    ) -> Any:
+        supabase = self.require_supabase()
+        return await self.run_guarded(
+            "boqpeg_calculate_component_cost",
+            boqpeg_calculate_component_cost_flow,
+            sb=supabase,
+            component_uri=component_uri,
+            overhead_ratio=float(overhead_ratio),
         )
 
     async def product_manifest(self) -> Any:

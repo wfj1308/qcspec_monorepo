@@ -355,6 +355,87 @@ class _FakeBOQPegService:
             "proofs": {"table_submission_proof": {"proof_id": "GP-PROCESS-TABLE-1"}},
         }
 
+    async def get_process_materials(self, *, project_uri: str, component_uri: str) -> dict[str, Any]:
+        self.calls.append(("process-materials-get", {"project_uri": project_uri, "component_uri": component_uri}))
+        return {
+            "ok": True,
+            "project_uri": project_uri,
+            "component_uri": component_uri,
+            "materials": [
+                {
+                    "step_id": "pile-pour-04",
+                    "step_name": "混凝土灌注",
+                    "materials": [
+                        {
+                            "material_code": "concrete-c50",
+                            "material_name": "C50混凝土",
+                            "required": True,
+                            "status": "pending",
+                        }
+                    ],
+                }
+            ],
+            "summary": {"total_required": 1, "approved": 0, "pending": 1},
+        }
+
+    async def submit_iqc(self, *, body: dict[str, Any], commit: bool = True) -> dict[str, Any]:
+        self.calls.append(("iqc-submit", {"body": body, "commit": commit}))
+        return {
+            "ok": True,
+            "iqc": {
+                "material_code": body.get("material_code"),
+                "batch_no": body.get("batch_no"),
+                "status": body.get("status", "approved"),
+                "iqc_uri": "v://cost/iqc/concrete-c50-batch001",
+                "committed": bool(commit),
+            },
+        }
+
+    async def create_inspection_batch(self, *, body: dict[str, Any], commit: bool = True) -> dict[str, Any]:
+        self.calls.append(("inspection-batch-create", {"body": body, "commit": commit}))
+        return {
+            "ok": True,
+            "inspection_batch": {
+                "iqc_uri": body.get("iqc_uri"),
+                "component_uri": body.get("component_uri"),
+                "process_step": body.get("process_step"),
+                "quantity": body.get("quantity"),
+                "unit": body.get("unit", "m3"),
+                "total_qty": 200,
+                "used_qty": 28,
+                "remaining": 172,
+                "material_code": "concrete-c50",
+                "inspection_batch_no": body.get("inspection_batch_no") or "JYP-2026-0405-001",
+                "inspection_uri": "v://cost/inspection-batch/jyp-2026-0405-001",
+                "inspection_result": body.get("inspection_result", "approved"),
+                "committed": bool(commit),
+                "utxo": {
+                    "utxo_id": "UTXO-001",
+                    "material_code": "concrete-c50",
+                },
+            },
+        }
+
+    async def get_material_utxo_by_iqc(self, *, iqc_uri: str) -> dict[str, Any]:
+        self.calls.append(("material-utxo-by-iqc", {"iqc_uri": iqc_uri}))
+        return {
+            "ok": True,
+            "scope": "iqc",
+            "key": iqc_uri,
+            "records": [{"utxo_id": "UTXO-001", "material_code": "concrete-c50"}],
+            "summary": {"total_qty": 200, "used_qty": 28, "remaining": 172},
+        }
+
+    async def get_material_utxo_by_component(self, *, component_uri: str) -> dict[str, Any]:
+        self.calls.append(("material-utxo-by-component", {"component_uri": component_uri}))
+        return {
+            "ok": True,
+            "scope": "component",
+            "key": component_uri,
+            "records": [{"utxo_id": "UTXO-001", "material_code": "concrete-c50"}],
+            "summary": {"total_cost": 16240},
+        }
+
 
 def _fake_auth_identity() -> dict[str, Any]:
     return {"user_id": "test-user", "roles": ["admin"], "v_uri": "v://project/demo/executor/test-user"}
@@ -957,3 +1038,86 @@ def test_boqpeg_process_chain_routes(monkeypatch) -> None:
     assert "process-chain-create" in call_names
     assert "process-chain-get" in call_names
     assert "process-chain-submit-table" in call_names
+
+
+def test_process_materials_and_iqc_routes(monkeypatch) -> None:
+    monkeypatch.setenv("MOCK_GITPEG_WORKER_ENABLED", "0")
+    monkeypatch.setenv("ERPNEXT_PUSH_WORKER_ENABLED", "0")
+    fake = _FakeBOQPegService()
+    component_uri = "v://project/demo/bridge/YK0+500-main/pile/P3"
+    with _build_client(fake) as client:
+        materials_res = client.get(
+            f"/api/v1/process/{component_uri}/materials?project_uri=v://project/demo",
+            headers={"Authorization": "Bearer test-token"},
+        )
+        iqc_res = client.post(
+            "/api/v1/iqc/submit?commit=true",
+            json={
+                "project_uri": "v://project/demo",
+                "component_uri": component_uri,
+                "step_id": "pile-pour-04",
+                "material_code": "concrete-c50",
+                "material_name": "C50混凝土",
+                "iqc_form_code": "试验施工表-混凝土检验",
+                "batch_no": "batch001",
+                "test_results": {"slump": 180, "strength": "C50"},
+                "executor_uri": "v://project/demo/executor/inspector-a",
+                "status": "approved",
+            },
+            headers={"Authorization": "Bearer test-token"},
+        )
+
+    assert materials_res.status_code == 200
+    assert materials_res.json()["summary"]["pending"] == 1
+    assert iqc_res.status_code == 200
+    assert iqc_res.json()["iqc"]["material_code"] == "concrete-c50"
+    assert iqc_res.json()["iqc"]["committed"] is True
+
+    call_names = [name for name, _ in fake.calls]
+    assert "process-materials-get" in call_names
+    assert "iqc-submit" in call_names
+
+
+def test_inspection_batch_and_material_utxo_routes(monkeypatch) -> None:
+    monkeypatch.setenv("MOCK_GITPEG_WORKER_ENABLED", "0")
+    monkeypatch.setenv("ERPNEXT_PUSH_WORKER_ENABLED", "0")
+    fake = _FakeBOQPegService()
+    component_uri = "v://project/demo/bridge/YK0+500-main/pile/P3"
+    iqc_uri = "v://cost/iqc/concrete-c50-batch001"
+    with _build_client(fake) as client:
+        create_res = client.post(
+            "/api/v1/inspection-batch/create?commit=true",
+            json={
+                "project_uri": "v://project/demo",
+                "iqc_uri": iqc_uri,
+                "component_uri": component_uri,
+                "process_step": "pile-pour-04",
+                "quantity": 28,
+                "unit": "m3",
+                "inspection_form": "bridge9",
+                "inspection_batch_no": "JYP-2026-0405-001",
+                "inspection_result": "approved",
+                "executor_uri": "v://project/demo/executor/inspector-a",
+            },
+            headers={"Authorization": "Bearer test-token"},
+        )
+        by_iqc_res = client.get(
+            f"/api/v1/material-utxo/{iqc_uri}",
+            headers={"Authorization": "Bearer test-token"},
+        )
+        by_component_res = client.get(
+            f"/api/v1/material-utxo/component/{component_uri}",
+            headers={"Authorization": "Bearer test-token"},
+        )
+
+    assert create_res.status_code == 200
+    assert create_res.json()["inspection_batch"]["remaining"] == 172
+    assert by_iqc_res.status_code == 200
+    assert by_iqc_res.json()["scope"] == "iqc"
+    assert by_component_res.status_code == 200
+    assert by_component_res.json()["scope"] == "component"
+
+    call_names = [name for name, _ in fake.calls]
+    assert "inspection-batch-create" in call_names
+    assert "material-utxo-by-iqc" in call_names
+    assert "material-utxo-by-component" in call_names

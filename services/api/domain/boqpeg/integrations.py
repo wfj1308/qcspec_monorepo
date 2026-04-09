@@ -136,8 +136,73 @@ def get_process_chain(*args: Any, **kwargs: Any) -> Any:
     return _runtime().get_process_chain(*args, **kwargs)
 
 
+def get_process_materials(*args: Any, **kwargs: Any) -> Any:
+    return _runtime().get_process_materials(*args, **kwargs)
+
+
 def submit_process_table(*args: Any, **kwargs: Any) -> Any:
     return _runtime().submit_process_table(*args, **kwargs)
+
+
+def submit_iqc(*args: Any, **kwargs: Any) -> Any:
+    return _runtime().submit_iqc(*args, **kwargs)
+
+
+def create_inspection_batch(*args: Any, **kwargs: Any) -> Any:
+    return _runtime().create_inspection_batch(*args, **kwargs)
+
+
+def get_material_utxo_by_iqc(*args: Any, **kwargs: Any) -> Any:
+    return _runtime().get_material_utxo_by_iqc(*args, **kwargs)
+
+
+def get_material_utxo_by_component(*args: Any, **kwargs: Any) -> Any:
+    return _runtime().get_material_utxo_by_component(*args, **kwargs)
+
+
+def summarize_component_step_materials(*args: Any, **kwargs: Any) -> Any:
+    return _runtime().summarize_component_step_materials(*args, **kwargs)
+
+
+def summarize_component_material_cost(*args: Any, **kwargs: Any) -> Any:
+    return _runtime().summarize_component_material_cost(*args, **kwargs)
+
+
+def submit_welding_trip(*args: Any, **kwargs: Any) -> Any:
+    return _runtime().submit_welding_trip(*args, **kwargs)
+
+
+def submit_formwork_use_trip(*args: Any, **kwargs: Any) -> Any:
+    return _runtime().submit_formwork_use_trip(*args, **kwargs)
+
+
+def submit_prestressing_trip(*args: Any, **kwargs: Any) -> Any:
+    return _runtime().submit_prestressing_trip(*args, **kwargs)
+
+
+def calculate_component_cost(*args: Any, **kwargs: Any) -> Any:
+    return _runtime().calculate_component_cost(*args, **kwargs)
+
+
+def register_tool_asset(*args: Any, **kwargs: Any) -> Any:
+    return _runtime().register_tool_asset(*args, **kwargs)
+
+
+def submit_equipment_trip(*args: Any, **kwargs: Any) -> Any:
+    return _runtime().submit_equipment_trip(*args, **kwargs)
+
+
+def get_equipment_status(*args: Any, **kwargs: Any) -> Any:
+    return _runtime().get_equipment_status(*args, **kwargs)
+
+
+def get_equipment_history(*args: Any, **kwargs: Any) -> Any:
+    return _runtime().get_equipment_history(*args, **kwargs)
+
+
+def sum_equipment_trip_cost(*args: Any, **kwargs: Any) -> Any:
+    return _runtime().sum_equipment_trip_cost(*args, **kwargs)
+
 
 def boqpeg_product_manifest(*args: Any, **kwargs: Any) -> Any:
     return _runtime().boqpeg_product_manifest(*args, **kwargs)
@@ -173,6 +238,7 @@ __all__ = [
     "get_full_line_pile_summary",
     "get_project_full_line_schedule_summary",
     "get_process_chain",
+    "get_process_materials",
     "import_boq_upload_chain",
     "scan_boq_and_create_utxos",
     "initialize_boq_genesis_chain",
@@ -187,6 +253,21 @@ __all__ = [
     "run_bidirectional_closure",
     "start_boqpeg_import_job",
     "submit_process_table",
+    "submit_iqc",
+    "create_inspection_batch",
+    "submit_welding_trip",
+    "submit_formwork_use_trip",
+    "submit_prestressing_trip",
+    "register_tool_asset",
+    "submit_equipment_trip",
+    "get_equipment_status",
+    "get_equipment_history",
+    "sum_equipment_trip_cost",
+    "calculate_component_cost",
+    "get_material_utxo_by_iqc",
+    "get_material_utxo_by_component",
+    "summarize_component_step_materials",
+    "summarize_component_material_cost",
     "sync_bridge_schedule_progress",
     "table_to_protocol_block",
     "unified_alignment_check",

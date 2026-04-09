@@ -1,0 +1,40 @@
+requirements:
+  - step_id: pile-prepare-01
+    material_code: steel-casing
+    material_name: Steel casing
+    iqc_form_code: IQC-Steel
+    required: true
+    inspection_batch_required: false
+    min_qty: 0
+
+  - step_id: pile-hole-02
+    material_code: slurry-material
+    material_name: Slurry material
+    iqc_form_code: IQC-Slurry
+    required: true
+    inspection_batch_required: false
+    min_qty: 0
+
+  - step_id: pile-rebar-03
+    material_code: rebar-cage
+    material_name: Rebar cage
+    iqc_form_code: IQC-RebarCage
+    required: true
+    inspection_batch_required: false
+    min_qty: 0
+
+  - step_id: pile-pour-04
+    material_code: concrete-c50
+    material_name: Concrete C50
+    iqc_form_code: IQC-Concrete
+    required: true
+    inspection_batch_required: true
+    min_qty: 25
+
+  - step_id: pile-pour-04
+    material_code: rebar-hrb400
+    material_name: Rebar HRB400
+    iqc_form_code: IQC-Rebar
+    required: true
+    inspection_batch_required: true
+    min_qty: 0

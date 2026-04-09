@@ -8,11 +8,19 @@ from fastapi import UploadFile
 from supabase import Client
 
 from services.api.core.http import read_upload_content_sync
+from services.api.domain.boqpeg.models import (
+    EquipmentTripRequest,
+    FormworkUseTripRequest,
+    PrestressingTripRequest,
+    ToolAssetRegisterRequest,
+    WeldingTripRequest,
+)
 from services.api.domain.boqpeg.integrations import (
     bind_bridge_sub_items,
     bootstrap_normref_logic_scaffold,
     boqpeg_phase1_bridge_pile_report,
     boqpeg_product_manifest,
+    create_inspection_batch,
     create_bridge_entity,
     create_process_chain,
     create_pile_entity,
@@ -24,7 +32,10 @@ from services.api.domain.boqpeg.integrations import (
     get_bridge_schedule,
     get_boqpeg_import_job,
     get_full_line_pile_summary,
+    get_material_utxo_by_component,
+    get_material_utxo_by_iqc,
     get_project_full_line_schedule_summary,
+    get_process_materials,
     get_process_chain,
     import_boq_upload_chain,
     match_boq_with_design_manifest,
@@ -36,6 +47,15 @@ from services.api.domain.boqpeg.integrations import (
     run_bidirectional_closure,
     start_boqpeg_import_job,
     submit_process_table,
+    submit_iqc,
+    submit_welding_trip,
+    submit_formwork_use_trip,
+    submit_prestressing_trip,
+    register_tool_asset,
+    submit_equipment_trip,
+    get_equipment_status,
+    get_equipment_history,
+    calculate_component_cost,
     sync_bridge_schedule_progress,
     table_to_protocol_block,
     unified_alignment_check,
@@ -397,6 +417,7 @@ def boqpeg_create_process_chain_flow(
         boq_item_ref=_to_text(body.get("boq_item_ref")).strip(),
         steps=[item for item in _as_list(body.get("steps")) if isinstance(item, dict)],
         completed_tables=body.get("completed_tables") if isinstance(body.get("completed_tables"), dict) else {},
+        material_state=body.get("material_state") if isinstance(body.get("material_state"), dict) else {},
         owner_uri=_to_text(body.get("owner_uri")).strip(),
         commit=bool(commit),
     )
@@ -409,6 +430,19 @@ def boqpeg_get_process_chain_flow(
     sb: Client,
 ) -> dict[str, Any]:
     return get_process_chain(
+        sb=sb,
+        project_uri=project_uri,
+        component_uri=component_uri,
+    )
+
+
+def boqpeg_get_process_materials_flow(
+    *,
+    project_uri: str,
+    component_uri: str,
+    sb: Client,
+) -> dict[str, Any]:
+    return get_process_materials(
         sb=sb,
         project_uri=project_uri,
         component_uri=component_uri,
@@ -439,6 +473,180 @@ def boqpeg_submit_process_table_flow(
         commit=bool(commit),
         chain_snapshot=body.get("chain_snapshot") if isinstance(body.get("chain_snapshot"), dict) else None,
     )
+
+
+def boqpeg_submit_iqc_flow(
+    *,
+    body: dict[str, Any],
+    commit: bool,
+    sb: Client,
+) -> dict[str, Any]:
+    result = submit_iqc(
+        sb=sb,
+        project_uri=_to_text(body.get("project_uri")).strip(),
+        component_uri=_to_text(body.get("component_uri")).strip(),
+        step_id=_to_text(body.get("step_id")).strip(),
+        material_code=_to_text(body.get("material_code")).strip(),
+        material_name=_to_text(body.get("material_name")).strip(),
+        iqc_form_code=_to_text(body.get("iqc_form_code")).strip(),
+        batch_no=_to_text(body.get("batch_no")).strip(),
+        total_qty=float(body.get("total_qty") or 0.0),
+        unit=_to_text(body.get("unit")).strip(),
+        unit_price=float(body.get("unit_price") or 0.0),
+        supplier=_to_text(body.get("supplier")).strip(),
+        test_results=body.get("test_results") if isinstance(body.get("test_results"), dict) else {},
+        executor_uri=_to_text(body.get("executor_uri")).strip(),
+        owner_uri=_to_text(body.get("owner_uri")).strip(),
+        status=_to_text(body.get("status")).strip() or "approved",
+        commit=bool(commit),
+    )
+    return {"ok": True, "iqc": result.model_dump(mode="json")}
+
+
+def boqpeg_create_inspection_batch_flow(
+    *,
+    body: dict[str, Any],
+    commit: bool,
+    sb: Client,
+) -> dict[str, Any]:
+    result = create_inspection_batch(
+        sb=sb,
+        iqc_uri=_to_text(body.get("iqc_uri")).strip(),
+        component_uri=_to_text(body.get("component_uri")).strip(),
+        process_step=_to_text(body.get("process_step")).strip(),
+        quantity=float(body.get("quantity") or 0.0),
+        unit=_to_text(body.get("unit")).strip(),
+        inspection_form=_to_text(body.get("inspection_form")).strip(),
+        inspection_batch_no=_to_text(body.get("inspection_batch_no")).strip(),
+        inspection_result=_to_text(body.get("inspection_result")).strip() or "approved",
+        test_results=body.get("test_results") if isinstance(body.get("test_results"), dict) else {},
+        executor_uri=_to_text(body.get("executor_uri")).strip(),
+        owner_uri=_to_text(body.get("owner_uri")).strip(),
+        commit=bool(commit),
+    )
+    return {"ok": True, "inspection_batch": result.model_dump(mode="json")}
+
+
+def boqpeg_get_material_utxo_by_iqc_flow(
+    *,
+    iqc_uri: str,
+    sb: Client,
+) -> dict[str, Any]:
+    out = get_material_utxo_by_iqc(sb=sb, iqc_uri=iqc_uri)
+    return {"ok": True, **out.model_dump(mode="json")}
+
+
+def boqpeg_get_material_utxo_by_component_flow(
+    *,
+    component_uri: str,
+    sb: Client,
+) -> dict[str, Any]:
+    out = get_material_utxo_by_component(sb=sb, component_uri=component_uri)
+    return {"ok": True, **out.model_dump(mode="json")}
+
+
+async def boqpeg_submit_welding_trip_flow(
+    *,
+    body: dict[str, Any],
+    commit: bool,
+    sb: Client,
+) -> dict[str, Any]:
+    out = await submit_welding_trip(
+        sb=sb,
+        body=WeldingTripRequest.model_validate({**body, "commit": bool(commit)}),
+        commit=bool(commit),
+    )
+    return {"ok": True, **out.model_dump(mode="json", by_alias=True)}
+
+
+async def boqpeg_submit_formwork_use_trip_flow(
+    *,
+    body: dict[str, Any],
+    commit: bool,
+    sb: Client,
+) -> dict[str, Any]:
+    out = await submit_formwork_use_trip(
+        sb=sb,
+        body=FormworkUseTripRequest.model_validate({**body, "commit": bool(commit)}),
+        commit=bool(commit),
+    )
+    return {"ok": True, **out.model_dump(mode="json", by_alias=True)}
+
+
+async def boqpeg_submit_prestressing_trip_flow(
+    *,
+    body: dict[str, Any],
+    commit: bool,
+    sb: Client,
+) -> dict[str, Any]:
+    out = await submit_prestressing_trip(
+        sb=sb,
+        body=PrestressingTripRequest.model_validate({**body, "commit": bool(commit)}),
+        commit=bool(commit),
+    )
+    return {"ok": True, **out.model_dump(mode="json", by_alias=True)}
+
+
+def boqpeg_register_tool_asset_flow(
+    *,
+    body: dict[str, Any],
+    commit: bool,
+    sb: Client,
+) -> dict[str, Any]:
+    out = register_tool_asset(
+        sb=sb,
+        body=ToolAssetRegisterRequest.model_validate({**body, "commit": bool(commit)}),
+        commit=bool(commit),
+    )
+    return {"ok": True, "asset": out.model_dump(mode="json", by_alias=True)}
+
+
+async def boqpeg_submit_equipment_trip_flow(
+    *,
+    body: dict[str, Any],
+    commit: bool,
+    sb: Client,
+) -> dict[str, Any]:
+    out = await submit_equipment_trip(
+        sb=sb,
+        body=EquipmentTripRequest.model_validate({**body, "commit": bool(commit)}),
+        commit=bool(commit),
+    )
+    return {"ok": True, **out.model_dump(mode="json", by_alias=True)}
+
+
+async def boqpeg_get_equipment_status_flow(
+    *,
+    equipment_uri: str,
+    operator_executor_uri: str,
+    sb: Client,
+) -> dict[str, Any]:
+    out = await get_equipment_status(
+        sb=sb,
+        equipment_uri=equipment_uri,
+        operator_executor_uri=operator_executor_uri,
+    )
+    return {"ok": True, **out.model_dump(mode="json", by_alias=True)}
+
+
+async def boqpeg_get_equipment_history_flow(
+    *,
+    equipment_uri: str,
+    sb: Client,
+) -> dict[str, Any]:
+    out = await get_equipment_history(sb=sb, equipment_uri=equipment_uri)
+    return {"ok": True, **out.model_dump(mode="json", by_alias=True)}
+
+
+def boqpeg_calculate_component_cost_flow(
+    *,
+    component_uri: str,
+    overhead_ratio: float,
+    sb: Client,
+) -> dict[str, Any]:
+    out = calculate_component_cost(sb=sb, component_uri=component_uri, overhead_ratio=overhead_ratio)
+    return {"ok": True, **out.model_dump(mode="json")}
+
 
 def boqpeg_product_manifest_flow() -> dict[str, Any]:
     return boqpeg_product_manifest()
@@ -500,6 +708,7 @@ __all__ = [
     "boqpeg_bind_bridge_items_flow",
     "boqpeg_bridge_piles_flow",
     "boqpeg_create_bridge_entity_flow",
+    "boqpeg_create_inspection_batch_flow",
     "boqpeg_create_pile_entity_flow",
     "boqpeg_create_bridge_schedule_flow",
     "boqpeg_create_process_chain_flow",
@@ -511,6 +720,17 @@ __all__ = [
     "boqpeg_full_line_schedule_flow",
     "boqpeg_forward_bom_flow",
     "boqpeg_get_bridge_schedule_flow",
+    "boqpeg_get_material_utxo_by_component_flow",
+    "boqpeg_get_material_utxo_by_iqc_flow",
+    "boqpeg_submit_welding_trip_flow",
+    "boqpeg_submit_formwork_use_trip_flow",
+    "boqpeg_submit_prestressing_trip_flow",
+    "boqpeg_register_tool_asset_flow",
+    "boqpeg_submit_equipment_trip_flow",
+    "boqpeg_get_equipment_status_flow",
+    "boqpeg_get_equipment_history_flow",
+    "boqpeg_calculate_component_cost_flow",
+    "boqpeg_get_process_materials_flow",
     "boqpeg_get_process_chain_flow",
     "boqpeg_normref_logic_scaffold_flow",
     "boqpeg_import_active_job_flow",
@@ -525,6 +745,7 @@ __all__ = [
     "boqpeg_tab_to_peg_flow",
     "boqpeg_sync_bridge_schedule_flow",
     "boqpeg_submit_process_table_flow",
+    "boqpeg_submit_iqc_flow",
     "boqpeg_unified_alignment_flow",
     "boqpeg_update_pile_state_flow",
 ]

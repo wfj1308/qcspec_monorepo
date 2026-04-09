@@ -15,6 +15,7 @@ from services.api.infrastructure.http.middleware import SovereignContextMiddlewa
 from services.api.routers import ROUTER_REGISTRY
 from services.api.workers.erpnext_push_worker import ERPNextPushWorker
 from services.api.workers.gitpeg_anchor_worker import GitPegAnchorWorker
+from services.api.workers.logpeg_daily_worker import LogPegDailyWorker
 
 
 def _load_env() -> None:
@@ -30,15 +31,19 @@ async def lifespan(_: FastAPI):
     print(f"Supabase: {os.getenv('SUPABASE_URL', 'not configured')[:40]}")
     anchor_worker = GitPegAnchorWorker()
     erpnext_worker = ERPNextPushWorker()
+    logpeg_worker = LogPegDailyWorker()
     worker_tasks: list[asyncio.Task] = []
     if anchor_worker.enabled:
         worker_tasks.append(asyncio.create_task(anchor_worker.run_forever()))
     if erpnext_worker.enabled:
         worker_tasks.append(asyncio.create_task(erpnext_worker.run_forever()))
+    if logpeg_worker.enabled:
+        worker_tasks.append(asyncio.create_task(logpeg_worker.run_forever()))
     yield
     if worker_tasks:
         await anchor_worker.shutdown()
         await erpnext_worker.shutdown()
+        await logpeg_worker.shutdown()
         for task in worker_tasks:
             task.cancel()
         for task in worker_tasks:

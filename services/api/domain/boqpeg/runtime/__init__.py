@@ -17,9 +17,34 @@ from services.api.domain.boqpeg.runtime.bridge_schedule import (
 )
 from services.api.domain.boqpeg.runtime.process_chain import (
     create_process_chain,
+    get_process_materials,
     get_process_chain,
     pile_component_uri,
     submit_process_table,
+)
+from services.api.domain.boqpeg.runtime.material_iqc import (
+    load_drilled_pile_material_requirements,
+    submit_iqc,
+)
+from services.api.domain.boqpeg.runtime.material_utxo import (
+    create_inspection_batch,
+    get_material_utxo_by_component,
+    get_material_utxo_by_iqc,
+    summarize_component_material_cost,
+    summarize_component_step_materials,
+)
+from services.api.domain.boqpeg.runtime.consumption_trip import (
+    submit_formwork_use_trip,
+    submit_prestressing_trip,
+    submit_welding_trip,
+)
+from services.api.domain.boqpeg.runtime.cost_engine import calculate_component_cost
+from services.api.domain.boqpeg.runtime.equipment import (
+    get_equipment_history,
+    get_equipment_status,
+    register_tool_asset,
+    submit_equipment_trip,
+    sum_equipment_trip_cost,
 )
 from services.api.domain.boqpeg.runtime.design_linkage import (
     match_boq_with_design_manifest,
@@ -67,6 +92,7 @@ __all__ = [
     "create_pile_entity",
     "create_bridge_schedule",
     "create_process_chain",
+    "get_process_materials",
     "forward_expand_bom",
     "get_active_boqpeg_import_job",
     "get_bridge_pile_detail",
@@ -89,7 +115,23 @@ __all__ = [
     "scan_boq_and_create_utxos",
     "start_boqpeg_import_job",
     "submit_process_table",
+    "submit_iqc",
+    "create_inspection_batch",
+    "get_material_utxo_by_iqc",
+    "get_material_utxo_by_component",
+    "summarize_component_step_materials",
+    "summarize_component_material_cost",
+    "submit_welding_trip",
+    "submit_formwork_use_trip",
+    "submit_prestressing_trip",
+    "calculate_component_cost",
+    "register_tool_asset",
+    "submit_equipment_trip",
+    "get_equipment_status",
+    "get_equipment_history",
+    "sum_equipment_trip_cost",
     "sync_bridge_schedule_progress",
+    "load_drilled_pile_material_requirements",
     "pile_component_uri",
     "update_pile_state_matrix",
     "table_to_protocol_block",

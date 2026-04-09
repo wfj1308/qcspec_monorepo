@@ -41,6 +41,10 @@ from services.api.domain.specir.runtime.registry import (
     specir_is_ready,
     upsert_specir_object,
 )
+from services.api.domain.specir.runtime.specir_compiler import (
+    SpecIRCompiler,
+    compile_specir_process_chain,
+)
 
 __all__ = [
     "BUILTIN_QCSPEC_SPECIR_CATALOG",
@@ -53,6 +57,7 @@ __all__ = [
     "infer_specir_kind",
     "register_missing_specir_refs_from_rows",
     "resolve_spu_ref_pack",
+    "SpecIRCompiler",
     "ProjectBOQItem",
     "StandardSPU",
     "SPUUltimateSchema",
@@ -66,6 +71,7 @@ __all__ = [
     "normalize_spu_content",
     "validate_spu_content",
     "resolve_standard_spu_snapshot",
+    "compile_specir_process_chain",
     "specir_is_ready",
     "upsert_specir_object",
 ]

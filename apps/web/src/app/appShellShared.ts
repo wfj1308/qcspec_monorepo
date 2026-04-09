@@ -62,6 +62,7 @@ export const NAV = [
   { key: 'inspection', icon: '📝', label: '质检录入' },
   { key: 'photos', icon: '📷', label: '现场照片' },
   { key: 'reports', icon: '📄', label: '报告生成' },
+  { key: 'logpeg', icon: '📘', label: '施工日志' },
   { key: 'proof', icon: '🔒', label: 'Proof 链' },
   { key: 'projects', icon: '🏗️', label: '项目管理' },
   { key: 'register', icon: '➕', label: '注册新项目' },
@@ -72,7 +73,7 @@ export const NAV = [
 
 export const NAV_SECTIONS: Array<{ label: string; keys: string[] }> = [
   { label: '概览', keys: ['dashboard'] },
-  { label: '质检业务', keys: ['inspection', 'photos', 'reports', 'proof'] },
+  { label: '质检业务', keys: ['inspection', 'photos', 'reports', 'logpeg', 'proof'] },
   { label: '项目管理', keys: ['projects', 'register'] },
   { label: '团队', keys: ['team', 'permissions'] },
   { label: '系统', keys: ['settings'] },
