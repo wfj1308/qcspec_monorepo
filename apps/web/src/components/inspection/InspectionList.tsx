@@ -3,7 +3,7 @@
  * apps/web/src/components/inspection/InspectionList.tsx
  */
 
-import React, { useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { RESULT_LABELS, RESULT_COLORS } from '@qcspec/types'
 import type { Inspection, Photo } from '@qcspec/types'
 import { ResultBadge, ProgressBar, EmptyState, Button } from '../ui'
@@ -11,7 +11,6 @@ import { useInspectionStore, useUIStore, usePhotoStore } from '../../store'
 import { useInspections } from '../../hooks/api/inspections'
 
 interface Props {
-  projectId: string
   onDataChanged?: () => void | Promise<void>
 }
 
@@ -40,7 +39,7 @@ const formatDateTimeWithSeconds = (input?: string): string => {
   return `${y}/${m}/${d} ${hh}:${mm}:${ss}`
 }
 
-export default function InspectionList({ projectId, onDataChanged }: Props) {
+export default function InspectionList({ onDataChanged }: Props) {
   const { inspections, stats, removeInspection, photoLinksByInspection } = useInspectionStore()
   const { photos } = usePhotoStore()
   const { remove } = useInspections()
@@ -49,7 +48,6 @@ export default function InspectionList({ projectId, onDataChanged }: Props) {
   const [filter,  setFilter]  = useState('')
   const [filterType, setFilterType] = useState('')
   const [search,  setSearch]  = useState('')
-  const [sortBy,  setSortBy]  = useState<'time' | 'result' | 'location'>('time')
   const [previewState, setPreviewState] = useState<PhotoPreviewState | null>(null)
 
   const typeOptions = Array.from(
@@ -62,8 +60,6 @@ export default function InspectionList({ projectId, onDataChanged }: Props) {
     .filter(i => !filterType || i.type === filterType)
     .filter(i => !search  || i.location.includes(search) || i.type_name.includes(search))
     .sort((a, b) => {
-      if (sortBy === 'result') return a.result.localeCompare(b.result)
-      if (sortBy === 'location') return a.location.localeCompare(b.location)
       return new Date(b.inspected_at).getTime() - new Date(a.inspected_at).getTime()
     })
 

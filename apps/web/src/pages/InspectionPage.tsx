@@ -1,5 +1,5 @@
 ﻿
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState  } from 'react'
 import type { Inspection, Project } from '@qcspec/types'
 
 import InspectionForm from '../components/inspection/InspectionForm'
@@ -276,7 +276,7 @@ export default function InspectionPage() {
           </Button>
           {showRecordCenter && (
             <div style={{ marginTop: 12 }}>
-              <InspectionList projectId={currentProject.id} onDataChanged={refreshInspectionData} />
+              <InspectionList onDataChanged={refreshInspectionData} />
             </div>
           )}
         </Card>

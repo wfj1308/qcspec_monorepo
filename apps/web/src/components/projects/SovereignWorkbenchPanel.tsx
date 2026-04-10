@@ -1,5 +1,5 @@
 ﻿
-import React, { useRef } from 'react'
+import { useRef } from 'react'
 import { GlobalWorkerOptions } from 'pdfjs-dist/legacy/build/pdf'
 import pdfWorkerUrl from 'pdfjs-dist/legacy/build/pdf.worker.min.mjs?url'
 import { Card } from '../ui'
@@ -53,7 +53,7 @@ import { NormEngineProvider } from './sovereign/NormEngine'
 import type { SovereignWorkspaceSnapshot, SovereignWorkspaceView } from './sovereign/SovereignProjectContext'
 import { ProjectSovereignProvider } from './sovereign/SovereignContext'
 import {
-  buildMeasurementPayload,
+
   sanitizeMeasuredInput,
   toChineseCompType,
   toChineseMetricLabel,
@@ -123,7 +123,7 @@ export default function SovereignWorkbenchPanel({
   const projectName = String(project?.name || '')
   const { showToast } = useUIStore()
   const dtoRole = useAuthStore((s) => String(s.user?.dto_role || 'PUBLIC').toUpperCase())
-  const forcedBoqProjectUri = displayProjectUri ? displayProjectUri.replace(/\/$/, '') : 'v://cn.zhongbei/highway'
+  const forcedBoqProjectUri = displayProjectUri ? displayProjectUri.replace(/\/$/, '') : 'v://cn/project'
   const forcedBoqRootBase = `${forcedBoqProjectUri}/boq`
   const apiBoqRootBase = apiProjectUri ? `${apiProjectUri.replace(/\/$/, '')}/boq` : toApiUri(forcedBoqRootBase)
   const {
@@ -163,7 +163,6 @@ export default function SovereignWorkbenchPanel({
   const contractorAnchorRef = useRef<HTMLDivElement | null>(null)
   const supervisorAnchorRef = useRef<HTMLDivElement | null>(null)
   const ownerAnchorRef = useRef<HTMLDivElement | null>(null)
-  const autoRejectRef = useRef('')
   const {
     ctx,
     setCtx,
@@ -209,7 +208,6 @@ export default function SovereignWorkbenchPanel({
     setDisputeResolutionNote,
     disputeResult,
     setDisputeResult,
-    copiedMsg,
     setCopiedMsg,
     traceOpen,
     setTraceOpen,
@@ -578,8 +576,7 @@ export default function SovereignWorkbenchPanel({
     activeStatus,
   })
   const {
-    showAllScanEntries,
-    setShowAllScanEntries,
+
     scanEntryLatest,
     scanChainBadge,
     scanEntryActiveOnly,
@@ -720,7 +717,6 @@ export default function SovereignWorkbenchPanel({
     specdictNamespace,
     arRes,
     gateStats,
-    form,
     execRes,
     isContractSpu,
     evidence,

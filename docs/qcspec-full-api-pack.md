@@ -2862,6 +2862,318 @@
 }
 ```
 
+## DTO Role Canonical Permission Model (Proof Lifecycle, 2026-04-10)
+
+This section is the recommended integration contract for QCSPEC frontend/backend when using `/api/v1/dtorole/*`.
+
+### 1) Canonical definition
+
+- `Exec`: execution subject (person/team/device), e.g. `EXEC-ZHANG-SAN-001`.
+- `DTO Role`: permission set on Proof lifecycle for an Exec in one project scope.
+- `TripRole`: concrete executable action in process chain, e.g. `trip.execute`.
+
+DTO Role is not only a generic user role. It is the explicit permission layer that controls who can create/fill/review/approve/reject/view Proof, and whether a caller can execute a TripRole.
+
+### 2) Core relation
+
+- One `Exec` can have multiple `DTO Role` bindings in a project.
+- One `TripRole` execution must pass a DTO Role permission check.
+- Every Proof mutation should be auditable with actor and role context.
+
+Recommended chain: `Exec -> DTO Role binding -> permission-check -> TripRole execution -> Proof write`.
+
+### 3) Recommended permission vocabulary
+
+- `proof.create.<proof_type>`
+- `proof.fill.<proof_type>` or `proof.fill.<field_group>`
+- `proof.approve.<proof_type>`
+- `proof.reject.<proof_type>`
+- `proof.view.<proof_type>`
+- `trip.execute` (current frontend usage)
+- `trip.execute.<trip_role>` (recommended next step for finer granularity)
+
+### 4) DTO Role object (recommended stable schema)
+
+```json
+{
+  "dtorole_id": "DTOROLE-ZHANG-SAN-001",
+  "exec_id": "EXEC-ZHANG-SAN-001",
+  "project_id": "PJT-D34A70B8",
+  "permissions": {
+    "create_proof": ["lab_report", "construction_record"],
+    "fill_proof": ["temperature", "slump_mm", "actual_volume"],
+    "approve_proof": ["iqc_report", "pqc_report"],
+    "reject_proof": ["all"],
+    "view_proof": ["all"],
+    "trip_execute": ["trip.execute", "trip.execute.pile.concrete"]
+  },
+  "constraints": {
+    "max_concurrent_approvals": 5,
+    "require_second_approval_for": ["fqc_report"]
+  },
+  "valid_until": "2026-12-31",
+  "updated_at": "2026-04-10T09:00:00Z"
+}
+```
+
+### 5) Permission-check decision rule
+
+Input: `project_id`, `permission`, optional `actor_role`, optional `actor_name`.
+
+Decision:
+1. Resolve actor context from query or request headers/session.
+2. Load active role bindings in `project_id`.
+3. Merge all granted permissions for matched bindings.
+4. Evaluate permission and constraints.
+5. Return `allowed` and machine-readable `reason`.
+
+Recommended deny reasons:
+- `binding_not_found`
+- `permission_not_granted`
+- `constraint_exceeded`
+- `role_expired`
+
+### 6) `/api/v1/dtorole/*` integration contract
+
+#### GET /api/v1/dtorole/role-bindings
+
+- Query: `project_id?`, `exec_id?`, `actor_name?`
+- Recommended response:
+
+```json
+{
+  "ok": true,
+  "items": [
+    {
+      "binding_id": "RB-001",
+      "project_id": "PJT-D34A70B8",
+      "exec_id": "EXEC-ZHANG-SAN-001",
+      "actor_name": "zhangsan",
+      "actor_role": "quality_inspector",
+      "dtorole_id": "DTOROLE-ZHANG-SAN-001",
+      "permissions": {
+        "trip_execute": ["trip.execute"]
+      },
+      "valid_until": "2026-12-31"
+    }
+  ],
+  "total": 1
+}
+```
+
+#### POST /api/v1/dtorole/role-bindings
+
+- Request:
+
+```json
+{
+  "project_id": "PJT-D34A70B8",
+  "exec_id": "EXEC-ZHANG-SAN-001",
+  "actor_name": "zhangsan",
+  "actor_role": "quality_inspector",
+  "dtorole_id": "DTOROLE-ZHANG-SAN-001",
+  "permissions": {
+    "trip_execute": ["trip.execute"],
+    "approve_proof": ["iqc_report"]
+  },
+  "valid_until": "2026-12-31"
+}
+```
+
+- Response:
+
+```json
+{
+  "ok": true,
+  "upserted": true,
+  "binding_id": "RB-001"
+}
+```
+
+#### GET /api/v1/dtorole/permission-check
+
+- Query: `permission` (required), `project_id?`, `actor_role?`, `actor_name?`
+- Recommended response:
+
+```json
+{
+  "ok": true,
+  "allowed": true,
+  "reason": "granted_by_binding",
+  "permission": "trip.execute",
+  "matched_binding_ids": ["RB-001"],
+  "trace_id": "perm-20260410-001"
+}
+```
+
+Denied example:
+
+```json
+{
+  "ok": true,
+  "allowed": false,
+  "reason": "permission_not_granted",
+  "permission": "trip.execute.pile.concrete",
+  "matched_binding_ids": ["RB-001"],
+  "trace_id": "perm-20260410-002"
+}
+```
+
+### 7) Frontend integration guideline
+
+- Before `triprole/preview` and `triprole/submit`, always call `dtorole/permission-check`.
+- Continue using current `permission=trip.execute` first; then extend to `trip.execute.<trip_role>` per action.
+- On deny:
+  - disable submit button;
+  - show reason text from API;
+  - keep `trace_id` visible/copyable for troubleshooting.
+- On allow:
+  - continue preview/submit flow;
+  - store `permission`, `reason`, `trace_id` in operation log.
+- For write APIs, send `x-actor-role` and `x-actor-name` consistently.
+
+### 8) UI display recommendation (Role & Permission)
+
+- Role card: show `actor_name`, `actor_role`, `dtorole_id`, `valid_until`.
+- Permission matrix:
+  - rows: proof/trip actions;
+  - columns: create, fill, approve, reject, view, execute;
+  - cell states: allow/deny/inherited/expired.
+- Action area:
+  - if deny, button disabled and inline reason;
+  - if allow, show a small "authorized" status line with last `trace_id`.
+
+This keeps DTO Role visible, explainable, and auditable during Proof and Trip workflows.
+
+### 9) Common DTO Role templates
+
+The templates below are baseline presets. You can narrow permissions by `project_id`, `component_uri`, `trip_role`, and validity constraints.
+
+#### Template A: quality_inspector (质检员)
+
+```json
+{
+  "dtorole_code": "quality_inspector",
+  "permissions": {
+    "create_proof": ["iqc_report", "pqc_report", "lab_report"],
+    "fill_proof": ["test_value", "sampling_info", "attachment", "remark"],
+    "approve_proof": [],
+    "reject_proof": [],
+    "view_proof": ["all"],
+    "trip_execute": ["trip.execute.quality.sample", "trip.execute.quality.submit"]
+  },
+  "constraints": {
+    "can_approve_own_proof": false,
+    "require_attachment_for_submit": true
+  }
+}
+```
+
+#### Template B: site_operator (施工员)
+
+```json
+{
+  "dtorole_code": "site_operator",
+  "permissions": {
+    "create_proof": ["construction_record", "material_receipt", "daily_log"],
+    "fill_proof": ["actual_volume", "location", "crew", "equipment"],
+    "approve_proof": [],
+    "reject_proof": [],
+    "view_proof": ["construction_record", "daily_log", "iqc_report", "pqc_report"],
+    "trip_execute": ["trip.execute.construction.start", "trip.execute.construction.finish"]
+  },
+  "constraints": {
+    "can_approve_own_proof": false,
+    "cross_section_write": false
+  }
+}
+```
+
+#### Template C: supervisor (监理)
+
+```json
+{
+  "dtorole_code": "supervisor",
+  "permissions": {
+    "create_proof": ["supervision_note", "inspection_order"],
+    "fill_proof": ["issue", "rectification_deadline", "review_comment"],
+    "approve_proof": ["iqc_report", "pqc_report", "construction_record"],
+    "reject_proof": ["iqc_report", "pqc_report", "construction_record"],
+    "view_proof": ["all"],
+    "trip_execute": ["trip.execute.supervision.approve", "trip.execute.supervision.reject"]
+  },
+  "constraints": {
+    "max_concurrent_approvals": 20,
+    "can_approve_own_proof": false
+  }
+}
+```
+
+#### Template D: project_manager (项目经理)
+
+```json
+{
+  "dtorole_code": "project_manager",
+  "permissions": {
+    "create_proof": ["management_instruction", "final_acceptance_note"],
+    "fill_proof": ["risk_comment", "milestone_comment", "decision"],
+    "approve_proof": ["all"],
+    "reject_proof": ["all"],
+    "view_proof": ["all"],
+    "trip_execute": ["trip.execute.project.milestone_approve", "trip.execute.project.close"]
+  },
+  "constraints": {
+    "require_second_approval_for": ["fqc_report", "final_acceptance_note"],
+    "max_concurrent_approvals": 100
+  }
+}
+```
+
+#### Template E: lab_technician (试验员, optional)
+
+```json
+{
+  "dtorole_code": "lab_technician",
+  "permissions": {
+    "create_proof": ["lab_report"],
+    "fill_proof": ["temperature", "strength", "sample_id", "mix_ratio"],
+    "approve_proof": [],
+    "reject_proof": [],
+    "view_proof": ["lab_report", "iqc_report", "pqc_report"],
+    "trip_execute": ["trip.execute.lab.test", "trip.execute.lab.upload"]
+  },
+  "constraints": {
+    "can_approve_own_proof": false
+  }
+}
+```
+
+#### Template F: data_clerk (资料员, optional)
+
+```json
+{
+  "dtorole_code": "data_clerk",
+  "permissions": {
+    "create_proof": ["document_index", "archive_record"],
+    "fill_proof": ["metadata", "file_tag", "archive_location"],
+    "approve_proof": [],
+    "reject_proof": [],
+    "view_proof": ["all"],
+    "trip_execute": ["trip.execute.docs.archive", "trip.execute.docs.sync"]
+  },
+  "constraints": {
+    "proof_content_editable": false
+  }
+}
+```
+
+#### Suggested rollout order
+
+1. Start with `quality_inspector`, `site_operator`, `supervisor`, `project_manager`.
+2. Bind each template to real `exec_id` by project.
+3. Verify with `/api/v1/dtorole/permission-check` before each Trip submit.
+4. Add `lab_technician` and `data_clerk` only when related Proof workflows are enabled.
+
 #### GET /projects/{projectId}/entities/{entityId}/components
 - Path 参数: `projectId`,`entityId`
 - 返回结构（示例）:

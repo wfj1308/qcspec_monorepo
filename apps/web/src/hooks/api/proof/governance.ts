@@ -74,87 +74,6 @@ export function useProofGovernance(request: ApiRequestFn) {
     return request(`/v1/proof/docfinal/context?boq_item_uri=${encodeURIComponent(boq_item_uri)}`)
   }, [request])
 
-  const getGateEditorPayload = useCallback(async (project_uri: string, subitem_code: string) => {
-    const qs = new URLSearchParams({ project_uri }).toString()
-    return request(`/v1/proof/gate-editor/${encodeURIComponent(subitem_code)}?${qs}`)
-  }, [request])
-
-  const importGateRulesFromNorm = useCallback(async (body: {
-    spec_uri: string
-    context?: string
-  }) => {
-    return request('/v1/proof/gate-editor/import-norm', {
-      method: 'POST',
-      body: JSON.stringify(body),
-    })
-  }, [request])
-
-  const generateGateRulesViaAi = useCallback(async (body: {
-    prompt: string
-    subitem_code?: string
-  }) => {
-    return request('/v1/proof/gate-editor/generate-via-ai', {
-      method: 'POST',
-      body: JSON.stringify(body),
-    })
-  }, [request])
-
-  const saveGateRuleVersion = useCallback(async (body: {
-    project_uri: string
-    subitem_code: string
-    gate_id_base?: string
-    rules: Array<Record<string, unknown>>
-    execution_strategy?: string
-    fail_action?: string
-    apply_to_similar?: boolean
-    executor_uri?: string
-    metadata?: Record<string, unknown>
-  }) => {
-    return request('/v1/proof/gate-editor/save', {
-      method: 'POST',
-      body: JSON.stringify(body),
-    })
-  }, [request])
-
-  const rollbackGateRuleVersion = useCallback(async (body: {
-    project_uri: string
-    subitem_code: string
-    target_proof_id?: string
-    target_version?: string
-    apply_to_similar?: boolean
-    executor_uri?: string
-  }) => {
-    return request('/v1/proof/gate-editor/rollback', {
-      method: 'POST',
-      body: JSON.stringify(body),
-    })
-  }, [request])
-
-  const getSpecDict = useCallback(async (spec_dict_key: string) => {
-    return request(`/v1/proof/spec-dict/${encodeURIComponent(spec_dict_key)}`)
-  }, [request])
-
-  const saveSpecDict = useCallback(async (body: {
-    spec_dict_key: string
-    title?: string
-    version?: string
-    authority?: string
-    spec_uri?: string
-    items: Record<string, unknown>
-    metadata?: Record<string, unknown>
-    is_active?: boolean
-  }) => {
-    return request('/v1/proof/spec-dict/save', {
-      method: 'POST',
-      body: JSON.stringify(body),
-    })
-  }, [request])
-
-  const resolveSpecDictThreshold = useCallback(async (gate_id: string, context = '') => {
-    const qs = new URLSearchParams({ gate_id, context }).toString()
-    return request(`/v1/proof/spec-dict-resolve-threshold?${qs}`)
-  }, [request])
-
   const exportDocFinal = useCallback(async (body: {
     project_uri: string
     project_name?: string
@@ -215,14 +134,6 @@ export function useProofGovernance(request: ApiRequestFn) {
     identityReputation,
     boqReconciliation,
     docFinalContext,
-    getGateEditorPayload,
-    importGateRulesFromNorm,
-    generateGateRulesViaAi,
-    saveGateRuleVersion,
-    rollbackGateRuleVersion,
-    getSpecDict,
-    saveSpecDict,
-    resolveSpecDictThreshold,
     exportDocFinal,
     finalizeDocFinal,
   }

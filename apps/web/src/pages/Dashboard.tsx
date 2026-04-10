@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useState } from 'react'
+﻿import { useEffect, useState  } from 'react'
 import { useProjectStore, useInspectionStore, usePhotoStore, useAuthStore, useUIStore } from '../store'
 import { useProjects } from '../hooks/api/projects'
 import { useInspections } from '../hooks/api/inspections'
@@ -18,37 +18,28 @@ const formatDateTime = (input?: string) => {
   return `${d.getFullYear()}年${pad(d.getMonth() + 1)}月${pad(d.getDate())}日 ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
 }
 
-const FALLBACK_ACTIVITY_ITEMS: ActivityItem[] = [
-  { dot: '#059669', text: '王质检在京港高速大修录入了路面平整度记录', time: '10 分钟前' },
-  { dot: '#1A56DB', text: '项目中心同步了新项目：沁河特大桥定检', time: '2 小时前' },
-  { dot: '#D97706', text: '系统生成了 3 月份质检汇总报告', time: '今天 09:00' },
-  { dot: '#DC2626', text: 'K49+200 裂缝宽度超标，请尽快复检', time: '昨天 14:15' },
-]
-const DEMO_ENTERPRISE_ID = '11111111-1111-4111-8111-111111111111'
-
 export default function Dashboard() {
-  const { enterprise, token, user } = useAuthStore()
+  const { enterprise, user } = useAuthStore()
   const { currentProject, projects, setProjects, setCurrentProject } = useProjectStore()
   const { stats } = useInspectionStore()
   const { photos } = usePhotoStore()
   const { setActiveTab, showToast } = useUIStore()
   const { list: listProjects, listActivity, exportCsv } = useProjects()
   const { list: listInspections } = useInspections()
-  const isDemoSession = enterprise?.id === DEMO_ENTERPRISE_ID || String(token || '').startsWith('demo-token-')
 
   const [projStats, setProjStats] = useState<Record<string, { passRate: number; total: number }>>({})
-  const [activityItems, setActivityItems] = useState<ActivityItem[]>(FALLBACK_ACTIVITY_ITEMS)
+  const [activityItems, setActivityItems] = useState<ActivityItem[]>([])
 
   useEffect(() => {
-    if (!enterprise?.id || isDemoSession) return
+    if (!enterprise?.id) return
     listProjects(enterprise.id).then((res: unknown) => {
       const r = res as { data?: Parameters<typeof setProjects>[0] } | null
       if (r?.data) setProjects(r.data)
     })
-  }, [enterprise?.id, isDemoSession, listProjects, setProjects])
+  }, [enterprise?.id, listProjects, setProjects])
 
   useEffect(() => {
-    if (!enterprise?.id || isDemoSession) return
+    if (!enterprise?.id) return
     listActivity(enterprise.id, 12).then((res: unknown) => {
       const r = res as { data?: Array<{ dot?: string; text?: string; created_at?: string }> } | null
       if (!r?.data?.length) return
@@ -60,13 +51,9 @@ export default function Dashboard() {
         }))
       )
     })
-  }, [enterprise?.id, isDemoSession, listActivity])
+  }, [enterprise?.id, listActivity])
 
   useEffect(() => {
-    if (isDemoSession) {
-      setProjStats({})
-      return
-    }
     let cancelled = false
     const load = async () => {
       const entries = await Promise.all(
@@ -83,7 +70,7 @@ export default function Dashboard() {
     }
     if (projects.length) load()
     return () => { cancelled = true }
-  }, [projects, isDemoSession, listInspections])
+  }, [projects, listInspections])
 
   const totalProjects = projects.length
   const activeProjects = projects.filter((p) => p.status === 'active').length
@@ -211,15 +198,19 @@ export default function Dashboard() {
             <span>📌</span> 最新动态
           </div>
           <div>
-            {activityItems.map((item, idx) => (
-              <div className="activity-item" key={`${item.text}-${idx}`}>
-                <div className="activity-dot" style={{ background: item.dot }} />
-                <div>
-                  <div className="activity-text">{item.text}</div>
-                  <div className="activity-time">{item.time}</div>
+            {activityItems.length === 0 ? (
+              <div className="activity-time">暂无动态数据</div>
+            ) : (
+              activityItems.map((item, idx) => (
+                <div className="activity-item" key={`${item.text}-${idx}`}>
+                  <div className="activity-dot" style={{ background: item.dot }} />
+                  <div>
+                    <div className="activity-text">{item.text}</div>
+                    <div className="activity-time">{item.time}</div>
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))
+            )}
           </div>
         </div>
 

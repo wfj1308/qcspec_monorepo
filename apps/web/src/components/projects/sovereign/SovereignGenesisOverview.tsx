@@ -1,4 +1,3 @@
-import React from 'react'
 
 import { ROLE_PLAYBOOK } from './workbenchConfig'
 

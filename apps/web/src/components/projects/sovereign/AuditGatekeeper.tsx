@@ -1,4 +1,3 @@
-import React from 'react'
 
 import AuditDualGatePanel from './AuditDualGatePanel'
 import AuditWarningStack from './AuditWarningStack'

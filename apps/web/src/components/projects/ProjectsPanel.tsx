@@ -1,4 +1,4 @@
-﻿import React from 'react'
+﻿import { useEffect, useMemo, useState } from 'react'
 import { Card } from '../ui'
 
 interface ProjectTypeOption {
@@ -19,15 +19,6 @@ interface ProjectMetaItem {
   inspectionTypes: Array<unknown>
 }
 
-interface AutoregRow {
-  project_code?: string
-  project_name?: string
-  project_uri?: string
-  site_uri?: string
-  updated_at?: string
-  source_system?: string
-}
-
 interface ProjectsPanelProps {
   searchText: string
   statusFilter: string
@@ -37,22 +28,14 @@ interface ProjectsPanelProps {
   projectMeta: Record<string, ProjectMetaItem | undefined>
   typeIcon: Record<string, string>
   typeLabel: Record<string, string>
-  canUseEnterpriseApi: boolean
-  syncingProjectId: string | null
-  autoregRows: AutoregRow[]
   onSearchTextChange: (value: string) => void
   onStatusFilterChange: (value: string) => void
   onTypeFilterChange: (value: string) => void
-  onGoInspection: () => void
-  onGoProof: () => void
   onEnterInspection: (project: any) => void
   onEnterProof: (project: any) => void
-  onRetryAutoreg: (projectId: string, projectName: string) => void
-  onDirectAutoreg: (projectId: string, projectName: string) => void
   onEditProject: (projectId: string) => void
   onOpenProjectDetail: (projectId: string) => void
   onDeleteProject: (projectId: string, projectName: string) => void
-  onRefreshAutoreg: () => Promise<void> | void
 }
 
 type WorkbenchTab = 'overview' | 'components' | 'process'
@@ -66,27 +49,19 @@ export default function ProjectsPanel({
   projectMeta,
   typeIcon,
   typeLabel,
-  canUseEnterpriseApi,
-  syncingProjectId,
-  autoregRows,
   onSearchTextChange,
   onStatusFilterChange,
   onTypeFilterChange,
-  onGoInspection,
-  onGoProof,
   onEnterInspection,
   onEnterProof,
-  onRetryAutoreg,
-  onDirectAutoreg,
   onEditProject,
   onOpenProjectDetail,
   onDeleteProject,
-  onRefreshAutoreg,
 }: ProjectsPanelProps) {
-  const [activeProjectId, setActiveProjectId] = React.useState<string>('')
-  const [workbenchTab, setWorkbenchTab] = React.useState<WorkbenchTab>('overview')
+  const [activeProjectId, setActiveProjectId] = useState<string>('')
+  const [workbenchTab, setWorkbenchTab] = useState<WorkbenchTab>('overview')
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (!filteredProjects.length) {
       setActiveProjectId('')
       return
@@ -97,11 +72,11 @@ export default function ProjectsPanel({
     }
   }, [activeProjectId, filteredProjects])
 
-  React.useEffect(() => {
+  useEffect(() => {
     setWorkbenchTab('overview')
   }, [activeProjectId])
 
-  const activeProject = React.useMemo(
+  const activeProject = useMemo(
     () => filteredProjects.find((project) => project.id === activeProjectId) || filteredProjects[0] || null,
     [activeProjectId, filteredProjects],
   )
@@ -123,7 +98,7 @@ export default function ProjectsPanel({
     ? `${activeMeta.permTemplate} / ${activeMeta.memberCount}人 / 检测 ${(activeMeta.inspectionTypes || []).length}类`
     : '-'
 
-  const componentRows = React.useMemo(() => {
+  const componentRows = useMemo(() => {
     if (!activeMeta) return []
     const structureRows = (activeMeta.structures || []).map((row, idx) => {
       const obj = (row && typeof row === 'object' && !Array.isArray(row)) ? (row as Record<string, unknown>) : {}
@@ -144,7 +119,7 @@ export default function ProjectsPanel({
     return [...structureRows, ...contractRows]
   }, [activeMeta])
 
-  const processSteps = React.useMemo(() => {
+  const processSteps = useMemo(() => {
     const recordCount = Number(activeProject?.record_count || 0)
     const proofCount = Number(activeProject?.proof_count || 0)
     const hasComponents = componentRows.length > 0
@@ -161,7 +136,7 @@ export default function ProjectsPanel({
     ]
   }, [activeProject?.proof_count, activeProject?.record_count, activeStatus, componentRows.length])
 
-  const nextActionHint = React.useMemo(() => {
+  const nextActionHint = useMemo(() => {
     const recordCount = Number(activeProject?.record_count || 0)
     if (!activeProject) return '-'
     if (activeStatus === 'pending') return '先补充构件信息，再发起首件质检。'
@@ -174,15 +149,8 @@ export default function ProjectsPanel({
   return (
     <div>
       <Card title="项目工作台" icon="🏗️">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
-          <div style={{ fontSize: 12, color: '#64748B' }}>
-            QCSpec 仅做施工质检闭环，不提供项目注册。先选择已同步项目，再推进构件与工序。
-          </div>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button type="button" className="act-btn act-enter" onClick={onGoInspection}>
-              打开质量闭环
-            </button>
-          </div>
+        <div style={{ fontSize: 12, color: '#64748B', marginBottom: 12 }}>
+          QCSpec 仅做施工质检闭环，不提供项目注册。先选择已同步项目，再推进构件与工序。
         </div>
 
         <div className="toolbar">
@@ -427,26 +395,6 @@ export default function ProjectsPanel({
                       <button type="button" className="act-btn act-edit" onClick={() => onEditProject(activeProject.id)}>
                         编辑
                       </button>
-                      {canUseEnterpriseApi && (
-                        <button
-                          type="button"
-                          className="act-btn act-detail"
-                          onClick={() => onRetryAutoreg(activeProject.id, activeProject.name)}
-                          disabled={syncingProjectId === activeProject.id}
-                        >
-                          {syncingProjectId === activeProject.id ? '同步中...' : '重试同步'}
-                        </button>
-                      )}
-                      {canUseEnterpriseApi && (
-                        <button
-                          type="button"
-                          className="act-btn act-detail"
-                          onClick={() => onDirectAutoreg(activeProject.id, activeProject.name)}
-                          disabled={syncingProjectId === activeProject.id}
-                        >
-                          {syncingProjectId === activeProject.id ? '登记中...' : '直连登记'}
-                        </button>
-                      )}
                       <button type="button" className="act-btn act-del" onClick={() => onDeleteProject(activeProject.id, activeProject.name)}>
                         删除
                       </button>
@@ -458,72 +406,6 @@ export default function ProjectsPanel({
           </div>
         </div>
 
-        {canUseEnterpriseApi && (
-          <div
-            style={{
-              marginTop: 12,
-              border: '1px solid #E2E8F0',
-              borderRadius: 10,
-              padding: 12,
-              background: '#FCFDFF',
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: '#0F172A' }}>自动登记记录</div>
-              <button type="button" className="act-btn act-detail" onClick={() => onRefreshAutoreg()}>
-                刷新
-              </button>
-            </div>
-            {autoregRows.length === 0 ? (
-              <div style={{ fontSize: 12, color: '#94A3B8' }}>
-                暂无自动登记记录，可在项目操作列点击“重试同步/直连登记”。
-              </div>
-            ) : (
-              <div style={{ maxHeight: 520, overflowY: 'auto', paddingRight: 2 }}>
-                <div
-                  style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fit, minmax(420px, 1fr))',
-                    gap: 8,
-                    alignItems: 'start',
-                  }}
-                >
-                  {autoregRows.slice(0, 6).map((row, idx) => (
-                    <div
-                      key={`${row.project_code || row.project_name || 'autoreg'}-${idx}`}
-                      style={{ border: '1px solid #E2E8F0', borderRadius: 8, padding: 10, background: '#fff' }}
-                    >
-                      <div style={{ fontSize: 13, fontWeight: 700, color: '#0F172A' }}>
-                        {row.project_name || '-'}{' '}
-                        <span style={{ fontWeight: 500, color: '#64748B' }}>({row.project_code || '-'})</span>
-                      </div>
-                      <div
-                        style={{
-                          fontSize: 12,
-                          color: '#1A56DB',
-                          fontFamily: 'monospace',
-                          marginTop: 2,
-                          wordBreak: 'break-all',
-                        }}
-                      >
-                        {row.project_uri || '-'}
-                      </div>
-                      <div style={{ fontSize: 12, color: '#64748B', marginTop: 2 }}>
-                        site: {row.site_uri || '-'} | 来源: {row.source_system || '-'}
-                      </div>
-                      <div style={{ fontSize: 12, color: '#94A3B8', marginTop: 4 }}>
-                        更新: {row.updated_at ? new Date(row.updated_at).toLocaleString('zh-CN') : '-'}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                {autoregRows.length > 6 && (
-                  <div style={{ fontSize: 12, color: '#64748B', marginTop: 8 }}>仅展示前 6 条，共 {autoregRows.length} 条</div>
-                )}
-              </div>
-            )}
-          </div>
-        )}
       </Card>
     </div>
   )

@@ -1,4 +1,4 @@
-import React from 'react'
+import { Fragment, type ReactNode, type RefObject } from 'react'
 import { useProjectSovereign } from './SovereignContext'
 import type { TreeNode, TreeSearchState } from './types'
 
@@ -23,7 +23,7 @@ type Props = {
   panelCls: string
   inputBaseCls: string
   btnBlueCls: string
-  boqFileRef: React.RefObject<HTMLInputElement | null>
+  boqFileRef: RefObject<HTMLInputElement | null>
   fileName: string
   importing: boolean
   importJobId: string
@@ -78,7 +78,7 @@ export default function GenesisTree({
 }: Props) {
   const { project, asset } = useProjectSovereign()
 
-  const renderTree = (code: string, depth: number): React.ReactNode => {
+  const renderTree = (code: string, depth: number): ReactNode => {
     const node = byCode.get(code)
     if (!node) return null
     if (treeSearch.active && !treeSearch.visible.has(code)) return null
@@ -115,7 +115,7 @@ export default function GenesisTree({
         : { label: 'Genesis', cls: 'border-slate-500/70 text-slate-300 bg-slate-900/60' }
 
     return (
-      <React.Fragment key={code}>
+      <Fragment key={code}>
         <button
           type="button"
           onClick={() => void onSelectNode(code)}
@@ -175,7 +175,7 @@ export default function GenesisTree({
           </span>
         </button>
         {expanded && childList.map((child) => renderTree(child, depth + 1))}
-      </React.Fragment>
+      </Fragment>
     )
   }
 

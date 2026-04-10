@@ -47,16 +47,6 @@ export function useProjects() {
     return request(`/v1/projects/${project_id}${qs}`, { method: 'DELETE' })
   }, [request])
 
-  const syncAutoreg = useCallback(async (
-    project_id: string,
-    body: { enterprise_id?: string; force?: boolean; writeback?: boolean } = {},
-  ) => {
-    return request(`/v1/projects/${project_id}/autoreg-sync`, {
-      method: 'POST',
-      body: JSON.stringify(body),
-    })
-  }, [request])
-
   const completeGitpeg = useCallback(async (
     project_id: string,
     body: {
@@ -103,5 +93,5 @@ export function useProjects() {
     }
   }, [showToast, token, logout])
 
-  return { list, create, update, stats, getById, remove, syncAutoreg, completeGitpeg, listActivity, exportCsv, loading }
+  return { list, create, update, stats, getById, remove, completeGitpeg, listActivity, exportCsv, loading }
 }

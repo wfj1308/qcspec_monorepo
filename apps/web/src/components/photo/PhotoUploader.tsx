@@ -3,11 +3,10 @@
  * apps/web/src/components/photo/PhotoUploader.tsx
  */
 
-import React, { useState, useRef, useCallback, useEffect } from 'react'
-import { Button, Card, VPathDisplay } from '../ui'
+import { useState, useRef, useCallback, useEffect } from 'react'
+import { Button, Card } from '../ui'
 import { usePhotos } from '../../hooks/api/photos'
-import { usePhotoStore, useUIStore, useProjectStore } from '../../store'
-import type { Photo } from '@qcspec/types'
+import { usePhotoStore, useUIStore } from '../../store'
 
 interface Props {
   projectId:    string
@@ -30,7 +29,6 @@ export default function PhotoUploader({ projectId, enterpriseId, inspectionId }:
   const { upload, uploading } = usePhotos()
   const { addPhoto }          = usePhotoStore()
   const { showToast }         = useUIStore()
-  const { currentProject }    = useProjectStore()
 
   const [previews,  setPreviews]  = useState<PreviewFile[]>([])
   const [location,  setLocation]  = useState('')

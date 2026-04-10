@@ -3,8 +3,7 @@
  * apps/web/src/components/ui/index.tsx
  */
 
-import React from 'react'
-import { RESULT_COLORS, RESULT_LABELS, type InspectResult } from '@qcspec/types'
+import { RESULT_LABELS, type InspectResult } from '@qcspec/types'
 
 // ── CSS 变量（注入到 :root）──
 export const CSS_VARS = `

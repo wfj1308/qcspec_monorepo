@@ -3,8 +3,8 @@
  * apps/web/src/components/photo/PhotoUpload.tsx
  */
 
-import React, { useState, useRef, useCallback, useEffect } from 'react'
-import { Card, Button, VPathDisplay } from '../ui'
+import { useState, useRef, useCallback } from 'react'
+import { Card, Button } from '../ui'
 import { usePhotos } from '../../hooks/api/photos'
 import { usePhotoStore, useUIStore } from '../../store'
 

@@ -3,9 +3,9 @@
  * apps/web/src/pages/ReportsPage.tsx
  */
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState  } from 'react'
 import { Card, Button, EmptyState, ProgressBar, VPathDisplay, StatCard } from '../components/ui'
-import { useProjectStore, useInspectionStore, useAuthStore, useUIStore } from '../store'
+import { useProjectStore, useAuthStore, useUIStore } from '../store'
 import { useReports } from '../hooks/api/reports'
 import { useProof } from '../hooks/api/proof'
 import { useInspections } from '../hooks/api/inspections'
@@ -21,7 +21,6 @@ const formatDateTimeSeconds = (input?: string | null): string => {
 
 export default function ReportsPage() {
   const { currentProject } = useProjectStore()
-  const { stats: storeStats } = useInspectionStore()
   const { enterprise } = useAuthStore()
   const { showToast } = useUIStore()
   const { generate, exportDocpeg, list, getById } = useReports()

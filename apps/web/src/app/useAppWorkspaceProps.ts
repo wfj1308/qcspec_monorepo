@@ -16,11 +16,7 @@ function buildProofWorkspace(
   proofWorkspace: UseAppWorkspacePropsArgs['proofWorkspace'],
 ): WorkspaceContentProps['proofWorkspace'] {
   return {
-    projectUri: proofWorkspace.projectUri,
     proofPanelProps: proofWorkspace.proofPanelProps,
-    paymentAuditPanelProps: proofWorkspace.paymentAuditPanelProps,
-    spatialGovernancePanelProps: proofWorkspace.spatialGovernancePanelProps,
-    rwaOmEvolutionPanelProps: proofWorkspace.rwaOmEvolutionPanelProps,
   }
 }
 

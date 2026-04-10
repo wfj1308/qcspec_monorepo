@@ -31,41 +31,8 @@ interface UseTeamAccessControllerArgs {
   showToast: (message: string) => void
 }
 
-const DEFAULT_MEMBERS: TeamMember[] = [
-  {
-    id: '55555555-5555-4555-8555-555555555551',
-    name: '李总工',
-    title: '总工程师',
-    email: 'admin@zhongbei.com',
-    role: 'OWNER',
-    color: '#1A56DB',
-    projects: ['33333333-3333-4333-8333-333333333333', '44444444-4444-4444-8444-444444444444'],
-  },
-  {
-    id: '55555555-5555-4555-8555-555555555552',
-    name: '王质检',
-    title: '质检员',
-    email: 'wang@zhongbei.com',
-    role: 'AI',
-    color: '#059669',
-    projects: ['33333333-3333-4333-8333-333333333333'],
-  },
-  {
-    id: '55555555-5555-4555-8555-555555555553',
-    name: '钱监理',
-    title: '监理工程师',
-    email: 'qian@zhongbei.com',
-    role: 'SUPERVISOR',
-    color: '#7C3AED',
-    projects: ['33333333-3333-4333-8333-333333333333'],
-  },
-]
-
-const DEFAULT_ROLE_DRAFTS: Record<string, TeamRole> = {
-  '55555555-5555-4555-8555-555555555551': 'OWNER',
-  '55555555-5555-4555-8555-555555555552': 'AI',
-  '55555555-5555-4555-8555-555555555553': 'SUPERVISOR',
-}
+const DEFAULT_MEMBERS: TeamMember[] = []
+const DEFAULT_ROLE_DRAFTS: Record<string, TeamRole> = {}
 
 export function useTeamAccessController({
   canUseEnterpriseApi,
@@ -88,16 +55,24 @@ export function useTeamAccessController({
     projectId: 'all',
   })
   const [memberRoleDrafts, setMemberRoleDrafts] = useState<Record<string, TeamRole>>(DEFAULT_ROLE_DRAFTS)
-  const [permissionMatrix, setPermissionMatrix] = useState<PermissionRow[]>(() => normalizePermissionMatrix(DEFAULT_PERMISSION_MATRIX))
-  const [permissionTemplate, setPermissionTemplate] = useState<PermTemplate>(() => detectPermissionTemplate(normalizePermissionMatrix(DEFAULT_PERMISSION_MATRIX)))
+  const [permissionMatrix, setPermissionMatrix] = useState<PermissionRow[]>(() =>
+    normalizePermissionMatrix(DEFAULT_PERMISSION_MATRIX)
+  )
+  const [permissionTemplate, setPermissionTemplate] = useState<PermTemplate>(() =>
+    detectPermissionTemplate(normalizePermissionMatrix(DEFAULT_PERMISSION_MATRIX))
+  )
 
-  const permissionTreeRows = useMemo(() => permissionMatrix.map((row) => {
-    const granted = PERMISSION_COLUMNS.filter((col) => row[col.key]).map((col) => col.label)
-    return {
-      role: row.role,
-      granted: granted.length > 0 ? granted.join(' / ') : '无权限',
-    }
-  }), [permissionMatrix])
+  const permissionTreeRows = useMemo(
+    () =>
+      permissionMatrix.map((row) => {
+        const granted = PERMISSION_COLUMNS.filter((col) => row[col.key]).map((col) => col.label)
+        return {
+          role: row.role,
+          granted: granted.length > 0 ? granted.join(' / ') : '无权限',
+        }
+      }),
+    [permissionMatrix]
+  )
 
   const openInvite = () => setInviteOpen(true)
   const closeInvite = () => setInviteOpen(false)

@@ -62,7 +62,7 @@ export default function SpecdictPanel({
           value={specdictProjectUris}
           onChange={(event) => onProjectUrisChange(event.target.value)}
           rows={2}
-          placeholder="v://cn.zhongbei/highway, v://..."
+          placeholder="v://cn/project-a, v://cn/project-b"
           className={`${inputBaseCls} resize-y`}
         />
         <div className="grid grid-cols-2 gap-2">

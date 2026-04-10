@@ -1,4 +1,3 @@
-import React from 'react'
 import SpuRenderer from '../SpuRenderer'
 
 type Props = React.ComponentProps<typeof SpuRenderer>

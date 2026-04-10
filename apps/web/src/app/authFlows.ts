@@ -1,15 +1,8 @@
-﻿import type { DtoRole, Enterprise, User } from '@qcspec/types'
+import type { DtoRole, Enterprise, User } from '@qcspec/types'
 
 interface LoginFormState {
   account: string
   pass: string
-}
-
-interface EnterpriseRegisterFormState {
-  name: string
-  adminPhone: string
-  pass: string
-  uscc: string
 }
 
 interface LoginResult {
@@ -31,11 +24,6 @@ interface EnterpriseResult {
   proof_used?: number
 }
 
-interface RegisterEnterpriseResult {
-  ok?: boolean
-  account?: string
-}
-
 interface DoLoginFlowArgs {
   loginForm: LoginFormState
   loginApi: (payload: { email: string; password: string }) => Promise<unknown>
@@ -52,22 +40,7 @@ interface DoLogoutFlowArgs {
   logoutApi: () => Promise<unknown>
   logout: () => void
   setAppReady: (value: boolean) => void
-  setLoginTab: (value: 'login' | 'register') => void
   setLoginForm: (value: LoginFormState) => void
-  showToast: (message: string) => void
-}
-
-interface DoRegisterEnterpriseFlowArgs {
-  entForm: EnterpriseRegisterFormState
-  registerEnterpriseApi: (payload: {
-    name: string
-    adminPhone: string
-    password: string
-    creditCode?: string
-  }) => Promise<unknown>
-  setLoginForm: (value: LoginFormState) => void
-  setEntForm: (value: EnterpriseRegisterFormState) => void
-  setLoginTab: (value: 'login' | 'register') => void
   showToast: (message: string) => void
 }
 
@@ -100,7 +73,7 @@ export async function doLoginFlow({
   const account = loginForm.account.trim()
   const pass = loginForm.pass
   if (!account || !pass) {
-    showToast('请填写账号和密码')
+    showToast('����д�˺ź�����')
     return
   }
 
@@ -129,20 +102,20 @@ export async function doLoginFlow({
       },
       {
         id: enterpriseRes?.id || loginRes.enterprise_id,
-        name: enterpriseRes?.name || '企业',
+        name: enterpriseRes?.name || '��ҵ',
         v_uri: enterpriseRes?.v_uri || 'v://cn/enterprise/',
         short_name: enterpriseRes?.short_name,
         plan: enterpriseRes?.plan || 'enterprise',
         proof_quota: Number(enterpriseRes?.proof_quota || 0),
         proof_used: Number(enterpriseRes?.proof_used || 0),
       },
-      loginRes.access_token
+      loginRes.access_token,
     )
 
     setProjects([])
     setCurrentProject(null)
     setAppReady(true)
-    showToast(`欢迎回来，${loginRes.name || account}`)
+    showToast(`��ӭ������${loginRes.name || account}`)
   } finally {
     setLoggingIn(false)
   }
@@ -152,7 +125,6 @@ export async function doLogoutFlow({
   logoutApi,
   logout,
   setAppReady,
-  setLoginTab,
   setLoginForm,
   showToast,
 }: DoLogoutFlowArgs): Promise<void> {
@@ -163,48 +135,6 @@ export async function doLogoutFlow({
   }
   logout()
   setAppReady(false)
-  setLoginTab('login')
   setLoginForm({ account: '', pass: '' })
-  showToast('已退出登录')
+  showToast('���˳���¼')
 }
-
-export async function doRegisterEnterpriseFlow({
-  entForm,
-  registerEnterpriseApi,
-  setLoginForm,
-  setEntForm,
-  setLoginTab,
-  showToast,
-}: DoRegisterEnterpriseFlowArgs): Promise<void> {
-  const adminPhone = entForm.adminPhone.trim()
-  if (!entForm.name || !adminPhone || !entForm.pass) {
-    showToast('请完整填写企业注册信息')
-    return
-  }
-  if (adminPhone.includes('@')) {
-    showToast('管理员手机号请输入 11 位手机号码，不能填写邮箱')
-    return
-  }
-  if (!/^1\d{10}$/.test(adminPhone)) {
-    showToast('管理员手机号格式不正确，请输入 11 位手机号码')
-    return
-  }
-
-  const res = (await registerEnterpriseApi({
-    name: entForm.name.trim(),
-    adminPhone,
-    password: entForm.pass,
-    creditCode: entForm.uscc.trim() || undefined,
-  })) as RegisterEnterpriseResult | null
-
-  if (!res?.ok) return
-
-  setLoginForm({
-    account: res.account || adminPhone,
-    pass: entForm.pass,
-  })
-  setEntForm({ name: '', adminPhone: '', pass: '', uscc: '' })
-  showToast('企业注册成功，请使用管理员账号登录')
-  setLoginTab('login')
-}
-

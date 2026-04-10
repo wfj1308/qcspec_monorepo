@@ -1,4 +1,3 @@
-import React from 'react'
 
 import SovereignAdvancedOpsPanels from './SovereignAdvancedOpsPanels'
 import SovereignAuditDocPreview from './SovereignAuditDocPreview'

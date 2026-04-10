@@ -1,14 +1,13 @@
-﻿import React, { useEffect, useState } from 'react'
+﻿import { useEffect, useState } from 'react'
 import { useUIStore, useProjectStore, useAuthStore } from './store'
 import { Toast } from './components/ui'
-import { useAuthApi, useProof, useTeam, useSettings, useProjects, useAutoreg } from './hooks/api'
+import { useAuthApi, useProof, useTeam, useSettings, useProjects } from './hooks/api'
 import AppShellLayout from './components/layout/AppShellLayout'
 import AuthEntry from './components/auth/AuthEntry'
 import AppWorkspaceContent from './app/AppWorkspaceContent'
 import { useSettingsController } from './app/useSettingsController'
 import { useProjectDetailController } from './app/useProjectDetailController'
-import { doLoginFlow, doLogoutFlow, doRegisterEnterpriseFlow } from './app/authFlows'
-import { doDemoLoginFlow, fillQuickLoginFlow, getQuickLoginOptions } from './app/demoLoginFlows'
+import { doLoginFlow, doLogoutFlow } from './app/authFlows'
 import { useGitpegCallbackSync } from './app/useGitpegCallbackSync'
 import { useProjectMetaSync } from './app/useProjectMetaSync'
 import { useAuthSessionController } from './app/useAuthSessionController'
@@ -26,20 +25,10 @@ import {
 
 
 import {
-  DEMO_ENTERPRISE,
-  DEMO_USER,
-  DEMO_PROJECTS,
   NAV,
   NAV_SECTIONS,
-  SegType,
   InspectionTypeKey,
-  ZeroLedgerTab,
-  ZeroPersonnelRow,
-  ZeroEquipmentRow,
-  ZeroSubcontractRow,
-  ZeroMaterialRow,
   ProjectRegisterMeta,
-  SettingsState,
   PERMISSION_ROLE_LABEL,
   PERMISSION_COLUMNS,
   TYPE_LABEL,
@@ -47,14 +36,12 @@ import {
   PROJECT_TYPE_OPTIONS,
   INSPECTION_TYPE_OPTIONS,
   INSPECTION_TYPE_LABEL,
-  INSPECTION_TYPE_KEYS,
   getAllowedNavKeysByRole,
   normalizeKmInterval,
-  normalizeTeamRole,
   resolveAllowedTab,
-  ACTIVITY_ITEMS,
-  QUICK_USERS,
 } from './app/appShellShared'
+
+const CLEAN_START_MIGRATION_KEY = 'qcspec.clean.start.20260410'
 
 export default function App() {
   const { activeTab, setActiveTab, toastMsg, sidebarOpen, setSidebarOpen, showToast } = useUIStore()
@@ -65,20 +52,13 @@ export default function App() {
     getById: getProjectByIdApi,
     update: updateProjectApi,
     remove: removeProjectApi,
-    syncAutoreg: syncAutoregApi,
     completeGitpeg: completeGitpegApi,
   } = useProjects()
-  const {
-    registerProject: registerAutoregProjectApi,
-    registerProjectAlias: registerAutoregProjectAliasApi,
-    listProjects: listAutoregProjectsApi,
-  } = useAutoreg()
   const {
     login: loginApi,
     me: meApi,
     getEnterprise: getEnterpriseApi,
     logout: logoutApi,
-    registerEnterprise: registerEnterpriseApi,
   } = useAuthApi()
   const { listMembers, inviteMember, updateMember: updateMemberApi, removeMember: removeMemberApi } = useTeam()
   const { getSettings, saveSettings, testErpnext, testGitpegRegistrar, uploadTemplate } = useSettings()
@@ -87,21 +67,14 @@ export default function App() {
     appReady,
     setAppReady,
     sessionChecking,
-    loginTab,
-    setLoginTab,
     loginForm,
     setLoginForm,
     loggingIn,
     setLoggingIn,
-    entForm,
-    setEntForm,
   } = useAuthSessionController({
     token,
     user,
     enterprise,
-    projectsLength: projects.length,
-    demoEnterprise: DEMO_ENTERPRISE,
-    demoProjects: DEMO_PROJECTS,
     meApi,
     getEnterpriseApi,
     setUser,
@@ -111,14 +84,12 @@ export default function App() {
 
   useEffect(() => {
     setEnterpriseInfo({
-      name: enterprise?.name || DEMO_ENTERPRISE.name,
-      vUri: enterprise?.v_uri || DEMO_ENTERPRISE.v_uri,
+      name: enterprise?.name || '',
+      vUri: enterprise?.v_uri || '',
       creditCode: '',
-      adminEmail: user?.email || DEMO_USER.email,
+      adminEmail: user?.email || '',
     })
   }, [enterprise?.name, enterprise?.v_uri, user?.email])
-
-  const proj = currentProject || DEMO_PROJECTS[0]
 
   const [projectMeta, setProjectMeta] = useState<Record<string, ProjectRegisterMeta>>({})
   const [, setRegisterSuccess] = useState<{ id: string; name: string; uri: string } | null>(null)
@@ -131,23 +102,10 @@ export default function App() {
     boqItemSovereignHistory: boqItemSovereignHistoryApi,
     boqReconciliation: boqReconciliationApi,
     docFinalContext: docFinalContextApi,
-    generatePaymentCertificate: generatePaymentCertificateApi,
-    frequencyDashboard: frequencyDashboardApi,
-    generateRailPactInstruction: generateRailPactInstructionApi,
-    paymentAuditTrace: paymentAuditTraceApi,
-    finalizeDocFinal: finalizeDocFinalApi,
-    bindSpatialUtxo: bindSpatialUtxoApi,
-    spatialDashboard: spatialDashboardApi,
-    predictiveQualityAnalysis: predictiveQualityAnalysisApi,
-    exportFinanceProof: exportFinanceProofApi,
-    convertRwaAsset: convertRwaAssetApi,
-    exportOmHandoverBundle: exportOmHandoverBundleApi,
-    registerOmEvent: registerOmEventApi,
-    generateNormEvolutionReport: generateNormEvolutionReportApi,
   } = useProof()
   const [gitpegCallbackHandled, setGitpegCallbackHandled] = useState(false)
-  const isDemoEnterprise = enterprise?.id === DEMO_ENTERPRISE.id
-  const canUseEnterpriseApi = !!enterprise?.id && !isDemoEnterprise
+  const canUseEnterpriseApi = !!enterprise?.id
+  const proj = currentProject || projects[0] || { id: '', name: '', v_uri: '' }
 
   const teamAccessController = useTeamAccessController({
     canUseEnterpriseApi,
@@ -165,22 +123,18 @@ export default function App() {
     members,
     setMembers,
     setMemberRoleDrafts,
-    memberRoleDrafts,
-    updateMemberRoleDraft,
-    removeMember,
-    saveMemberRole,
     setPermissionMatrix,
     setPermissionTemplate,
   } = teamAccessController
   const settingsController = useSettingsController({
     canUseEnterpriseApi,
     enterpriseId: enterprise?.id || undefined,
-    initialReportHeader: DEMO_ENTERPRISE.name,
+    initialReportHeader: enterprise?.name || '',
     initialEnterpriseInfo: {
-      name: DEMO_ENTERPRISE.name,
-      vUri: DEMO_ENTERPRISE.v_uri,
+      name: enterprise?.name || '',
+      vUri: enterprise?.v_uri || '',
       creditCode: '',
-      adminEmail: DEMO_USER.email,
+      adminEmail: user?.email || '',
     },
     saveSettings,
     uploadTemplate,
@@ -189,14 +143,9 @@ export default function App() {
     showToast,
   })
   const {
-    settings,
     setSettings,
-    erpDraft,
     setErpDraft,
-    erpWritebackDraft,
     setErpWritebackDraft,
-    gitpegVerifying,
-    enterpriseInfo,
     setEnterpriseInfo,
   } = settingsController
 
@@ -204,14 +153,16 @@ export default function App() {
     String(value || '').trim().replace(/[\\/]/g, '-').replace(/\s+/g, '') || fallback
   const normalizeCodeSegment = (value: string) =>
     String(value || '').trim().replace(/[^\w\u4e00-\u9fa5-]/g, '').replace(/\s+/g, '')
-  const buildExecutorUri = (name: string) => `v://cn.zhongbei/executor/${normalizeNodeSegment(name)}/`
+  const enterpriseNodeRoot = String(enterprise?.v_uri || '').trim().replace(/\/+$/, '')
+  const fallbackNodeRoot = enterpriseNodeRoot || 'v://cn/enterprise'
+  const buildExecutorUri = (name: string) => `${fallbackNodeRoot}/executor/${normalizeNodeSegment(name)}/`
   const buildToolNodeName = (name: string, modelNo: string) => {
     const safeName = normalizeNodeSegment(name, 'tool')
     const safeModel = normalizeCodeSegment(modelNo)
     return safeModel ? `${safeName}-${safeModel}` : safeName
   }
-  const buildToolUri = (name: string, modelNo: string) => `v://cn.zhongbei/tools/${buildToolNodeName(name, modelNo)}/`
-  const buildSubcontractUri = (unitName: string) => `v://cn.zhongbei/subcontract/${normalizeNodeSegment(unitName, 'unit')}/`
+  const buildToolUri = (name: string, modelNo: string) => `${fallbackNodeRoot}/tools/${buildToolNodeName(name, modelNo)}/`
+  const buildSubcontractUri = (unitName: string) => `${fallbackNodeRoot}/subcontract/${normalizeNodeSegment(unitName, 'unit')}/`
   const getEquipmentValidity = (validUntil: string) => {
     if (!validUntil) return { label: '待填', color: '#64748B', bg: '#F1F5F9', ok: false }
     const now = new Date()
@@ -271,41 +222,21 @@ export default function App() {
     boqItemSovereignHistoryApi,
     boqReconciliationApi,
     docFinalContextApi,
-    generatePaymentCertificateApi,
-    frequencyDashboardApi,
-    generateRailPactInstructionApi,
-    paymentAuditTraceApi,
-    finalizeDocFinalApi,
-    bindSpatialUtxoApi,
-    spatialDashboardApi,
-    predictiveQualityAnalysisApi,
-    exportFinanceProofApi,
-    convertRwaAssetApi,
-    exportOmHandoverBundleApi,
-    registerOmEventApi,
-    generateNormEvolutionReportApi,
   })
   const projectCatalog = useProjectCatalogController({
     appReady,
-    activeTab,
     canUseEnterpriseApi,
     enterpriseId: enterprise?.id || undefined,
-    enterpriseVUri: enterprise?.v_uri,
     projects,
     currentProject,
-    settings,
     listProjectsApi,
     removeProjectApi,
-    syncAutoregApi,
-    registerAutoregProjectApi,
-    registerAutoregProjectAliasApi,
-    listAutoregProjectsApi,
     setProjects,
     setCurrentProject,
     setProjectMeta,
     showToast,
   })
-  const permissionTreeRoot = enterprise?.v_uri || proj.v_uri || 'v://cn.zhongbei/'
+  const permissionTreeRoot = enterprise?.v_uri || proj.v_uri || `${fallbackNodeRoot}/`
 
   const globalAllowedNavKeys = getAllowedNavKeysByRole(user?.dto_role)
   const roleAwareNavItems = NAV.filter((item) => globalAllowedNavKeys.includes(item.key))
@@ -369,31 +300,6 @@ export default function App() {
     setEnterpriseInfo,
   })
 
-  const doDemoLogin = (key: keyof typeof QUICK_USERS = 'admin') => {
-    doDemoLoginFlow({
-      key,
-      hasProjects: projects.length > 0,
-      setUser,
-      setProjects,
-      setCurrentProject,
-      setAppReady,
-      showToast,
-    })
-  }
-
-  const fillQuickLogin = (key: keyof typeof QUICK_USERS) => {
-    fillQuickLoginFlow({
-      key,
-      setLoginForm,
-      showToast,
-    })
-  }
-
-  const quickLoginNow = (key: keyof typeof QUICK_USERS) => {
-    fillQuickLogin(key)
-    doDemoLogin(key)
-  }
-
   const doLogin = async () => {
     await doLoginFlow({
       loginForm,
@@ -413,27 +319,35 @@ export default function App() {
       logoutApi,
       logout,
       setAppReady,
-      setLoginTab,
       setLoginForm,
       showToast,
     })
   }
 
-  const doRegisterEnterprise = async () => {
-    await doRegisterEnterpriseFlow({
-      entForm,
-      registerEnterpriseApi,
-      setLoginForm,
-      setEntForm,
-      setLoginTab,
-      showToast,
-    })
-  }
-
-  const quickLoginOptions = getQuickLoginOptions()
   const canQuickInspection = globalAllowedNavKeys.includes('inspection')
   const canQuickProof = globalAllowedNavKeys.includes('proof')
   const canQuickReports = globalAllowedNavKeys.includes('reports')
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    if (localStorage.getItem(CLEAN_START_MIGRATION_KEY) === '1') return
+
+    try {
+      localStorage.removeItem('qcspec-auth')
+      Object.keys(localStorage)
+        .filter((key) => key.startsWith('qcspec.docpeg.inspection.linkage.'))
+        .forEach((key) => localStorage.removeItem(key))
+      localStorage.setItem(CLEAN_START_MIGRATION_KEY, '1')
+    } catch {
+      // ignore storage failures
+    }
+
+    logout()
+    setProjects([])
+    setCurrentProject(null)
+    setAppReady(false)
+    showToast('已清理历史本地数据，请使用真实账号重新登录')
+  }, [logout, setAppReady, setCurrentProject, setProjects, showToast])
 
   const openInspectionWorkspace = (targetProject?: typeof projects[number]) => {
     if (!canQuickInspection) {
@@ -468,14 +382,11 @@ export default function App() {
   const workspaceContentProps = useAppWorkspaceProps({
     activeTab,
     proofWorkspace: buildProofWorkspace({
-      projectUri: proj.v_uri,
-      paymentId: String(proofDashboard.paymentResult?.payment_id || ''),
       proofDashboard,
       onGoInspection: () => openInspectionWorkspace(),
       onGoReports: canQuickReports ? () => navigateToAllowedTab('reports') : undefined,
     }),
     projectsWorkspace: buildProjectsWorkspace({
-      canUseEnterpriseApi,
       projectMeta,
       projectCatalog,
       projectDetailController,
@@ -488,8 +399,6 @@ export default function App() {
       sidebarOpen,
       normalizeKmInterval,
       toggleInspectionType,
-      onGoInspection: () => openInspectionWorkspace(),
-      onGoProof: () => openProofWorkspace(),
       onEnterInspection: (project) => openInspectionWorkspace(project),
       onEnterProof: (project) => openProofWorkspace(project),
     }),
@@ -509,18 +418,10 @@ export default function App() {
     return (
       <AuthEntry
         sessionChecking={sessionChecking}
-        loginTab={loginTab}
         loginForm={loginForm}
         loggingIn={loggingIn}
-        entForm={entForm}
-        quickLoginOptions={quickLoginOptions}
-        onSwitchTab={setLoginTab}
         onLoginFormChange={setLoginForm}
-        onEnterpriseFormChange={setEntForm}
         onLogin={doLogin}
-        onRegisterEnterprise={doRegisterEnterprise}
-        onFillQuickLogin={(key) => fillQuickLogin(key as keyof typeof QUICK_USERS)}
-        onQuickLoginNow={(key) => quickLoginNow(key as keyof typeof QUICK_USERS)}
       />
     )
   }
@@ -534,8 +435,8 @@ export default function App() {
         navSections={roleAwareNavSections}
         projects={projects}
         currentProjectId={proj.id}
-        currentUserName={user?.name || DEMO_USER.name}
-        currentUserTitle={user?.title || '超级管理员'}
+        currentUserName={user?.name || '未命名用户'}
+        currentUserTitle={user?.title || '-'}
         onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
         onNavigate={navigateToAllowedTab}
         onSelectProject={(projectId) => {

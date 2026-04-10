@@ -1,5 +1,4 @@
-﻿import React from 'react'
-
+﻿
 type NavItem = {
   key: string
   icon: React.ReactNode
@@ -104,7 +103,9 @@ export default function AppShellLayout({
                   >
                     <span className="nav-icon">{item.icon}</span>
                     <span>{item.label}</span>
-                    {item.key === 'projects' && <span className="nav-badge">{projects.length}</span>}
+                    {item.key === 'projects' && projects.length > 0 && (
+                      <span className="nav-badge">{projects.length}</span>
+                    )}
                   </div>
                 )
               })}

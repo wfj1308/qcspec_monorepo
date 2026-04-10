@@ -20,18 +20,12 @@ export function normalizeItemNo(value: string): string {
 export function toApiUri(input: string): string {
   const raw = String(input || '').trim()
   if (!raw) return ''
-  if (raw.startsWith('v://cn.zhongbei/')) {
-    return raw.replace('v://cn.zhongbei/', 'v://cn/zhongbei/')
-  }
   return raw
 }
 
 export function toDisplayUri(input: string): string {
   const raw = String(input || '').trim()
   if (!raw) return ''
-  if (raw.startsWith('v://cn/zhongbei/')) {
-    return raw.replace('v://cn/zhongbei/', 'v://cn.zhongbei/')
-  }
   return raw
 }
 

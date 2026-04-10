@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react'
+import { Fragment, useMemo, useState } from 'react'
 import SovereignCard from './SovereignCard'
 import { useProjectSovereign } from './SovereignContext'
 import type { EvidenceFilter, EvidenceGraphNode, EvidenceScope } from './types'
@@ -513,7 +513,7 @@ export default function EvidenceVault(props: Props) {
                 ? 'border-emerald-500/40 bg-emerald-950/12'
                 : 'border-amber-500/40 bg-amber-950/12'
             return (
-              <React.Fragment key={stage.id}>
+              <Fragment key={stage.id}>
                 <div className={`w-[320px] shrink-0 rounded-[26px] border p-3 ${frameCls}`}>
                   <div className="flex items-center justify-between gap-2">
                     <div>
@@ -547,7 +547,7 @@ export default function EvidenceVault(props: Props) {
                     <div className="h-[2px] w-14 rounded-full bg-gradient-to-r from-sky-400/70 via-cyan-300/40 to-transparent" />
                   </div>
                 )}
-              </React.Fragment>
+              </Fragment>
             )
           })}
         </div>

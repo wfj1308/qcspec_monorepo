@@ -1,4 +1,3 @@
-import React from 'react'
 import { useSovereignProjectContext } from './SovereignProjectContext'
 import { useSovereignView } from './SovereignViewProvider'
 import { useUTXOStatus } from './useUTXOStatus'

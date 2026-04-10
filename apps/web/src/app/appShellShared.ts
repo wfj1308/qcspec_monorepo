@@ -1,89 +1,29 @@
-﻿/** Shared types, constants, and pure helpers extracted from App.tsx */
+/** Shared types, constants, and pure helpers extracted from App.tsx */
 
-export const DEMO_ENTERPRISE = {
-  id: '11111111-1111-4111-8111-111111111111',
-  v_uri: 'v://cn.zhongbei/',
-  name: '中北工程设计咨询有限公司',
-  short_name: '中北工程',
-  plan: 'enterprise' as const,
-  proof_quota: 99999,
-  proof_used: 47,
-}
-
-export const DEMO_USER = {
-  id: '22222222-2222-4222-8222-222222222222',
-  enterprise_id: '11111111-1111-4111-8111-111111111111',
-  v_uri: 'v://cn.zhongbei/executor/ligong/',
-  name: '李总工',
-  email: 'admin@zhongbei.com',
-  dto_role: 'OWNER' as const,
-  title: '总工程师',
-}
-
-export const DEMO_PROJECTS = [
-  {
-    id: '33333333-3333-4333-8333-333333333333',
-    enterprise_id: '11111111-1111-4111-8111-111111111111',
-    v_uri: 'v://cn.zhongbei/highway/jinggang-2026/',
-    name: '京港高速大修工程（2026）',
-    type: 'highway',
-    owner_unit: '河南省高速公路发展有限公司',
-    contractor: '中铁一局',
-    supervisor: '中北工程',
-    contract_no: 'JSHG-2026-001',
-    start_date: '2026-03-01',
-    end_date: '2026-10-31',
-    status: 'active' as const,
-    record_count: 47,
-    photo_count: 128,
-    proof_count: 175,
-  },
-  {
-    id: '44444444-4444-4444-8444-444444444444',
-    enterprise_id: '11111111-1111-4111-8111-111111111111',
-    v_uri: 'v://cn.zhongbei/bridge/qinhe/',
-    name: '沁河特大桥定期检测工程',
-    type: 'bridge',
-    owner_unit: '焦作市交通运输局',
-    contractor: '',
-    supervisor: '中北工程',
-    contract_no: 'QR-2026-03',
-    start_date: '2026-04-01',
-    end_date: '2026-05-30',
-    status: 'pending' as const,
-    record_count: 0,
-    photo_count: 0,
-    proof_count: 0,
-  },
-]
 
 export const NAV = [
-  { key: 'dashboard', icon: '📊', label: '项目驾驶舱' },
+  { key: 'dashboard', icon: '📊', label: '质检驾驶舱' },
   { key: 'projects', icon: '🏗️', label: '项目与构件' },
   { key: 'inspection', icon: '📝', label: '质量验收' },
-  { key: 'reports', icon: '📄', label: '计量与结算' },
-  { key: 'proof', icon: '🔒', label: '审计与追溯' },
-  { key: 'normref', icon: '📚', label: '规范标准' },
-  { key: 'photos', icon: '📷', label: '现场影像' },
-  { key: 'logpeg', icon: '📘', label: '施工日志' },
-  { key: 'executors', icon: '🧩', label: '施工资源台账' },
+  { key: 'records', icon: '🗂️', label: '现场记录' },
+  { key: 'proof', icon: '🔒', label: '质量追溯' },
+  { key: 'reports', icon: '📄', label: '报表中心' },
   { key: 'team', icon: '👥', label: '组织成员' },
   { key: 'permissions', icon: '🔐', label: '角色权限' },
   { key: 'settings', icon: '⚙️', label: '系统设置' },
 ]
 
 export const NAV_SECTIONS: Array<{ label: string; keys: string[] }> = [
-  { label: '业务主流程', keys: ['dashboard', 'projects', 'inspection', 'reports', 'proof'] },
-  { label: '现场数据', keys: ['photos', 'logpeg'] },
-  { label: '治理中心', keys: ['team', 'permissions', 'normref', 'settings', 'executors'] },
+  { label: '业务主链', keys: ['dashboard', 'projects', 'inspection', 'records', 'proof', 'reports'] },
+  { label: '管理中心', keys: ['team', 'permissions', 'settings'] },
 ]
 
 export type TeamRole = 'OWNER' | 'SUPERVISOR' | 'AI' | 'PUBLIC'
 export const ROLE_NAV_KEYS: Record<TeamRole, string[]> = {
-  AI: ['dashboard', 'inspection', 'photos', 'proof', 'projects', 'logpeg'],
-  SUPERVISOR: ['dashboard', 'inspection', 'photos', 'normref', 'proof', 'reports', 'projects', 'logpeg'],
-  OWNER: ['dashboard', 'inspection', 'photos', 'normref', 'proof', 'reports', 'projects', 'executors', 'team', 'permissions', 'settings', 'logpeg'],
-  PUBLIC: ['dashboard', 'proof', 'reports', 'projects', 'logpeg'],
+  AI: ['dashboard', 'projects', 'inspection', 'records', 'proof'],
+  SUPERVISOR: ['dashboard', 'projects', 'inspection', 'records', 'proof', 'reports'],
+  OWNER: ['dashboard', 'projects', 'inspection', 'records', 'proof', 'reports', 'team', 'permissions', 'settings'],
+  PUBLIC: ['dashboard', 'projects', 'records', 'proof', 'reports'],
 }
 
 export const getAllowedNavKeysByRole = (role: unknown): string[] => {
@@ -540,69 +480,4 @@ export const normalizeZeroSignStatus = (value: unknown): 'pending' | 'approved' 
   return 'pending'
 }
 
-export const ACTIVITY_ITEMS = [
-  { dot: '#059669', text: '王质检在京港高速大修录入了路面平整度记录', time: '10 分钟前' },
-  { dot: '#1A56DB', text: '张项目经理注册了新项目：沁河特大桥定检', time: '2 小时前' },
-  { dot: '#D97706', text: '系统生成了 3 月份质检汇总报告', time: '今天 09:00' },
-  { dot: '#DC2626', text: 'K49+200 裂缝宽度超标，请尽快复检', time: '昨天 14:15' },
-]
-
-export const QUICK_USERS = {
-  admin: {
-    ...DEMO_USER,
-    name: '李总工',
-    email: 'admin@zhongbei.com',
-    dto_role: 'OWNER' as const,
-    title: '超级管理员',
-    v_uri: 'v://cn.zhongbei/executor/admin/',
-  },
-  pm: {
-    ...DEMO_USER,
-    id: '22222222-2222-4222-8222-222222222223',
-    name: '张项目经理',
-    email: 'pm@zhongbei.com',
-    dto_role: 'SUPERVISOR' as const,
-    title: '项目经理',
-    v_uri: 'v://cn.zhongbei/executor/pm/',
-  },
-  inspector: {
-    ...DEMO_USER,
-    id: '22222222-2222-4222-8222-222222222224',
-    name: '王质检',
-    email: 'qc@zhongbei.com',
-    dto_role: 'AI' as const,
-    title: '质检员',
-    v_uri: 'v://cn.zhongbei/executor/qc/',
-  },
-}
-
-export const QUICK_LOGIN_ACCOUNTS: Array<{
-  key: keyof typeof QUICK_USERS
-  account: string
-  password: string
-  roleLabel: string
-  desc: string
-}> = [
-  {
-    key: 'admin',
-    account: 'admin@zhongbei.com',
-    password: '123456',
-    roleLabel: '超级管理员',
-    desc: '企业配置 / 权限模板 / 系统集成',
-  },
-  {
-    key: 'pm',
-    account: 'pm@zhongbei.com',
-    password: 'PM@2026',
-    roleLabel: '项目经理',
-    desc: '项目注册 / 进度与报告管理',
-  },
-  {
-    key: 'inspector',
-    account: 'qc@zhongbei.com',
-    password: 'QC@2026',
-    roleLabel: '质检员',
-    desc: '现场录入 / 拍照 / 提交质检',
-  },
-]
 

@@ -1,5 +1,4 @@
 ﻿
-import React from 'react'
 import { Card } from '../ui'
 import SovereignProjectWorkspace from './SovereignProjectWorkspace'
 
@@ -8,7 +7,6 @@ interface ProjectDetailDrawerProps {
   detailProject: any | null
   detailEdit: boolean
   detailProjectDraft: any | null
-  detailMeta: any | null
   detailDraft: any | null
   projectTypeOptions: Array<{ value: string; label: string }>
   inspectionTypeOptions: Array<{ key: string; label: string }>
@@ -119,7 +117,7 @@ interface ProjectDetailDrawerProps {
   sidebarOpen?: boolean
 }
 
-const btn: React.CSSProperties = {
+const btn = {
   border: '1px solid #E2E8F0',
   background: '#fff',
   borderRadius: 6,
@@ -160,7 +158,6 @@ export default function ProjectDetailDrawer({
   detailProject,
   detailEdit,
   detailProjectDraft,
-  detailMeta,
   detailDraft,
   projectTypeOptions,
   inspectionTypeOptions,

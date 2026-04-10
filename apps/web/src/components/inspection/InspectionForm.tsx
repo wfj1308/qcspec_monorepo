@@ -3,7 +3,7 @@
  * apps/web/src/components/inspection/InspectionForm.tsx
  */
 
-import React, { useState, useCallback, useEffect, useRef } from 'react'
+import { useState, useCallback, useEffect, useRef  } from 'react'
 import { INSPECTION_TYPES } from '@qcspec/types'
 import type { InspectResult } from '@qcspec/types'
 import { Button, Input, Select, Card, VPathDisplay } from '../ui'
@@ -916,7 +916,7 @@ export default function InspectionForm({ projectId, enterpriseId, onSuccess }: P
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
             <div style={{ fontSize: 12, color: '#94A3B8' }}>可在“现场照片”页多选后点击“关联到质检录入”。</div>
             <button
-              onClick={() => setActiveTab('photos')}
+              onClick={() => setActiveTab('records')}
               style={{
                 border: '1px solid #BFDBFE',
                 background: '#EFF6FF',

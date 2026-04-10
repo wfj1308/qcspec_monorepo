@@ -1,4 +1,3 @@
-import React from 'react'
 import SovereignWorkbenchPanel from '../SovereignWorkbenchPanel'
 import type { SovereignWorkspaceSnapshot, SovereignWorkspaceView } from './SovereignProjectContext'
 

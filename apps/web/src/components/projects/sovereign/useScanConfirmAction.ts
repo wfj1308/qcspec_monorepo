@@ -20,7 +20,7 @@ export function useScanConfirmAction({
   showToast,
 }: UseScanConfirmActionArgs) {
   const [scanPayload, setScanPayload] = useState('')
-  const [scanDid, setScanDid] = useState('did:qcspec:supervisor:demo')
+  const [scanDid, setScanDid] = useState('')
   const [scanProofId, setScanProofId] = useState('')
   const [scanRes, setScanRes] = useState<Record<string, unknown> | null>(null)
   const [scanning, setScanning] = useState(false)

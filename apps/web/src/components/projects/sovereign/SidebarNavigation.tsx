@@ -1,4 +1,3 @@
-import React from 'react'
 import type { SovereignWorkspaceView } from './SovereignProjectContext'
 
 type NavItem = {

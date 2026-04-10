@@ -1,5 +1,4 @@
-﻿import React from 'react'
-import type {
+﻿import type {
   ErpDraftState,
   ErpWritebackDraftState,
   SettingsState,
@@ -121,7 +120,7 @@ export default function SettingsPanel({
           {settings.reportTemplate === 'custom-upload' && (
             <input type="file" accept=".doc,.docx" onChange={(e) => setReportTemplateFile(e.target.files?.[0] || null)} className="setting-input" />
           )}
-          <input className="setting-input" value={settings.reportHeader} onChange={(e) => setSettings({ ...settings, reportHeader: e.target.value })} placeholder="报告抬头（例如：中北工程设计咨询有限公司）" />
+          <input className="setting-input" value={settings.reportHeader} onChange={(e) => setSettings({ ...settings, reportHeader: e.target.value })} placeholder="报告抬头（例如：XX工程有限公司）" />
           {settings.reportTemplateUrl && (
             <a href={settings.reportTemplateUrl} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: '#1A56DB', textDecoration: 'none' }}>
               查看当前模板文件

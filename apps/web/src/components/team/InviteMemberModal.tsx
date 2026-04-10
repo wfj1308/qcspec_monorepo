@@ -1,4 +1,3 @@
-import React from 'react'
 import type { TeamRole } from '../../app/appShellShared'
 
 export interface InviteFormState {

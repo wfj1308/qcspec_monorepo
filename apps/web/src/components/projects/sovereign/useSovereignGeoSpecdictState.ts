@@ -59,7 +59,6 @@ type Args = {
   specdictNamespace: string
   arRes: Record<string, unknown> | null
   gateStats: GateStats
-  form: Record<string, string>
   execRes: Record<string, unknown> | null
   isContractSpu: boolean
   evidence: Evidence[]
@@ -77,7 +76,6 @@ export function useSovereignGeoSpecdictState({
   specdictNamespace,
   arRes,
   gateStats,
-  form,
   execRes,
   isContractSpu,
   evidence,

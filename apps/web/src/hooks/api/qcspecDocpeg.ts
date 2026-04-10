@@ -79,10 +79,6 @@ function trimSlash(input: string): string {
   return String(input || '').replace(/\/+$/, '')
 }
 
-function buildTraceId(): string {
-  return `qcspec-web-${Date.now()}-${Math.floor(Math.random() * 100000)}`
-}
-
 function encodePathSegment(input: string): string {
   return encodeURIComponent(String(input || '').trim())
 }

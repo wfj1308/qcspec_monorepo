@@ -19,15 +19,12 @@ type SettingsController = ReturnType<typeof useSettingsController>
 type ProjectInspectionTarget = Parameters<ProjectsWorkspaceProps['projectsPanelProps']['onEnterInspection']>[0]
 
 type BuildProofWorkspaceArgs = {
-  projectUri?: string
-  paymentId: string
   proofDashboard: ProofDashboardController
   onGoInspection?: () => void
   onGoReports?: () => void
 }
 
 type BuildProjectsWorkspaceArgs = {
-  canUseEnterpriseApi: boolean
   projectMeta: Record<string, ProjectRegisterMeta>
   projectCatalog: ProjectCatalogController
   projectDetailController: ProjectDetailController
@@ -40,8 +37,6 @@ type BuildProjectsWorkspaceArgs = {
   sidebarOpen: boolean
   normalizeKmInterval: ProjectsWorkspaceProps['projectDetailDrawerProps']['normalizeKmInterval']
   toggleInspectionType: ProjectsWorkspaceProps['projectDetailDrawerProps']['toggleInspectionType']
-  onGoInspection: () => void
-  onGoProof: () => void
   onEnterInspection: (project: ProjectInspectionTarget) => void
   onEnterProof: (project: ProjectInspectionTarget) => void
 }
@@ -59,16 +54,13 @@ type BuildSettingsWorkspaceArgs = {
 }
 
 export function buildProofWorkspace({
-  projectUri,
-  paymentId,
   proofDashboard,
   onGoInspection,
   onGoReports,
 }: BuildProofWorkspaceArgs): ProofWorkspaceProps {
   return {
-    projectUri,
     proofPanelProps: {
-      projectUri,
+      projectUri: proofDashboard.projectUri,
       proofStats: proofDashboard.proofStats,
       proofNodeRows: proofDashboard.proofNodeRows,
       proofLoading: proofDashboard.proofLoading,
@@ -78,56 +70,10 @@ export function buildProofWorkspace({
       onGoInspection,
       onGoReports,
     },
-    paymentAuditPanelProps: {
-      projectUri,
-      paymentGenerating: proofDashboard.paymentGenerating,
-      paymentResult: proofDashboard.paymentResult,
-      railpactSubmitting: proofDashboard.railpactSubmitting,
-      railpactResult: proofDashboard.railpactResult,
-      auditLoading: proofDashboard.auditLoading,
-      auditResult: proofDashboard.auditResult,
-      frequencyLoading: proofDashboard.frequencyLoading,
-      frequencyResult: proofDashboard.frequencyResult,
-      deliveryFinalizing: proofDashboard.deliveryFinalizing,
-      onGeneratePaymentCertificate: proofDashboard.handleGeneratePaymentCertificate,
-      onGenerateRailPactInstruction: proofDashboard.handleGenerateRailPactInstruction,
-      onOpenAuditTrace: proofDashboard.handleOpenAuditTrace,
-      onFinalizeDelivery: proofDashboard.handleFinalizeDelivery,
-      onOpenVerifyNode: proofDashboard.handleOpenVerifyNode,
-    },
-    spatialGovernancePanelProps: {
-      projectUri,
-      spatialLoading: proofDashboard.spatialLoading,
-      spatialDashboard: proofDashboard.spatialDashboard,
-      aiRunning: proofDashboard.aiRunning,
-      aiResult: proofDashboard.aiResult,
-      financeExporting: proofDashboard.financeExporting,
-      defaultPaymentId: paymentId,
-      onRefreshSpatial: proofDashboard.refreshSpatialDashboard,
-      onBindSpatial: proofDashboard.handleBindSpatial,
-      onRunPredictive: proofDashboard.handleRunPredictive,
-      onExportFinanceProof: proofDashboard.handleExportFinanceProof,
-      onOpenVerifyNode: proofDashboard.handleOpenVerifyNode,
-    },
-    rwaOmEvolutionPanelProps: {
-      projectUri,
-      rwaConverting: proofDashboard.rwaConverting,
-      omExporting: proofDashboard.omExporting,
-      omEventSubmitting: proofDashboard.omEventSubmitting,
-      normRunning: proofDashboard.normEvolutionRunning,
-      normResult: proofDashboard.normEvolutionResult,
-      lastPaymentId: paymentId,
-      lastOmRootProofId: proofDashboard.lastOmRootProofId,
-      onConvertRwa: proofDashboard.handleConvertRwaAsset,
-      onExportOmBundle: proofDashboard.handleExportOmBundle,
-      onRegisterOmEvent: proofDashboard.handleRegisterOmEvent,
-      onGenerateNormEvolution: proofDashboard.handleGenerateNormEvolution,
-    },
   }
 }
 
 export function buildProjectsWorkspace({
-  canUseEnterpriseApi,
   projectMeta,
   projectCatalog,
   projectDetailController,
@@ -140,8 +86,6 @@ export function buildProjectsWorkspace({
   sidebarOpen,
   normalizeKmInterval,
   toggleInspectionType,
-  onGoInspection,
-  onGoProof,
   onEnterInspection,
   onEnterProof,
 }: BuildProjectsWorkspaceArgs): ProjectsWorkspaceProps {
@@ -155,29 +99,20 @@ export function buildProjectsWorkspace({
       projectMeta,
       typeIcon,
       typeLabel,
-      canUseEnterpriseApi,
-      syncingProjectId: projectCatalog.syncingProjectId,
-      autoregRows: projectCatalog.autoregRows,
       onSearchTextChange: projectCatalog.setSearchText,
       onStatusFilterChange: projectCatalog.setStatusFilter,
       onTypeFilterChange: projectCatalog.setTypeFilter,
-      onGoInspection,
-      onGoProof,
       onEnterInspection,
       onEnterProof,
-      onRetryAutoreg: projectCatalog.retryProjectAutoreg,
-      onDirectAutoreg: projectCatalog.directProjectAutoreg,
       onEditProject: (projectId) => projectDetailController.openProjectDetail(projectId, true),
       onOpenProjectDetail: (projectId) => projectDetailController.openProjectDetail(projectId),
       onDeleteProject: projectCatalog.removeProject,
-      onRefreshAutoreg: projectCatalog.refreshAutoregRows,
     },
     projectDetailDrawerProps: {
       open: projectDetailController.projectDetailOpen,
       detailProject: projectDetailController.detailProject,
       detailEdit: projectDetailController.detailEdit,
       detailProjectDraft: projectDetailController.detailProjectDraft,
-      detailMeta: projectDetailController.detailMeta,
       detailDraft: projectDetailController.detailDraft,
       projectTypeOptions,
       inspectionTypeOptions,
