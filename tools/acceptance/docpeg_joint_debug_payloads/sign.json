@@ -1,0 +1,8 @@
+{
+  "doc_id": "__TODO_DOC_ID__",
+  "body_hash": "__TODO_BODY_HASH__",
+  "executor_uri": "__TODO_EXECUTOR_URI__",
+  "dto_role": "qc_inspector",
+  "trip_role": "qc",
+  "signed_at": "2026-04-10T00:00:00Z"
+}

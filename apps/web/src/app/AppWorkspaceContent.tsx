@@ -8,14 +8,12 @@ import ReportsPage from '../pages/ReportsPage'
 import LogPegPage from '../pages/LogPegPage'
 import NormRefRulesPage from '../pages/NormRefRulesPage'
 import ExecutorAdminPage from '../pages/ExecutorAdminPage'
-import ExecutorRegisterPage from '../pages/ExecutorRegisterPage'
 import ProofPanel from '../components/proof/ProofPanel'
 import PaymentAuditPanel from '../components/proof/PaymentAuditPanel'
 import SpatialGovernancePanel from '../components/proof/SpatialGovernancePanel'
 import RwaOmEvolutionPanel from '../components/proof/RwaOmEvolutionPanel'
 import DocumentGovernancePanel from '../components/proof/DocumentGovernancePanel'
 import ProjectsPanel from '../components/projects/ProjectsPanel'
-import RegisterWorkspace from '../components/register/RegisterWorkspace'
 import TeamPanel from '../components/team/TeamPanel'
 import PermissionsPanel from '../components/permissions/PermissionsPanel'
 import SettingsPanel from '../components/settings/SettingsPanel'
@@ -35,10 +33,6 @@ export type ProjectsWorkspaceProps = {
   projectDetailDrawerProps: ComponentProps<typeof ProjectDetailDrawer>
 }
 
-export type RegisterWorkspaceProps = {
-  registerWorkspaceProps: ComponentProps<typeof RegisterWorkspace>
-}
-
 export type TeamWorkspaceProps = {
   teamPanelProps: ComponentProps<typeof TeamPanel>
   permissionsPanelProps: ComponentProps<typeof PermissionsPanel>
@@ -53,7 +47,6 @@ type Props = {
   activeTab: string
   proofWorkspace: ProofWorkspaceProps
   projectsWorkspace: ProjectsWorkspaceProps
-  registerWorkspace: RegisterWorkspaceProps
   teamWorkspace: TeamWorkspaceProps
   settingsWorkspace: SettingsWorkspaceProps
 }
@@ -62,7 +55,6 @@ export default function AppWorkspaceContent({
   activeTab,
   proofWorkspace,
   projectsWorkspace,
-  registerWorkspace,
   teamWorkspace,
   settingsWorkspace,
 }: Props) {
@@ -77,7 +69,6 @@ export default function AppWorkspaceContent({
       {activeTab === 'reports' && <ReportsPage />}
       {activeTab === 'logpeg' && <LogPegPage />}
       {activeTab === 'executors' && <ExecutorAdminPage />}
-      {activeTab === 'executor-register' && <ExecutorRegisterPage />}
 
       {activeTab === 'proof' && (
         <>
@@ -140,7 +131,6 @@ export default function AppWorkspaceContent({
       )}
 
       {activeTab === 'projects' && <ProjectsPanel {...projectsWorkspace.projectsPanelProps} />}
-      {activeTab === 'register' && <RegisterWorkspace {...registerWorkspace.registerWorkspaceProps} />}
       {activeTab === 'team' && <TeamPanel {...teamWorkspace.teamPanelProps} />}
       {activeTab === 'permissions' && <PermissionsPanel {...teamWorkspace.permissionsPanelProps} />}
       {activeTab === 'settings' && <SettingsPanel {...settingsWorkspace.settingsPanelProps} />}

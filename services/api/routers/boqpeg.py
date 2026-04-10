@@ -743,6 +743,10 @@ async def run_normref_tab_to_peg(
     protocol_uri: str = Form(""),
     norm_code: str = Form(""),
     boq_item_id: str = Form(""),
+    project_ref: str = Form(""),
+    component_id: str = Form(""),
+    drawing_ref: str = Form(""),
+    structured_data_json: str = Form(""),
     description: str = Form(""),
     bridge_uri: str = Form(""),
     component_type: str = Form(""),
@@ -764,11 +768,16 @@ async def run_normref_tab_to_peg(
         node_uri=protocol_uri or "v://normref.com/schema/qc-v1",
         actor_uri=owner_uri,
     )
+    structured_data = _parse_json_object(structured_data_json, field_name="structured_data_json")
     return await boqpeg_service.tab_to_peg(
         file=file,
         protocol_uri=protocol_uri,
         norm_code=norm_code,
         boq_item_id=boq_item_id,
+        project_ref=project_ref,
+        component_id=component_id,
+        drawing_ref=drawing_ref,
+        structured_data=structured_data,
         description=description,
         bridge_uri=bridge_uri,
         component_type=component_type,

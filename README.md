@@ -106,8 +106,8 @@ npm run acceptance:component-utxo:demo
 
 架构分层与扩展规范见：
 
-- `docs/architecture-blueprint.md`
-- `docs/normpeg-boq-docpeg-workflow.md`
+- `docs/architecture/architecture-blueprint.md`
+- `docs/architecture/normpeg-boq-docpeg-workflow.md`
 
 ## NormPeg / DocPeg 扩展
 
@@ -146,3 +146,4 @@ npm run acceptance:component-utxo:demo
 - `POST /v1/proof/rwa/convert`：将已结算且三方签名资产聚合为 RWA 可融资凭证
 - `POST /v1/proof/om/handover/export` + `POST /v1/proof/om/event/register`：施工身份向运维身份移交并持续挂载运维事件
 - `POST /v1/proof/norm/evolution/report`：跨项目规范执行偏离度聚合与匿名化反馈建议
+

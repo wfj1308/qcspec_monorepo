@@ -1367,6 +1367,248 @@ def bootstrap_normref_logic_scaffold(
     }
 
 
+def _pick_structured_value(data: dict[str, Any], aliases: list[str]) -> Any:
+    if not isinstance(data, dict):
+        return None
+    normalized = {_normalize_header(k): v for k, v in data.items()}
+    for alias in aliases:
+        hit = normalized.get(_normalize_header(alias))
+        if hit is None:
+            continue
+        if isinstance(hit, (int, float, bool)):
+            return hit
+        if _to_text(hit).strip():
+            return hit
+    return None
+
+
+def _to_float(value: Any) -> float | None:
+    text = _to_text(value).strip().replace(",", "")
+    if not text:
+        return None
+    try:
+        return float(text)
+    except Exception:
+        return None
+
+
+def _to_bool_text(value: Any) -> bool:
+    if isinstance(value, bool):
+        return value
+    text = _to_text(value).strip().lower()
+    if not text:
+        return False
+    return text in {"1", "true", "yes", "y", "pass", "passed", "ok", "合格", "通过", "是"}
+
+
+def _is_bridge_table2_context(*, description: str, protocol_uri: str, structured_data: dict[str, Any]) -> bool:
+    joined = " ".join(
+        [
+            _to_text(description),
+            _to_text(protocol_uri),
+            _to_text(structured_data.get("table_code")),
+            _to_text(structured_data.get("form_code")),
+            _to_text(structured_data.get("表单编码")),
+            _to_text(structured_data.get("表名")),
+        ]
+    ).lower()
+    return any(token in joined for token in ["桥施2", "bridge2", "bridge_table_2", "pile_casing", "casing"])
+
+
+def _default_bridge_table2_gates() -> list[dict[str, Any]]:
+    return [
+        {
+            "check_id": "bridge.casing.burial_depth",
+            "label": "护筒埋深",
+            "norm_ref": "JTG F80/1-2017",
+            "threshold": {"value": "design_depth_m - 0.2", "operator": "gte", "unit": "m", "raw": ">= design_depth_m - 0.2"},
+            "severity": "mandatory",
+        },
+        {
+            "check_id": "bridge.pile.position_deviation",
+            "label": "桩位偏差",
+            "norm_ref": "JTG F80/1-2017",
+            "threshold": {"value": 50, "operator": "lte", "unit": "mm", "raw": "<= 50mm"},
+            "severity": "mandatory",
+        },
+        {
+            "check_id": "bridge.casing.verticality",
+            "label": "护筒垂直度",
+            "norm_ref": "JTG F80/1-2017",
+            "threshold": {"value": True, "operator": "eq", "unit": "", "raw": "== true"},
+            "severity": "mandatory",
+        },
+    ]
+
+
+def _build_bridge_table2_content(data: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "pile_number": _pick_structured_value(data, ["桩位编号", "桩号", "pile_number", "pile_id"]),
+        "casing_type": _pick_structured_value(data, ["护筒类型", "casing_type"]),
+        "diameter_mm": _pick_structured_value(data, ["直径", "护筒直径", "diameter_mm", "diameter"]),
+        "burial_depth_m": _pick_structured_value(data, ["埋深", "burial_depth_m", "casing_burial_depth_m"]),
+        "design_depth_m": _pick_structured_value(data, ["设计埋深", "design_depth_m"]),
+        "position_deviation_mm": _pick_structured_value(data, ["偏差", "桩位偏差", "position_deviation_mm"]),
+        "verticality_check_passed": _pick_structured_value(
+            data, ["垂直度检查", "垂直度是否合格", "verticality_check_passed", "verticality_passed"]
+        ),
+        "geology_at_bottom": _pick_structured_value(data, ["护筒底地质情况", "geology_at_bottom"]),
+        "inspection_date": _pick_structured_value(data, ["检查日期", "inspection_date", "date"]),
+    }
+
+
+def _evaluate_bridge_table2_gate(content: dict[str, Any]) -> list[dict[str, Any]]:
+    results: list[dict[str, Any]] = []
+
+    burial_depth = _to_float(content.get("burial_depth_m"))
+    design_depth = _to_float(content.get("design_depth_m"))
+    if burial_depth is None:
+        results.append(
+            {
+                "rule_id": "bridge.casing.burial_depth",
+                "passed": False,
+                "actual": content.get("burial_depth_m"),
+                "message": "缺少埋深数据",
+            }
+        )
+    else:
+        if design_depth is None:
+            # Allow pass with weak-check mark when design baseline is unavailable.
+            results.append(
+                {
+                    "rule_id": "bridge.casing.burial_depth",
+                    "passed": True,
+                    "actual": burial_depth,
+                    "message": "缺少设计埋深，已按实测值通过弱校验",
+                }
+            )
+        else:
+            expected_min = design_depth - 0.2
+            passed = burial_depth >= expected_min
+            results.append(
+                {
+                    "rule_id": "bridge.casing.burial_depth",
+                    "passed": passed,
+                    "actual": burial_depth,
+                    "expected": f">= {expected_min}",
+                    "message": "" if passed else "护筒埋深不足设计值0.2m以上，需整改",
+                }
+            )
+
+    pos_dev = _to_float(content.get("position_deviation_mm"))
+    if pos_dev is None:
+        results.append(
+            {
+                "rule_id": "bridge.pile.position_deviation",
+                "passed": False,
+                "actual": content.get("position_deviation_mm"),
+                "message": "缺少桩位偏差数据",
+            }
+        )
+    else:
+        passed = abs(pos_dev) <= 50.0
+        results.append(
+            {
+                "rule_id": "bridge.pile.position_deviation",
+                "passed": passed,
+                "actual": pos_dev,
+                "expected": "<= 50",
+                "message": "" if passed else "桩位偏差超过50mm，不合格",
+            }
+        )
+
+    vertical_ok = _to_bool_text(content.get("verticality_check_passed"))
+    has_vertical_field = _to_text(content.get("verticality_check_passed")).strip() != ""
+    results.append(
+        {
+            "rule_id": "bridge.casing.verticality",
+            "passed": bool(vertical_ok and has_vertical_field),
+            "actual": content.get("verticality_check_passed"),
+            "expected": True,
+            "message": "" if (vertical_ok and has_vertical_field) else "护筒垂直度不合格",
+        }
+    )
+    return results
+
+
+def _build_layerpeg_from_structured_data(
+    *,
+    structured_data: dict[str, Any],
+    project_ref: str,
+    component_id: str,
+    boq_item_ref: str,
+    drawing_ref: str,
+    owner_uri: str,
+    normref_version: str,
+    created_at: str,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    content = _build_bridge_table2_content(structured_data)
+    validation_results = _evaluate_bridge_table2_gate(content)
+    all_passed = all(bool(item.get("passed")) for item in validation_results)
+    component_token = component_id.strip() or "component-unknown"
+    header_id = f"LP-桥施2-{component_token}"
+    proof_seed = {
+        "header_id": header_id,
+        "content": content,
+        "validation_results": validation_results,
+        "boq_item_ref": boq_item_ref,
+        "drawing_ref": drawing_ref,
+    }
+    data_hash = f"sha256:{_stable_hash(content)}"
+    proof_hash = f"sha256:{_stable_hash(proof_seed)}"
+    proof_id = f"PF-桥施2-{_hash16(proof_seed).upper()}"
+
+    next_action = "supervisor_review" if all_passed else "rectification_required"
+    boq_status = "ready_for_measurement" if (all_passed and boq_item_ref.strip()) else "pending"
+    lifecycle_stage = "inspection_passed" if all_passed else "inspection_failed"
+
+    layerpeg = {
+        "magic": "LAYERPEG",
+        "spec_version": "1.0",
+        "header": {
+            "header_id": header_id,
+            "doc_type": "bridge_pile_casing_inspection",
+            "owner_did": owner_uri.strip() or "did:ir8:org:zhongbei",
+            "created_at": created_at,
+            "project_ref": project_ref.strip(),
+            "component_ref": f"{project_ref.rstrip('/')}/component/{component_token}" if project_ref.strip() else "",
+            "component_id": component_token,
+            "boq_item_ref": boq_item_ref.strip(),
+            "drawing_ref": drawing_ref.strip(),
+            "normref_version": normref_version,
+        },
+        "gate": {
+            "normref_rules": [
+                "bridge.casing.burial_depth",
+                "bridge.pile.position_deviation",
+                "bridge.casing.verticality",
+            ],
+            "validation_results": validation_results,
+            "normref_snapshot_hash": f"sha256:{_stable_hash({'version': normref_version, 'rules': ['bridge.casing.burial_depth', 'bridge.pile.position_deviation', 'bridge.casing.verticality']})}",
+        },
+        "body": {"content": content},
+        "proof": {
+            "proof_id": proof_id,
+            "data_hash": data_hash,
+            "proof_hash": proof_hash,
+            "signatures": [],
+        },
+        "state": {
+            "lifecycle_stage": lifecycle_stage,
+            "next_action": next_action,
+            "boq_status": boq_status,
+        },
+    }
+    boq_linkage = {
+        "boq_item_ref": boq_item_ref.strip(),
+        "component_id": component_token,
+        "drawing_ref": drawing_ref.strip(),
+        "linked": bool(boq_item_ref.strip()),
+        "conservation_status": boq_status,
+    }
+    return layerpeg, boq_linkage
+
+
 def table_to_protocol_block(
     *,
     sb: Any,
@@ -1375,6 +1617,10 @@ def table_to_protocol_block(
     protocol_uri: str = "",
     norm_code: str = "",
     boq_item_id: str = "",
+    project_ref: str = "",
+    component_id: str = "",
+    drawing_ref: str = "",
+    structured_data: dict[str, Any] | None = None,
     description: str = "",
     bridge_uri: str = "",
     component_type: str = "",
@@ -1388,12 +1634,25 @@ def table_to_protocol_block(
     output_root: Path | None = None,
 ) -> dict[str, Any]:
     rows = _read_table_rows(upload_file_name, upload_content)
-    gates = _extract_gates(rows)
+    structured_payload = structured_data if isinstance(structured_data, dict) else {}
+    try:
+        gates = _extract_gates(rows)
+    except HTTPException:
+        if not structured_payload:
+            raise
+        gates = []
     created_at = datetime.now(UTC).isoformat()
 
     inferred_description = description.strip() or (_to_text(rows[0].get("description")).strip() if rows else "")
     inferred_boq_item_id = boq_item_id.strip() or (_to_text(rows[0].get("boq_item_id")).strip() if rows else "")
     inferred_norm = norm_code.strip() or (_to_text(rows[0].get("norm_code")).strip() if rows else "")
+    maybe_bridge_table2 = _is_bridge_table2_context(
+        description=inferred_description,
+        protocol_uri=protocol_uri,
+        structured_data=structured_payload,
+    )
+    if maybe_bridge_table2 and not gates:
+        gates = _default_bridge_table2_gates()
 
     token = _slug(inferred_description or inferred_boq_item_id or Path(upload_file_name).stem or "qc-protocol")
     maybe_raft = ("raft" in token) or ("筏" in inferred_description)
@@ -1408,11 +1667,11 @@ def table_to_protocol_block(
         signed_pass_table_count=int(signed_pass_table_count or 0),
     )
     bridge_ref = bridge_uri.strip()
-    project_ref = ""
+    resolved_project_ref = project_ref.strip()
     if "/bridge/" in bridge_ref:
-        project_ref = bridge_ref.split("/bridge/", 1)[0].rstrip("/")
-    if not project_ref and rows:
-        project_ref = _to_text(rows[0].get("project_ref")).strip()
+        resolved_project_ref = resolved_project_ref or bridge_ref.split("/bridge/", 1)[0].rstrip("/")
+    if not resolved_project_ref and rows:
+        resolved_project_ref = _to_text(rows[0].get("project_ref")).strip()
     doc_id = f"NINST-{_hash16({'uri': resolved_uri, 'boq_item_id': inferred_boq_item_id, 'ts': created_at}).upper()}"
     lifecycle_stage = "draft"
     expected_tables = int(state_matrix.get("expected_qc_table_count") or 0)
@@ -1432,9 +1691,12 @@ def table_to_protocol_block(
             "boq_item_id": inferred_boq_item_id,
             "description": inferred_description,
             "doc_id": doc_id,
-            "project_ref": project_ref,
+            "project_ref": resolved_project_ref,
             "bridge_uri": bridge_uri.strip(),
             "component_type": component_type.strip(),
+            "component_id": component_id.strip(),
+            "drawing_ref": drawing_ref.strip(),
+            "structured_data_available": bool(structured_payload),
             "ref_spu_uri": NORMREF_RAFT_SPU_URI if maybe_raft else "",
             "domain": "construction/highway",
         },
@@ -1493,7 +1755,7 @@ def table_to_protocol_block(
             "signed": int(state_matrix.get("signed") or 0),
             "pending": int(state_matrix.get("pending") or 0),
         },
-        project_ref=project_ref,
+        project_ref=resolved_project_ref,
         doc_id=doc_id,
         created_at=created_at,
         lifecycle_stage=lifecycle_stage,
@@ -1552,15 +1814,38 @@ def table_to_protocol_block(
         norm_uri=NORMREF_SCHEMA_QC_V1_URI,
     )
 
+    layerpeg_document: dict[str, Any] | None = None
+    boq_association: dict[str, Any] = {
+        "boq_item_ref": inferred_boq_item_id,
+        "linked": bool(inferred_boq_item_id),
+        "drawing_ref": drawing_ref.strip(),
+    }
+    if maybe_bridge_table2 and structured_payload:
+        layerpeg_document, boq_association = _build_layerpeg_from_structured_data(
+            structured_data=structured_payload,
+            project_ref=resolved_project_ref,
+            component_id=component_id.strip() or _to_text(_pick_structured_value(structured_payload, ["component_id", "构件编号", "桩位编号"])).strip(),
+            boq_item_ref=inferred_boq_item_id,
+            drawing_ref=drawing_ref.strip(),
+            owner_uri=owner_uri,
+            normref_version="v://normref.com/std/JTG-F80-1-2017@v2026-04",
+            created_at=created_at,
+        )
+        boq_association["layerpeg_ready"] = True
+
     return {
         "ok": True,
         "protocol": protocol,
+        "layerpeg_document": layerpeg_document,
+        "boq_association": boq_association,
         "summary": {
             "gate_count": len(gates),
             "source_row_count": len(rows),
             "protocol_uri": resolved_uri,
             "expected_qc_table_count": state_matrix.get("expected_qc_table_count", 0),
             "pending_qc_table_count": state_matrix.get("pending_qc_table_count", 0),
+            "layerpeg_ready": bool(layerpeg_document),
+            "bridge_table2_mode": bool(maybe_bridge_table2),
         },
         "specir_upserts": specir_upserts,
         "gitpeg_registrations": gitpeg_registrations,

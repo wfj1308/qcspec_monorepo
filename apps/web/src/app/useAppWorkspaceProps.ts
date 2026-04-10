@@ -8,7 +8,6 @@ type UseAppWorkspacePropsArgs = {
   activeTab: WorkspaceContentProps['activeTab']
   proofWorkspace: WorkspaceContentProps['proofWorkspace']
   projectsWorkspace: WorkspaceContentProps['projectsWorkspace']
-  registerWorkspace: WorkspaceContentProps['registerWorkspace']
   teamWorkspace: WorkspaceContentProps['teamWorkspace']
   settingsWorkspace: WorkspaceContentProps['settingsWorkspace']
 }
@@ -31,14 +30,6 @@ function buildProjectsWorkspace(
   return {
     projectsPanelProps: projectsWorkspace.projectsPanelProps,
     projectDetailDrawerProps: projectsWorkspace.projectDetailDrawerProps,
-  }
-}
-
-function buildRegisterWorkspace(
-  registerWorkspace: UseAppWorkspacePropsArgs['registerWorkspace'],
-): WorkspaceContentProps['registerWorkspace'] {
-  return {
-    registerWorkspaceProps: registerWorkspace.registerWorkspaceProps,
   }
 }
 
@@ -65,7 +56,6 @@ export function useAppWorkspaceProps(args: UseAppWorkspacePropsArgs): WorkspaceC
     activeTab: args.activeTab,
     proofWorkspace: buildProofWorkspace(args.proofWorkspace),
     projectsWorkspace: buildProjectsWorkspace(args.projectsWorkspace),
-    registerWorkspace: buildRegisterWorkspace(args.registerWorkspace),
     teamWorkspace: buildTeamWorkspace(args.teamWorkspace),
     settingsWorkspace: buildSettingsWorkspace(args.settingsWorkspace),
   }

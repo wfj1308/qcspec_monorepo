@@ -1,13 +1,11 @@
 ﻿import React, { useEffect, useState } from 'react'
 import { useUIStore, useProjectStore, useAuthStore } from './store'
 import { Toast } from './components/ui'
-import { useAuthApi, useProof, useTeam, useSettings, useProjects, useAutoreg, useErpnext } from './hooks/api'
+import { useAuthApi, useProof, useTeam, useSettings, useProjects, useAutoreg } from './hooks/api'
 import AppShellLayout from './components/layout/AppShellLayout'
 import AuthEntry from './components/auth/AuthEntry'
 import AppWorkspaceContent from './app/AppWorkspaceContent'
 import { useSettingsController } from './app/useSettingsController'
-import { useRegisterController } from './app/useRegisterController'
-import { useRegisterFlowController } from './app/useRegisterFlowController'
 import { useProjectDetailController } from './app/useProjectDetailController'
 import { doLoginFlow, doLogoutFlow, doRegisterEnterpriseFlow } from './app/authFlows'
 import { doDemoLoginFlow, fillQuickLoginFlow, getQuickLoginOptions } from './app/demoLoginFlows'
@@ -22,7 +20,6 @@ import { useAppWorkspaceProps } from './app/useAppWorkspaceProps'
 import {
   buildProofWorkspace,
   buildProjectsWorkspace,
-  buildRegisterWorkspace,
   buildTeamWorkspace,
   buildSettingsWorkspace,
 } from './app/workspaceBuilders'
@@ -51,19 +48,20 @@ import {
   INSPECTION_TYPE_OPTIONS,
   INSPECTION_TYPE_LABEL,
   INSPECTION_TYPE_KEYS,
+  getAllowedNavKeysByRole,
   normalizeKmInterval,
   normalizeTeamRole,
+  resolveAllowedTab,
   ACTIVITY_ITEMS,
   QUICK_USERS,
 } from './app/appShellShared'
 
 export default function App() {
   const { activeTab, setActiveTab, toastMsg, sidebarOpen, setSidebarOpen, showToast } = useUIStore()
-  const { projects, setProjects, currentProject, setCurrentProject, addProject } = useProjectStore()
+  const { projects, setProjects, currentProject, setCurrentProject } = useProjectStore()
   const { setUser, logout, enterprise, user, token } = useAuthStore()
   const {
     list: listProjectsApi,
-    create: createProjectApi,
     getById: getProjectByIdApi,
     update: updateProjectApi,
     remove: removeProjectApi,
@@ -75,7 +73,6 @@ export default function App() {
     registerProjectAlias: registerAutoregProjectAliasApi,
     listProjects: listAutoregProjectsApi,
   } = useAutoreg()
-  const { getProjectBasics: getErpProjectBasicsApi } = useErpnext()
   const {
     login: loginApi,
     me: meApi,
@@ -124,6 +121,7 @@ export default function App() {
   const proj = currentProject || DEMO_PROJECTS[0]
 
   const [projectMeta, setProjectMeta] = useState<Record<string, ProjectRegisterMeta>>({})
+  const [, setRegisterSuccess] = useState<{ id: string; name: string; uri: string } | null>(null)
   const {
     listProofs,
     verify: verifyProof,
@@ -202,77 +200,43 @@ export default function App() {
     setEnterpriseInfo,
   } = settingsController
 
-  const registerController = useRegisterController({
-    projects,
-    projectMeta,
-    settings,
-    showToast,
-  })
-  const {
-    regForm,
-    setRegForm,
-    setErpBindingLoading,
-    erpBinding,
-    setErpBinding,
-    regUri,
-    setVpathStatus,
-    zeroPersonnel,
-    zeroEquipment,
-    zeroSubcontracts,
-    zeroMaterials,
-    buildExecutorUri,
-    buildToolUri,
-    buildSubcontractUri,
-    getEquipmentValidity,
-    segType,
-    regKmInterval,
-    regInspectionTypes,
-    contractSegs,
-    structures,
-    registerSuccess,
-    setRegisterSuccess,
-    resetRegister,
-  } = registerController
-  const registerFlowController = useRegisterFlowController({
-    settings,
-    canUseEnterpriseApi,
-    enterpriseId: enterprise?.id || undefined,
-    currentProject: proj,
-    projects,
-    addProject,
-    setProjects,
-    setCurrentProject,
-    setActiveTab,
-    setProjectMeta,
-    getErpProjectBasicsApi,
-    createProjectApi,
-    listProjectsApi,
-    showToast,
-    regForm,
-    setRegForm,
-    setErpBindingLoading,
-    erpBinding,
-    setErpBinding,
-    regUri,
-    setVpathStatus,
-    zeroPersonnel,
-    zeroEquipment,
-    zeroSubcontracts,
-    zeroMaterials,
-    buildExecutorUri,
-    buildToolUri,
-    buildSubcontractUri,
-    getEquipmentValidity,
-    segType,
-    regKmInterval,
-    regInspectionTypes,
-    contractSegs,
-    structures,
-    memberCount: members.length,
-    registerSuccess,
-    setRegisterSuccess,
-    resetRegister,
-  })
+  const normalizeNodeSegment = (value: string, fallback = 'pending') =>
+    String(value || '').trim().replace(/[\\/]/g, '-').replace(/\s+/g, '') || fallback
+  const normalizeCodeSegment = (value: string) =>
+    String(value || '').trim().replace(/[^\w\u4e00-\u9fa5-]/g, '').replace(/\s+/g, '')
+  const buildExecutorUri = (name: string) => `v://cn.zhongbei/executor/${normalizeNodeSegment(name)}/`
+  const buildToolNodeName = (name: string, modelNo: string) => {
+    const safeName = normalizeNodeSegment(name, 'tool')
+    const safeModel = normalizeCodeSegment(modelNo)
+    return safeModel ? `${safeName}-${safeModel}` : safeName
+  }
+  const buildToolUri = (name: string, modelNo: string) => `v://cn.zhongbei/tools/${buildToolNodeName(name, modelNo)}/`
+  const buildSubcontractUri = (unitName: string) => `v://cn.zhongbei/subcontract/${normalizeNodeSegment(unitName, 'unit')}/`
+  const getEquipmentValidity = (validUntil: string) => {
+    if (!validUntil) return { label: '待填', color: '#64748B', bg: '#F1F5F9', ok: false }
+    const now = new Date()
+    const target = new Date(`${validUntil}T23:59:59`)
+    const days = Math.floor((target.getTime() - now.getTime()) / 86400000)
+    if (days < 0) return { label: '已过期', color: '#DC2626', bg: '#FEE2E2', ok: false }
+    if (days < 90) return { label: `${days}天内到期`, color: '#D97706', bg: '#FEF3C7', ok: false }
+    return { label: '有效', color: '#059669', bg: '#ECFDF5', ok: true }
+  }
+  const toggleInspectionType = (
+    key: InspectionTypeKey,
+    current: InspectionTypeKey[],
+    setter: (next: InspectionTypeKey[]) => void
+  ) => {
+    const exists = current.includes(key)
+    if (exists) {
+      if (current.length === 1) {
+        showToast('至少保留一个检测类型')
+        return
+      }
+      setter(current.filter((item) => item !== key))
+      return
+    }
+    setter([...current, key])
+  }
 
   const projectDetailController = useProjectDetailController({
     projects,
@@ -343,18 +307,15 @@ export default function App() {
   })
   const permissionTreeRoot = enterprise?.v_uri || proj.v_uri || 'v://cn.zhongbei/'
 
-  const currentDtoRole = String(user?.dto_role || 'PUBLIC').toUpperCase()
-  const globalAllowedNavKeys = currentDtoRole === 'AI'
-    ? ['dashboard', 'inspection', 'photos', 'proof', 'projects', 'logpeg']
-    : currentDtoRole === 'SUPERVISOR'
-      ? ['dashboard', 'inspection', 'photos', 'normref', 'proof', 'reports', 'projects', 'register', 'executor-register', 'executors', 'logpeg']
-      : currentDtoRole === 'OWNER'
-        ? ['dashboard', 'inspection', 'photos', 'normref', 'proof', 'reports', 'projects', 'register', 'executor-register', 'executors', 'team', 'permissions', 'settings', 'logpeg']
-        : ['dashboard', 'proof', 'reports', 'projects', 'logpeg']
+  const globalAllowedNavKeys = getAllowedNavKeysByRole(user?.dto_role)
   const roleAwareNavItems = NAV.filter((item) => globalAllowedNavKeys.includes(item.key))
   const roleAwareNavSections = NAV_SECTIONS
     .map((section) => ({ ...section, keys: section.keys.filter((key) => globalAllowedNavKeys.includes(key)) }))
     .filter((section) => section.keys.length > 0)
+  const defaultTab = roleAwareNavItems[0]?.key || 'dashboard'
+  const navigateToAllowedTab = (nextTab: string) => {
+    setActiveTab(resolveAllowedTab(nextTab, globalAllowedNavKeys, defaultTab))
+  }
 
   useEffect(() => {
     const match = (window.location.pathname || '').match(/^\/project\/([^/]+)\/(contractor|supervisor|auditor)\/workbench\/?$/)
@@ -367,9 +328,9 @@ export default function App() {
   }, [projectDetailController, projects])
 
   useEffect(() => {
-    if (roleAwareNavItems.some((item) => item.key === activeTab)) return
-    if (roleAwareNavItems[0]?.key) setActiveTab(roleAwareNavItems[0].key)
-  }, [activeTab, roleAwareNavItems, setActiveTab])
+    const nextTab = resolveAllowedTab(activeTab, globalAllowedNavKeys, defaultTab)
+    if (nextTab !== activeTab) setActiveTab(nextTab)
+  }, [activeTab, defaultTab, globalAllowedNavKeys, setActiveTab])
 
   useGitpegCallbackSync({
     gitpegCallbackHandled,
@@ -470,18 +431,9 @@ export default function App() {
   }
 
   const quickLoginOptions = getQuickLoginOptions()
-  const canQuickRegister = globalAllowedNavKeys.includes('register')
   const canQuickInspection = globalAllowedNavKeys.includes('inspection')
   const canQuickProof = globalAllowedNavKeys.includes('proof')
   const canQuickReports = globalAllowedNavKeys.includes('reports')
-
-  const openRegisterWorkspace = () => {
-    if (!canQuickRegister) {
-      showToast('当前角色无项目注册权限')
-      return
-    }
-    setActiveTab('register')
-  }
 
   const openInspectionWorkspace = (targetProject?: typeof projects[number]) => {
     if (!canQuickInspection) {
@@ -490,12 +442,12 @@ export default function App() {
     }
     const selected = targetProject || currentProject || projects[0]
     if (!selected) {
-      showToast('请先注册项目')
-      setActiveTab(canQuickRegister ? 'register' : 'projects')
+      showToast('请先在上游系统完成项目创建并同步到 QCSpec')
+      navigateToAllowedTab('projects')
       return
     }
     setCurrentProject(selected)
-    setActiveTab('inspection')
+    navigateToAllowedTab('inspection')
   }
 
   const openProofWorkspace = (targetProject?: typeof projects[number]) => {
@@ -505,12 +457,12 @@ export default function App() {
     }
     const selected = targetProject || currentProject || projects[0]
     if (!selected) {
-      showToast('请先注册项目')
-      setActiveTab(canQuickRegister ? 'register' : 'projects')
+      showToast('请先在上游系统完成项目创建并同步到 QCSpec')
+      navigateToAllowedTab('projects')
       return
     }
     setCurrentProject(selected)
-    setActiveTab('proof')
+    navigateToAllowedTab('proof')
   }
 
   const workspaceContentProps = useAppWorkspaceProps({
@@ -520,7 +472,7 @@ export default function App() {
       paymentId: String(proofDashboard.paymentResult?.payment_id || ''),
       proofDashboard,
       onGoInspection: () => openInspectionWorkspace(),
-      onGoReports: canQuickReports ? () => setActiveTab('reports') : undefined,
+      onGoReports: canQuickReports ? () => navigateToAllowedTab('reports') : undefined,
     }),
     projectsWorkspace: buildProjectsWorkspace({
       canUseEnterpriseApi,
@@ -535,25 +487,11 @@ export default function App() {
       typeLabel: TYPE_LABEL,
       sidebarOpen,
       normalizeKmInterval,
-      toggleInspectionType: registerController.toggleInspectionType,
-      onCreateProject: openRegisterWorkspace,
+      toggleInspectionType,
       onGoInspection: () => openInspectionWorkspace(),
       onGoProof: () => openProofWorkspace(),
       onEnterInspection: (project) => openInspectionWorkspace(project),
       onEnterProof: (project) => openProofWorkspace(project),
-    }),
-    registerWorkspace: buildRegisterWorkspace({
-      projects,
-      settings,
-      registerController,
-      registerFlowController,
-      onGoProjects: () => setActiveTab('projects'),
-      onOpenProjectDetail: projectDetailController.openProjectDetail,
-      projectTypeOptions: PROJECT_TYPE_OPTIONS,
-      typeIcon: TYPE_ICON,
-      typeLabel: TYPE_LABEL,
-      inspectionTypeOptions: INSPECTION_TYPE_OPTIONS,
-      inspectionTypeLabel: INSPECTION_TYPE_LABEL,
     }),
     teamWorkspace: buildTeamWorkspace({
       projects,
@@ -599,15 +537,13 @@ export default function App() {
         currentUserName={user?.name || DEMO_USER.name}
         currentUserTitle={user?.title || '超级管理员'}
         onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
-        onNavigate={setActiveTab}
+        onNavigate={navigateToAllowedTab}
         onSelectProject={(projectId) => {
           const selected = projects.find((p) => p.id === projectId)
           if (selected) setCurrentProject(selected)
         }}
-        canQuickRegister={canQuickRegister}
         canQuickInspection={canQuickInspection}
         canQuickProof={canQuickProof}
-        onQuickRegister={openRegisterWorkspace}
         onQuickInspection={() => openInspectionWorkspace()}
         onQuickProof={() => openProofWorkspace()}
         onLogout={doLogout}

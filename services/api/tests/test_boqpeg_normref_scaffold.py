@@ -120,3 +120,53 @@ def test_table_to_protocol_block_parses_gates_and_thresholds(tmp_path: Path) -> 
     json_path = Path(out["files"]["json_path"])
     assert md_path.exists()
     assert json_path.exists()
+
+
+def test_table_to_protocol_block_bridge_table2_outputs_layerpeg_document() -> None:
+    csv_bytes = "列,值\n示例,1\n".encode("utf-8")
+    structured_data = {
+        "表单编码": "桥施2表",
+        "桩位编号": "PILE-K12-340-001",
+        "护筒类型": "钢护筒",
+        "直径": 800,
+        "埋深": 8.6,
+        "设计埋深": 8.7,
+        "偏差": 12,
+        "垂直度是否合格": True,
+        "检查日期": "2026-04-10",
+    }
+
+    out = table_to_protocol_block(
+        sb=None,
+        upload_file_name="bridge2.csv",
+        upload_content=csv_bytes,
+        protocol_uri="v://normref.com/qc/bridge-table2@v1",
+        norm_code="JTG-F80-1-2017",
+        boq_item_id="BOQ-404-2-1",
+        project_ref="v://cn.zhongbei/YADGS",
+        component_id="PILE-K12-340-001",
+        drawing_ref="drawing-pier-p3.dwg",
+        structured_data=structured_data,
+        description="桥施2表 护筒埋设与桩位检查",
+        owner_uri="did:ir8:org:zhongbei",
+        commit=False,
+        write_files=False,
+    )
+
+    assert out["ok"] is True
+    assert out["summary"]["bridge_table2_mode"] is True
+    assert out["summary"]["layerpeg_ready"] is True
+    assert out["summary"]["gate_count"] == 3
+
+    layerpeg = out["layerpeg_document"]
+    assert isinstance(layerpeg, dict)
+    assert layerpeg["header"]["boq_item_ref"] == "BOQ-404-2-1"
+    assert layerpeg["header"]["drawing_ref"] == "drawing-pier-p3.dwg"
+    assert layerpeg["header"]["component_id"] == "PILE-K12-340-001"
+    assert layerpeg["state"]["lifecycle_stage"] in {"inspection_passed", "inspection_failed"}
+    assert isinstance(layerpeg["gate"]["validation_results"], list)
+    assert len(layerpeg["gate"]["validation_results"]) == 3
+
+    boq_association = out["boq_association"]
+    assert boq_association["boq_item_ref"] == "BOQ-404-2-1"
+    assert boq_association["linked"] is True

@@ -9,7 +9,12 @@ import type { InspectResult } from '@qcspec/types'
 import { Button, Input, Select, Card, VPathDisplay } from '../ui'
 import { useErpnext } from '../../hooks/api/erpnext'
 import { useInspections } from '../../hooks/api/inspections'
+import { useQCSpecDocPegApi } from '../../hooks/api'
 import { useInspectionStore, useUIStore, useProjectStore, usePhotoStore } from '../../store'
+import {
+  readDocpegInspectionContext,
+  saveDocpegInspectionContext,
+} from './docpegContext'
 
 const TYPE_OPTIONS = [
   { value: '', label: '请选择检测类型' },
@@ -72,8 +77,57 @@ const parseLimitValue = (raw: string): number | null => {
   return Math.abs(val)
 }
 
+const asRecord = (value: unknown): Record<string, unknown> =>
+  (value && typeof value === 'object' && !Array.isArray(value)) ? (value as Record<string, unknown>) : {}
+
+const pickStringDeep = (value: unknown, keys: string[]): string => {
+  const row = asRecord(value)
+  for (const key of keys) {
+    const val = row[key]
+    if (typeof val === 'string' && val.trim()) return val.trim()
+  }
+  for (const nested of ['data', 'result', 'payload']) {
+    const found = pickStringDeep(row[nested], keys)
+    if (found) return found
+  }
+  return ''
+}
+
+const pickBooleanDeep = (value: unknown, keys: string[]): boolean | null => {
+  const row = asRecord(value)
+  for (const key of keys) {
+    const val = row[key]
+    if (typeof val === 'boolean') return val
+  }
+  for (const nested of ['data', 'result', 'payload']) {
+    const found = pickBooleanDeep(row[nested], keys)
+    if (found !== null) return found
+  }
+  return null
+}
+
+const slugify = (input: string): string =>
+  String(input || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+
 export default function InspectionForm({ projectId, enterpriseId, onSuccess }: Props) {
   const { submit, loading } = useInspections()
+  const {
+    getProcessChainStatus,
+    getProcessChainSummary,
+    getProcessChainRecommend,
+    getBindingByEntity,
+    previewTrip,
+    submitTrip,
+    listTripRoleTrips,
+    checkDtoPermission,
+    createLayerpegAnchor,
+    loading: docpegLoading,
+    error: docpegError,
+  } = useQCSpecDocPegApi()
   const { gateCheck } = useErpnext()
   const { addInspection, setInspectionPhotoLinks } = useInspectionStore()
   const { showToast, setActiveTab } = useUIStore()
@@ -96,11 +150,60 @@ export default function InspectionForm({ projectId, enterpriseId, onSuccess }: P
   const [rebarValues, setRebarValues] = useState('')
   const rebarValuesRef = useRef<HTMLTextAreaElement | null>(null)
   const [judgeHint, setJudgeHint] = useState<{ text: string; color: string } | null>(null)
+  const [docpegEnabled, setDocpegEnabled] = useState(true)
+  const [docpegProjectId, setDocpegProjectId] = useState(projectId)
+  const [docpegChainId, setDocpegChainId] = useState('')
+  const [docpegComponentUri, setDocpegComponentUri] = useState('')
+  const [docpegPileId, setDocpegPileId] = useState('')
+  const [docpegAction, setDocpegAction] = useState('qcspec_inspection_submit')
+  const [docpegFormCode, setDocpegFormCode] = useState('桥施2表')
+  const [docpegSyncStatus, setDocpegSyncStatus] = useState('')
+  const [docpegLastTripProof, setDocpegLastTripProof] = useState('')
+  const docpegHydratedRef = useRef(false)
 
   // 选类型时自动填标准值和自动判定
   const typeConfig = type ? INSPECTION_TYPES[type] : null
   const isRebarType = type === 'rebar_spacing'
   const linkedPhotos = photos.filter((p) => pendingLinkPhotoIds.includes(p.id))
+
+  useEffect(() => {
+    docpegHydratedRef.current = false
+    const saved = readDocpegInspectionContext(projectId)
+    setDocpegEnabled(saved.docpegEnabled)
+    setDocpegProjectId(saved.docpegProjectId || projectId)
+    setDocpegChainId(saved.docpegChainId)
+    setDocpegComponentUri(saved.docpegComponentUri)
+    setDocpegPileId(saved.docpegPileId)
+    setDocpegAction(saved.docpegAction || 'qcspec_inspection_submit')
+    setDocpegFormCode(saved.docpegFormCode || '桥施2表')
+    docpegHydratedRef.current = true
+  }, [projectId])
+
+  useEffect(() => {
+    if (!docpegHydratedRef.current) return
+    saveDocpegInspectionContext(projectId, {
+      docpegEnabled,
+      docpegProjectId,
+      docpegChainId,
+      docpegComponentUri,
+      docpegPileId,
+      docpegAction,
+      docpegFormCode,
+    })
+  }, [docpegEnabled, docpegProjectId, docpegChainId, docpegComponentUri, docpegPileId, docpegAction, docpegFormCode, projectId])
+
+  useEffect(() => {
+    if (docpegPileId || !location.trim()) return
+    setDocpegPileId(location.trim())
+  }, [docpegPileId, location])
+
+  useEffect(() => {
+    if (docpegComponentUri || !location.trim() || !type.trim()) return
+    const locationSlug = slugify(location)
+    const typeSlug = slugify(type)
+    if (!locationSlug || !typeSlug) return
+    setDocpegComponentUri(`v://qcspec/component/${locationSlug}/${typeSlug}`)
+  }, [docpegComponentUri, location, type])
 
   const autoJudge = useCallback((val: string) => {
     if (!typeConfig || !val) return
@@ -159,6 +262,66 @@ export default function InspectionForm({ projectId, enterpriseId, onSuccess }: P
     setInspectedAt(toLocalDateTimeSeconds())
     if (key !== 'rebar_spacing') {
       autoJudge(value)
+    }
+  }
+
+  const buildDocpegTripPayload = (inspectionId?: string, proofId?: string) =>
+    ({
+      request_id: `qcspec-${Date.now()}`,
+      project_id: docpegProjectId.trim(),
+      chain_id: docpegChainId.trim(),
+      component_uri: docpegComponentUri.trim() || undefined,
+      pile_id: ((docpegPileId || location).trim()) || undefined,
+      inspection_location: (location.trim() || (docpegPileId || location).trim()) || undefined,
+      action: docpegAction.trim() || 'qcspec_inspection_submit',
+      payload: {
+        inspection_id: inspectionId || undefined,
+        inspection_proof_id: proofId || undefined,
+        inspection_type: type,
+        inspection_result: result,
+        inspection_value: value,
+      },
+    })
+
+  const resolveDocpegChainId = useCallback(async () => {
+    const existing = docpegChainId.trim()
+    if (existing) return existing
+    const pid = docpegProjectId.trim()
+    const entity = docpegComponentUri.trim()
+    if (!pid || !entity) return ''
+    const bindingRes = await getBindingByEntity(pid, entity)
+    const autoChainId = pickStringDeep(bindingRes, ['chain_id', 'chainId'])
+    if (autoChainId) {
+      setDocpegChainId(autoChainId)
+      setDocpegSyncStatus(`DocPeg chain auto-bound: ${autoChainId}`)
+    }
+    return autoChainId
+  }, [docpegChainId, docpegProjectId, docpegComponentUri, getBindingByEntity])
+
+  const queryDocpegStatus = async () => {
+    const projectIdReady = docpegProjectId.trim()
+    const componentUriReady = docpegComponentUri.trim()
+    const pileIdReady = (docpegPileId || location).trim()
+    if (!projectIdReady || (!componentUriReady && !pileIdReady)) {
+      showToast('⚠️ DocPeg 参数不完整：projectId 必填，component_uri / pile_id 至少填一个')
+      return
+    }
+    const chainIdReady = await resolveDocpegChainId()
+    if (!chainIdReady) {
+      showToast('⚠️ DocPeg chainId 为空且无法自动从 bindings 补全')
+      return
+    }
+    const statusRes = await getProcessChainStatus(projectIdReady, {
+      chain_id: chainIdReady,
+      component_uri: componentUriReady || undefined,
+      pile_id: pileIdReady || undefined,
+      inspection_location: location.trim() || undefined,
+      source_mode: componentUriReady ? 'component' : 'pile',
+    })
+    if (statusRes) {
+      const currentStep = pickStringDeep(statusRes, ['current_step', 'step_id', 'step'])
+      setDocpegSyncStatus(currentStep ? `DocPeg current step: ${currentStep}` : 'DocPeg status synced')
+      showToast('✅ 已读取 DocPeg 工序链状态')
     }
   }
 
@@ -262,7 +425,7 @@ export default function InspectionForm({ projectId, enterpriseId, onSuccess }: P
             setGateStatus(`门禁拦截：${gate.reason || 'unknown'}（匹配计量 ${count} 条）`)
             return
           } else if (gate.reason === 'missing_erp_project_code_binding') {
-            showToast('⛔ 当前项目未绑定 ERP 项目编码，请到项目注册/详情补齐 ERP 项目编码')
+            showToast('⛔ 当前项目未绑定 ERP 项目编码，请到项目详情补齐 ERP 项目编码')
             setGateStatus(`门禁拦截：${gate.reason || 'unknown'}（匹配计量 ${count} 条）`)
             return
           } else {
@@ -360,6 +523,94 @@ export default function InspectionForm({ projectId, enterpriseId, onSuccess }: P
         showToast('✅ 质检已保存，并已通知 ERPNext 拦截计量')
       } else {
         showToast('✅ 质检记录已保存')
+      }
+
+      if (docpegEnabled) {
+        const componentUriReady = docpegComponentUri.trim()
+        const pileIdReady = (docpegPileId || location).trim()
+        const missing: string[] = []
+        if (!docpegProjectId.trim()) missing.push('projectId')
+        if (!componentUriReady && !pileIdReady) missing.push('component_uri / pile_id')
+        if (missing.length) {
+          setDocpegSyncStatus(`DocPeg skipped: missing ${missing.join(', ')}`)
+          showToast(`⚠️ 质检已保存，DocPeg 联动跳过（缺少 ${missing.join(', ')}）`)
+        } else {
+          try {
+            setDocpegSyncStatus('DocPeg syncing: preview...')
+            const autoChainId = await resolveDocpegChainId()
+            const chainToUse = autoChainId || docpegChainId.trim()
+            if (!chainToUse) {
+              setDocpegSyncStatus('DocPeg skipped: chainId missing and auto-bind failed')
+              showToast('⚠️ 质检已保存，DocPeg 联动跳过（chainId 缺失）')
+              onSuccess?.()
+              return
+            }
+
+            const permissionRes = await checkDtoPermission({
+              permission: 'trip.execute',
+              project_id: docpegProjectId.trim(),
+            })
+            const allowed = pickBooleanDeep(permissionRes, ['allowed', 'granted', 'permit'])
+            if (allowed === false) {
+              setDocpegSyncStatus('DocPeg blocked: DTORole permission denied for trip.execute')
+              showToast('⚠️ DocPeg 判权不通过，已阻断工序提交')
+              onSuccess?.()
+              return
+            }
+
+            const tripPayload = {
+              ...buildDocpegTripPayload(res.inspection_id, res.proof_id),
+              chain_id: chainToUse,
+            }
+            const previewRes = await previewTrip(tripPayload)
+            if (!previewRes) {
+              setDocpegSyncStatus('DocPeg preview failed')
+            } else {
+              setDocpegSyncStatus('DocPeg syncing: submit...')
+              const submitRes = await submitTrip(tripPayload)
+              const tripProofId = pickStringDeep(submitRes, ['proof_id', 'proofId', 'trip_proof_id'])
+              if (tripProofId) setDocpegLastTripProof(tripProofId)
+
+              await getProcessChainSummary(docpegProjectId.trim(), chainToUse, {
+                component_uri: componentUriReady || undefined,
+                pile_id: pileIdReady || undefined,
+              })
+
+              await listTripRoleTrips(docpegProjectId.trim(), {
+                chain_id: chainToUse,
+                component_uri: componentUriReady || undefined,
+                pile_id: pileIdReady || undefined,
+              })
+
+              const recommendRes = await getProcessChainRecommend(docpegProjectId.trim(), {
+                chain_id: chainToUse,
+                component_uri: componentUriReady || undefined,
+                pile_id: pileIdReady || undefined,
+              })
+              const nextAction = pickStringDeep(recommendRes, ['next_action', 'action', 'label'])
+
+              const anchorHash = String(tripProofId || res.proof_id || '').trim()
+              if (anchorHash && componentUriReady) {
+                await createLayerpegAnchor({
+                  project_id: docpegProjectId.trim(),
+                  entity_uri: componentUriReady,
+                  hash: anchorHash,
+                })
+              }
+
+              setDocpegSyncStatus(
+                nextAction
+                  ? `DocPeg synced (permission + trip + anchor). Next action: ${nextAction}`
+                  : 'DocPeg synced: trip preview + submit completed'
+              )
+              showToast('✅ 已同步 DocPeg 工序链')
+            }
+          } catch (e) {
+            const msg = e instanceof Error ? e.message : 'unknown error'
+            setDocpegSyncStatus(`DocPeg sync error: ${msg}`)
+            showToast(`⚠️ 质检已保存，DocPeg 联动失败：${msg}`)
+          }
+        }
       }
       onSuccess?.()
     }
@@ -567,6 +818,69 @@ export default function InspectionForm({ projectId, enterpriseId, onSuccess }: P
       </div>
 
       {/* 提交 */}
+      <div
+        style={{
+          marginBottom: 12,
+          padding: 10,
+          borderRadius: 8,
+          border: '1px solid #DBEAFE',
+          background: '#F8FBFF',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 8 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: '#1E40AF' }}>
+            DocPeg 工序链联动（落业务流程）
+          </div>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => setActiveTab('process')}
+          >
+            去工序页配置
+          </Button>
+        </div>
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: '1fr 1fr',
+            gap: 8,
+            padding: 10,
+            borderRadius: 8,
+            border: '1px solid #DBEAFE',
+            background: '#EFF6FF',
+            marginBottom: 8,
+            fontSize: 12,
+            color: '#1E3A8A',
+          }}
+        >
+          <div>projectId: <strong>{docpegProjectId || '-'}</strong></div>
+          <div>chainId: <strong>{docpegChainId || '自动绑定'}</strong></div>
+          <div style={{ gridColumn: '1 / -1' }}>component_uri: <strong>{docpegComponentUri || '-'}</strong></div>
+          <div>pile_id: <strong>{docpegPileId || location || '-'}</strong></div>
+          <div>formCode: <strong>{docpegFormCode || '-'}</strong></div>
+          <div>action: <strong>{docpegAction || 'qcspec_inspection_submit'}</strong></div>
+          <div style={{ gridColumn: '1 / -1', color: '#334155' }}>
+            上下文参数在“工序上下文（项目/构件）”面板配置，质检页仅执行录入与提交流程。
+          </div>
+          <div style={{ display: 'flex', alignItems: 'end' }}>
+            <Button
+              onClick={() => { void queryDocpegStatus() }}
+              disabled={docpegLoading}
+              icon="🔄"
+            >
+              {docpegLoading ? '查询中...' : '查询链状态'}
+            </Button>
+          </div>
+        </div>
+        {(docpegSyncStatus || docpegError || docpegLastTripProof) && (
+          <div style={{ marginTop: 8, fontSize: 12, color: '#0F766E', lineHeight: 1.6 }}>
+            {docpegSyncStatus && <div>状态：{docpegSyncStatus}</div>}
+            {docpegLastTripProof && <div>Trip Proof：{docpegLastTripProof}</div>}
+            {docpegError && <div style={{ color: '#DC2626' }}>错误：{docpegError}</div>}
+          </div>
+        )}
+      </div>
+
       <div style={{ marginBottom: 14 }}>
         <div style={{ fontSize: 12, fontWeight: 700, color: '#6B7280', marginBottom: 5, letterSpacing: '0.5px', textTransform: 'uppercase' }}>
           关联照片

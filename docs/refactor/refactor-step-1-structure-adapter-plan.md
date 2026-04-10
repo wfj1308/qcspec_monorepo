@@ -1,4 +1,4 @@
-# Step 1 - 结构重构（不改行为）与适配层方案
+﻿# Step 1 - 结构重构（不改行为）与适配层方案
 
 ## 1. 目标
 
@@ -49,7 +49,7 @@
 
 1. 所有新调用优先走新路径。
 2. 旧路径打 `TODO(stepX-remove)` 注释，标明淘汰时间点。
-3. 新增 `docs/refactor-progress-dashboard.md` 的迁移打点，记录每个模块状态。
+3. 新增 `docs/refactor/refactor-progress-dashboard.md` 的迁移打点，记录每个模块状态。
 
 ### 4.3 边界守卫
 
@@ -96,4 +96,5 @@ pytest services/api/tests/test_core_no_domain_reverse_imports.py
 1. 新目录骨架与包初始化完成。
 2. 旧路径兼容层到位。
 3. 边界测试可执行并纳入 CI。
+
 

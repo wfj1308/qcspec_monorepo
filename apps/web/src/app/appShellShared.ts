@@ -58,31 +58,49 @@ export const DEMO_PROJECTS = [
 ]
 
 export const NAV = [
-  { key: 'dashboard', icon: '📊', label: '控制台' },
-  { key: 'inspection', icon: '📝', label: '质检录入' },
-  { key: 'photos', icon: '📷', label: '现场照片' },
-  { key: 'normref', icon: '📚', label: 'NormRef规则' },
-  { key: 'reports', icon: '📄', label: '报告生成' },
+  { key: 'dashboard', icon: '📊', label: '项目驾驶舱' },
+  { key: 'projects', icon: '🏗️', label: '项目与构件' },
+  { key: 'inspection', icon: '📝', label: '质量验收' },
+  { key: 'reports', icon: '📄', label: '计量与结算' },
+  { key: 'proof', icon: '🔒', label: '审计与追溯' },
+  { key: 'normref', icon: '📚', label: '规范标准' },
+  { key: 'photos', icon: '📷', label: '现场影像' },
   { key: 'logpeg', icon: '📘', label: '施工日志' },
-  { key: 'proof', icon: '🔒', label: 'Proof 链' },
-  { key: 'projects', icon: '🏗️', label: '项目管理' },
-  { key: 'register', icon: '➕', label: '注册新项目' },
-  { key: 'executor-register', icon: '🛠️', label: '执行体注册' },
-  { key: 'executors', icon: '🧩', label: '执行体管理' },
-  { key: 'team', icon: '👥', label: '团队成员' },
-  { key: 'permissions', icon: '🔐', label: '权限管理' },
+  { key: 'executors', icon: '🧩', label: '施工资源台账' },
+  { key: 'team', icon: '👥', label: '组织成员' },
+  { key: 'permissions', icon: '🔐', label: '角色权限' },
   { key: 'settings', icon: '⚙️', label: '系统设置' },
 ]
 
 export const NAV_SECTIONS: Array<{ label: string; keys: string[] }> = [
-  { label: '概览', keys: ['dashboard'] },
-  { label: '质检业务', keys: ['inspection', 'photos', 'normref', 'reports', 'logpeg', 'proof'] },
-  { label: '项目管理', keys: ['projects', 'register', 'executor-register', 'executors'] },
-  { label: '团队', keys: ['team', 'permissions'] },
-  { label: '系统', keys: ['settings'] },
+  { label: '业务主流程', keys: ['dashboard', 'projects', 'inspection', 'reports', 'proof'] },
+  { label: '现场数据', keys: ['photos', 'logpeg'] },
+  { label: '治理中心', keys: ['team', 'permissions', 'normref', 'settings', 'executors'] },
 ]
 
 export type TeamRole = 'OWNER' | 'SUPERVISOR' | 'AI' | 'PUBLIC'
+export const ROLE_NAV_KEYS: Record<TeamRole, string[]> = {
+  AI: ['dashboard', 'inspection', 'photos', 'proof', 'projects', 'logpeg'],
+  SUPERVISOR: ['dashboard', 'inspection', 'photos', 'normref', 'proof', 'reports', 'projects', 'logpeg'],
+  OWNER: ['dashboard', 'inspection', 'photos', 'normref', 'proof', 'reports', 'projects', 'executors', 'team', 'permissions', 'settings', 'logpeg'],
+  PUBLIC: ['dashboard', 'proof', 'reports', 'projects', 'logpeg'],
+}
+
+export const getAllowedNavKeysByRole = (role: unknown): string[] => {
+  const normalizedRole = normalizeTeamRole(role, 'PUBLIC')
+  return ROLE_NAV_KEYS[normalizedRole] || ROLE_NAV_KEYS.PUBLIC
+}
+
+export const resolveAllowedTab = (
+  tab: string,
+  allowedTabs: string[],
+  fallbackTab = 'dashboard'
+): string => {
+  if (allowedTabs.includes(tab)) return tab
+  if (allowedTabs.includes(fallbackTab)) return fallbackTab
+  return allowedTabs[0] || fallbackTab
+}
+
 export type SegType = 'km' | 'contract' | 'structure'
 export type PermTemplate = 'standard' | 'strict' | 'open' | 'custom'
 export type InspectionTypeKey = 'flatness' | 'crack' | 'rut' | 'compaction' | 'settlement'

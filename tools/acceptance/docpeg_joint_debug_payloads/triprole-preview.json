@@ -1,0 +1,10 @@
+{
+  "project_id": "__TODO_PROJECT_ID__",
+  "component_uri": "__TODO_COMPONENT_URI__",
+  "pile_id": "__TODO_PILE_ID__",
+  "inspection_location": "__TODO_INSPECTION_LOCATION__",
+  "action": "__TODO_ACTION__",
+  "payload": {
+    "mode": "preview"
+  }
+}

@@ -40,3 +40,4 @@ docs/normref/rule/imported/
 docs/normref/std/*.json
 docs/normref/rule/**/*.json
 docs/normref/std/**
+tmp/

@@ -2,6 +2,7 @@
 import { useProjectStore, useInspectionStore, usePhotoStore, useAuthStore, useUIStore } from '../store'
 import { useProjects } from '../hooks/api/projects'
 import { useInspections } from '../hooks/api/inspections'
+import { getAllowedNavKeysByRole } from '../app/appShellShared'
 
 interface ActivityItem {
   dot: string
@@ -19,7 +20,7 @@ const formatDateTime = (input?: string) => {
 
 const FALLBACK_ACTIVITY_ITEMS: ActivityItem[] = [
   { dot: '#059669', text: '王质检在京港高速大修录入了路面平整度记录', time: '10 分钟前' },
-  { dot: '#1A56DB', text: '张项目经理注册了新项目：沁河特大桥定检', time: '2 小时前' },
+  { dot: '#1A56DB', text: '项目中心同步了新项目：沁河特大桥定检', time: '2 小时前' },
   { dot: '#D97706', text: '系统生成了 3 月份质检汇总报告', time: '今天 09:00' },
   { dot: '#DC2626', text: 'K49+200 裂缝宽度超标，请尽快复检', time: '昨天 14:15' },
 ]
@@ -87,16 +88,9 @@ export default function Dashboard() {
   const totalProjects = projects.length
   const activeProjects = projects.filter((p) => p.status === 'active').length
   const totalPhotos = photos.length
-  const currentDtoRole = String(user?.dto_role || 'PUBLIC').toUpperCase()
-  const quickAllowedTabs = currentDtoRole === 'AI'
-    ? ['dashboard', 'inspection', 'photos', 'proof', 'projects']
-    : currentDtoRole === 'SUPERVISOR'
-      ? ['dashboard', 'inspection', 'photos', 'proof', 'reports', 'projects', 'register']
-      : currentDtoRole === 'OWNER'
-        ? ['dashboard', 'inspection', 'photos', 'proof', 'reports', 'projects', 'register', 'team', 'permissions', 'settings']
-        : ['dashboard', 'proof', 'reports', 'projects']
+  const quickAllowedTabs = getAllowedNavKeysByRole(user?.dto_role)
 
-  const canQuickRegister = quickAllowedTabs.includes('register')
+  const canQuickProjects = quickAllowedTabs.includes('projects')
   const canQuickInspection = quickAllowedTabs.includes('inspection')
   const canQuickReports = quickAllowedTabs.includes('reports')
   const canQuickProof = quickAllowedTabs.includes('proof')
@@ -108,17 +102,17 @@ export default function Dashboard() {
       setCurrentProject(selected)
       return true
     }
-    showToast('请先注册项目')
-    setActiveTab(canQuickRegister ? 'register' : 'projects')
+    showToast('请先在上游系统创建并同步项目')
+    setActiveTab('projects')
     return false
   }
 
-  const handleQuickRegister = () => {
-    if (!canQuickRegister) {
-      showToast('当前角色无项目注册权限')
+  const handleQuickProjects = () => {
+    if (!canQuickProjects) {
+      showToast('当前角色无项目访问权限')
       return
     }
-    setActiveTab('register')
+    setActiveTab('projects')
   }
 
   const handleQuickInspection = () => {
@@ -233,8 +227,8 @@ export default function Dashboard() {
           <div style={{ background: 'var(--white)', border: '1px solid var(--border)', borderRadius: 14, padding: 20, marginBottom: 14 }}>
             <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--dark)', marginBottom: 14 }}>快捷操作</div>
             <div className="quick-actions">
-              <button className="quick-btn" onClick={handleQuickRegister} disabled={!canQuickRegister} title={canQuickRegister ? '注册新项目' : '当前角色无项目注册权限'}>
-                <div className="quick-btn-icon">📑</div>注册新项目
+              <button className="quick-btn" onClick={handleQuickProjects} disabled={!canQuickProjects} title={canQuickProjects ? '进入项目工作台' : '当前角色无项目访问权限'}>
+                <div className="quick-btn-icon">🏗️</div>项目工作台
               </button>
               <button className="quick-btn" onClick={handleQuickInspection} disabled={!canQuickInspection} title={canQuickInspection ? '开始质检' : '当前角色无质检录入权限'}>
                 <div className="quick-btn-icon">📷</div>开始质检

@@ -2,23 +2,18 @@ import type { ProjectRegisterMeta } from './appShellShared'
 import type {
   ProofWorkspaceProps,
   ProjectsWorkspaceProps,
-  RegisterWorkspaceProps,
   TeamWorkspaceProps,
   SettingsWorkspaceProps,
 } from './AppWorkspaceContent'
 import type { useProofDashboardController } from './useProofDashboardController'
 import type { useProjectCatalogController } from './useProjectCatalogController'
 import type { useProjectDetailController } from './useProjectDetailController'
-import type { useRegisterController } from './useRegisterController'
-import type { useRegisterFlowController } from './useRegisterFlowController'
 import type { useTeamAccessController } from './useTeamAccessController'
 import type { useSettingsController } from './useSettingsController'
 
 type ProofDashboardController = ReturnType<typeof useProofDashboardController>
 type ProjectCatalogController = ReturnType<typeof useProjectCatalogController>
 type ProjectDetailController = ReturnType<typeof useProjectDetailController>
-type RegisterController = ReturnType<typeof useRegisterController>
-type RegisterFlowController = ReturnType<typeof useRegisterFlowController>
 type TeamAccessController = ReturnType<typeof useTeamAccessController>
 type SettingsController = ReturnType<typeof useSettingsController>
 type ProjectInspectionTarget = Parameters<ProjectsWorkspaceProps['projectsPanelProps']['onEnterInspection']>[0]
@@ -45,25 +40,10 @@ type BuildProjectsWorkspaceArgs = {
   sidebarOpen: boolean
   normalizeKmInterval: ProjectsWorkspaceProps['projectDetailDrawerProps']['normalizeKmInterval']
   toggleInspectionType: ProjectsWorkspaceProps['projectDetailDrawerProps']['toggleInspectionType']
-  onCreateProject: () => void
   onGoInspection: () => void
   onGoProof: () => void
   onEnterInspection: (project: ProjectInspectionTarget) => void
   onEnterProof: (project: ProjectInspectionTarget) => void
-}
-
-type BuildRegisterWorkspaceArgs = {
-  projects: RegisterWorkspaceProps['registerWorkspaceProps']['projects']
-  settings: RegisterWorkspaceProps['registerWorkspaceProps']['settings']
-  registerController: RegisterController
-  registerFlowController: RegisterFlowController
-  onGoProjects: RegisterWorkspaceProps['registerWorkspaceProps']['onGoProjects']
-  onOpenProjectDetail: RegisterWorkspaceProps['registerWorkspaceProps']['onOpenProjectDetail']
-  projectTypeOptions: RegisterWorkspaceProps['registerWorkspaceProps']['projectTypeOptions']
-  typeIcon: RegisterWorkspaceProps['registerWorkspaceProps']['typeIcon']
-  typeLabel: RegisterWorkspaceProps['registerWorkspaceProps']['typeLabel']
-  inspectionTypeOptions: RegisterWorkspaceProps['registerWorkspaceProps']['inspectionTypeOptions']
-  inspectionTypeLabel: RegisterWorkspaceProps['registerWorkspaceProps']['inspectionTypeLabel']
 }
 
 type BuildTeamWorkspaceArgs = {
@@ -160,7 +140,6 @@ export function buildProjectsWorkspace({
   sidebarOpen,
   normalizeKmInterval,
   toggleInspectionType,
-  onCreateProject,
   onGoInspection,
   onGoProof,
   onEnterInspection,
@@ -182,7 +161,6 @@ export function buildProjectsWorkspace({
       onSearchTextChange: projectCatalog.setSearchText,
       onStatusFilterChange: projectCatalog.setStatusFilter,
       onTypeFilterChange: projectCatalog.setTypeFilter,
-      onCreateProject,
       onGoInspection,
       onGoProof,
       onEnterInspection,
@@ -224,85 +202,6 @@ export function buildProjectsWorkspace({
       boqSovereignLoadingCode: proofDashboard.boqSovereignLoadingCode || undefined,
       onOpenBoqProofChain: proofDashboard.handleOpenBoqProofChain,
       onOpenBoqSovereignHistory: proofDashboard.handleOpenBoqSovereignHistory,
-    },
-  }
-}
-
-export function buildRegisterWorkspace({
-  projects,
-  settings,
-  registerController,
-  registerFlowController,
-  onGoProjects,
-  onOpenProjectDetail,
-  projectTypeOptions,
-  typeIcon,
-  typeLabel,
-  inspectionTypeOptions,
-  inspectionTypeLabel,
-}: BuildRegisterWorkspaceArgs): RegisterWorkspaceProps {
-  return {
-    registerWorkspaceProps: {
-      projects,
-      registerSegCount: registerController.registerSegCount,
-      registerRecordCount: registerController.registerRecordCount,
-      registerStep: registerController.registerStep,
-      setRegisterStep: registerController.setRegisterStep,
-      registerSuccess: registerController.registerSuccess,
-      registerPreviewProjects: registerController.registerPreviewProjects,
-      projectTypeOptions,
-      typeIcon,
-      typeLabel,
-      onStartInspectionFromSuccess: registerFlowController.startInspectionFromRegisterSuccess,
-      onGoProjects,
-      onResetRegister: registerFlowController.handleResetRegister,
-      onOpenProjectDetail,
-      onEnterInspection: registerFlowController.enterInspection,
-      regForm: registerController.regForm,
-      setRegForm: registerController.setRegForm,
-      settings,
-      setErpBinding: registerController.setErpBinding,
-      pullErpProjectBinding: registerFlowController.pullErpProjectBinding,
-      erpBindingLoading: registerController.erpBindingLoading,
-      erpBinding: registerController.erpBinding,
-      regUri: registerController.regUri,
-      vpathStatus: registerController.vpathStatus,
-      segType: registerController.segType,
-      setSegType: registerController.setSegType,
-      regKmInterval: registerController.regKmInterval,
-      setRegKmInterval: registerController.setRegKmInterval,
-      contractSegs: registerController.contractSegs,
-      setContractSegs: registerController.setContractSegs,
-      addContractSeg: registerController.addContractSeg,
-      structures: registerController.structures,
-      setStructures: registerController.setStructures,
-      addStructure: registerController.addStructure,
-      inspectionTypeOptions,
-      regInspectionTypes: registerController.regInspectionTypes,
-      setRegInspectionTypes: registerController.setRegInspectionTypes,
-      toggleInspectionType: registerController.toggleInspectionType,
-      regRangeTreeLines: registerController.regRangeTreeLines,
-      zeroLedgerTab: registerController.zeroLedgerTab,
-      setZeroLedgerTab: registerController.setZeroLedgerTab,
-      zeroPersonnel: registerController.zeroPersonnel,
-      setZeroPersonnel: registerController.setZeroPersonnel,
-      zeroEquipment: registerController.zeroEquipment,
-      setZeroEquipment: registerController.setZeroEquipment,
-      zeroSubcontracts: registerController.zeroSubcontracts,
-      setZeroSubcontracts: registerController.setZeroSubcontracts,
-      zeroMaterials: registerController.zeroMaterials,
-      setZeroMaterials: registerController.setZeroMaterials,
-      makeRowId: registerController.makeRowId,
-      buildExecutorUri: registerController.buildExecutorUri,
-      buildToolUri: registerController.buildToolUri,
-      buildSubcontractUri: registerController.buildSubcontractUri,
-      getEquipmentValidity: registerController.getEquipmentValidity,
-      zeroLedgerTreeRows: registerController.zeroLedgerTreeRows,
-      zeroLedgerSummary: registerController.zeroLedgerSummary,
-      prevRegStep: registerController.prevRegStep,
-      nextRegStep: registerController.nextRegStep,
-      submitRegister: registerFlowController.submitRegister,
-      inspectionTypeLabel,
     },
   }
 }

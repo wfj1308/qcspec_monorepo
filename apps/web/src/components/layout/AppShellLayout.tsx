@@ -28,10 +28,8 @@ interface AppShellLayoutProps {
   onToggleSidebar: () => void
   onNavigate: (tab: string) => void
   onSelectProject: (projectId: string) => void
-  canQuickRegister?: boolean
   canQuickInspection?: boolean
   canQuickProof?: boolean
-  onQuickRegister?: () => void
   onQuickInspection?: () => void
   onQuickProof?: () => void
   onLogout: () => void
@@ -50,16 +48,31 @@ export default function AppShellLayout({
   onToggleSidebar,
   onNavigate,
   onSelectProject,
-  canQuickRegister = true,
   canQuickInspection = true,
   canQuickProof = true,
-  onQuickRegister,
   onQuickInspection,
   onQuickProof,
   onLogout,
   children,
 }: AppShellLayoutProps) {
   const hasProjects = projects.length > 0
+  const quickAction = activeTab === 'inspection'
+      ? {
+        label: '📷 进入质检',
+        className: 'topbar-btn btn-blue',
+        onClick: onQuickInspection || (() => onNavigate('inspection')),
+        disabled: !canQuickInspection,
+        title: canQuickInspection ? '开始质检' : '当前角色无质检录入权限',
+      }
+      : activeTab === 'proof'
+        ? {
+          label: '🔒 打开 Proof',
+          className: 'topbar-btn btn-outline',
+          onClick: onQuickProof || (() => onNavigate('proof')),
+          disabled: !canQuickProof,
+          title: canQuickProof ? '进入 Proof 工作台' : '当前角色无 Proof 工作台权限',
+        }
+        : null
 
   return (
     <div className="app-shell visible">
@@ -159,33 +172,17 @@ export default function AppShellLayout({
               ))}
             </select>
 
-            <button
-              type="button"
-              className="topbar-btn btn-outline"
-              onClick={onQuickRegister || (() => onNavigate('register'))}
-              disabled={!canQuickRegister}
-              title={canQuickRegister ? '注册项目' : '当前角色无项目注册权限'}
-            >
-              ＋ 注册项目
-            </button>
-            <button
-              type="button"
-              className="topbar-btn btn-blue"
-              onClick={onQuickInspection || (() => onNavigate('inspection'))}
-              disabled={!canQuickInspection}
-              title={canQuickInspection ? '开始质检' : '当前角色无质检录入权限'}
-            >
-              📷 开始质检
-            </button>
-            <button
-              type="button"
-              className="topbar-btn btn-outline"
-              onClick={onQuickProof || (() => onNavigate('proof'))}
-              disabled={!canQuickProof}
-              title={canQuickProof ? '进入 Proof 工作台' : '当前角色无 Proof 工作台权限'}
-            >
-              🔒 Proof
-            </button>
+            {quickAction && (
+              <button
+                type="button"
+                className={quickAction.className}
+                onClick={quickAction.onClick}
+                disabled={quickAction.disabled}
+                title={quickAction.title}
+              >
+                {quickAction.label}
+              </button>
+            )}
             <button type="button" className="topbar-btn btn-logout" onClick={onLogout}>
               退出登录
             </button>
