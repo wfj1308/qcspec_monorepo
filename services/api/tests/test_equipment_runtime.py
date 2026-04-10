@@ -14,6 +14,8 @@ from services.api.domain.boqpeg.runtime.equipment import (
     submit_equipment_trip,
 )
 
+TEST_ENTERPRISE_ID = "11111111-1111-4111-8111-111111111111"
+
 
 @dataclass
 class _Op:
@@ -85,7 +87,7 @@ class _FakeSupabase:
             "projects": [
                 {
                     "id": "33333333-3333-4333-8333-333333333333",
-                    "enterprise_id": "11111111-1111-4111-8111-111111111111",
+                    "enterprise_id": TEST_ENTERPRISE_ID,
                     "v_uri": "v://cn.大锦/DJGS",
                     "name": "大锦高速",
                     "status": "active",
@@ -93,7 +95,7 @@ class _FakeSupabase:
             ],
             "enterprise_configs": [
                 {
-                    "enterprise_id": "11111111-1111-4111-8111-111111111111",
+                    "enterprise_id": TEST_ENTERPRISE_ID,
                     "custom_fields": {},
                 }
             ],
