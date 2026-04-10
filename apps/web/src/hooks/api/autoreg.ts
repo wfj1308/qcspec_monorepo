@@ -40,8 +40,17 @@ export function useAutoreg() {
     })
   }, [request])
 
-  const listProjects = useCallback(async (limit = 100) => {
-    return request(`/v1/autoreg/projects?limit=${limit}`)
+  const listProjects = useCallback(async (
+    limit = 100,
+    filters?: { enterpriseId?: string; namespaceUri?: string }
+  ) => {
+    const params = new URLSearchParams()
+    params.set('limit', String(limit))
+    const enterpriseId = String(filters?.enterpriseId || '').trim()
+    if (enterpriseId) params.set('enterprise_id', enterpriseId)
+    const namespaceUri = String(filters?.namespaceUri || '').trim()
+    if (namespaceUri) params.set('namespace_uri', namespaceUri)
+    return request(`/v1/autoreg/projects?${params.toString()}`)
   }, [request])
 
   return { registerProject, registerProjectAlias, listProjects, loading }

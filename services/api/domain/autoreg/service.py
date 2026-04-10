@@ -14,6 +14,19 @@ class AutoregService(BaseService):
         supabase = self.require_supabase()
         return await self.run_guarded("autoreg_project", autoreg_project, req=req, sb=supabase)
 
-    async def autoreg_projects(self, *, limit: int) -> Any:
+    async def autoreg_projects(
+        self,
+        *,
+        limit: int,
+        enterprise_id: str | None = None,
+        namespace_uri: str | None = None,
+    ) -> Any:
         supabase = self.require_supabase()
-        return await self.run_guarded("autoreg_projects", autoreg_projects, limit=limit, sb=supabase)
+        return await self.run_guarded(
+            "autoreg_projects",
+            autoreg_projects,
+            limit=limit,
+            enterprise_id=enterprise_id,
+            namespace_uri=namespace_uri,
+            sb=supabase,
+        )

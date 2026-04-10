@@ -31,6 +31,12 @@ async def autoreg_project_alias(req: AutoRegisterProjectRequest, autoreg_service
 @router.get("/v1/autoreg/projects")
 async def autoreg_projects(
     limit: int = Query(default=100, ge=1, le=500),
+    enterprise_id: str | None = Query(default=None),
+    namespace_uri: str | None = Query(default=None),
     autoreg_service: AutoregService = Depends(get_autoreg_service),
 ):
-    return await autoreg_service.autoreg_projects(limit=limit)
+    return await autoreg_service.autoreg_projects(
+        limit=limit,
+        enterprise_id=enterprise_id,
+        namespace_uri=namespace_uri,
+    )

@@ -479,37 +479,46 @@ export default function ProjectsPanel({
                 暂无自动登记记录，可在项目操作列点击“重试同步/直连登记”。
               </div>
             ) : (
-              <div style={{ display: 'grid', gap: 8 }}>
-                {autoregRows.slice(0, 6).map((row, idx) => (
-                  <div
-                    key={`${row.project_code || row.project_name || 'autoreg'}-${idx}`}
-                    style={{ border: '1px solid #E2E8F0', borderRadius: 8, padding: 10, background: '#fff' }}
-                  >
-                    <div style={{ fontSize: 13, fontWeight: 700, color: '#0F172A' }}>
-                      {row.project_name || '-'}{' '}
-                      <span style={{ fontWeight: 500, color: '#64748B' }}>({row.project_code || '-'})</span>
-                    </div>
+              <div style={{ maxHeight: 520, overflowY: 'auto', paddingRight: 2 }}>
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(420px, 1fr))',
+                    gap: 8,
+                    alignItems: 'start',
+                  }}
+                >
+                  {autoregRows.slice(0, 6).map((row, idx) => (
                     <div
-                      style={{
-                        fontSize: 12,
-                        color: '#1A56DB',
-                        fontFamily: 'monospace',
-                        marginTop: 2,
-                        wordBreak: 'break-all',
-                      }}
+                      key={`${row.project_code || row.project_name || 'autoreg'}-${idx}`}
+                      style={{ border: '1px solid #E2E8F0', borderRadius: 8, padding: 10, background: '#fff' }}
                     >
-                      {row.project_uri || '-'}
+                      <div style={{ fontSize: 13, fontWeight: 700, color: '#0F172A' }}>
+                        {row.project_name || '-'}{' '}
+                        <span style={{ fontWeight: 500, color: '#64748B' }}>({row.project_code || '-'})</span>
+                      </div>
+                      <div
+                        style={{
+                          fontSize: 12,
+                          color: '#1A56DB',
+                          fontFamily: 'monospace',
+                          marginTop: 2,
+                          wordBreak: 'break-all',
+                        }}
+                      >
+                        {row.project_uri || '-'}
+                      </div>
+                      <div style={{ fontSize: 12, color: '#64748B', marginTop: 2 }}>
+                        site: {row.site_uri || '-'} | 来源: {row.source_system || '-'}
+                      </div>
+                      <div style={{ fontSize: 12, color: '#94A3B8', marginTop: 4 }}>
+                        更新: {row.updated_at ? new Date(row.updated_at).toLocaleString('zh-CN') : '-'}
+                      </div>
                     </div>
-                    <div style={{ fontSize: 12, color: '#64748B', marginTop: 2 }}>
-                      site: {row.site_uri || '-'} | 来源: {row.source_system || '-'}
-                    </div>
-                    <div style={{ fontSize: 12, color: '#94A3B8', marginTop: 4 }}>
-                      更新: {row.updated_at ? new Date(row.updated_at).toLocaleString('zh-CN') : '-'}
-                    </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
                 {autoregRows.length > 6 && (
-                  <div style={{ fontSize: 12, color: '#64748B' }}>仅展示前 6 条，共 {autoregRows.length} 条</div>
+                  <div style={{ fontSize: 12, color: '#64748B', marginTop: 8 }}>仅展示前 6 条，共 {autoregRows.length} 条</div>
                 )}
               </div>
             )}

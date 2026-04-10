@@ -37,7 +37,10 @@ interface RetryProjectAutoregFlowArgs {
   syncAutoregApi: (projectId: string, body: { enterprise_id?: string; force?: boolean; writeback?: boolean }) => Promise<unknown>
   registerAutoregProjectApi: (payload: Record<string, unknown>) => Promise<unknown>
   registerAutoregProjectAliasApi: (payload: Record<string, unknown>) => Promise<unknown>
-  listAutoregProjectsApi: (limit?: number) => Promise<unknown>
+  listAutoregProjectsApi: (
+    limit?: number,
+    filters?: { enterpriseId?: string; namespaceUri?: string }
+  ) => Promise<unknown>
   setAutoregRows: (rows: Array<{ project_code?: string; project_name?: string; project_uri?: string; site_uri?: string; updated_at?: string; source_system?: string }>) => void
   setSyncingProjectId: (projectId: string | null) => void
   showToast: (message: string) => void
@@ -47,22 +50,30 @@ interface DirectProjectAutoregFlowArgs {
   projectId: string
   projectName: string
   canUseEnterpriseApi: boolean
+  enterpriseId?: string
   enterpriseVUri?: string
   settingsGitpegEnabled: boolean
   projects: Project[]
   registerAutoregProjectApi: (payload: Record<string, unknown>) => Promise<unknown>
   registerAutoregProjectAliasApi: (payload: Record<string, unknown>) => Promise<unknown>
-  listAutoregProjectsApi: (limit?: number) => Promise<unknown>
+  listAutoregProjectsApi: (
+    limit?: number,
+    filters?: { enterpriseId?: string; namespaceUri?: string }
+  ) => Promise<unknown>
   setAutoregRows: (rows: Array<{ project_code?: string; project_name?: string; project_uri?: string; site_uri?: string; updated_at?: string; source_system?: string }>) => void
   setSyncingProjectId: (projectId: string | null) => void
   showToast: (message: string) => void
 }
 
 const refreshAutoregRows = async (
-  listAutoregProjectsApi: (limit?: number) => Promise<unknown>,
-  setAutoregRows: (rows: Array<{ project_code?: string; project_name?: string; project_uri?: string; site_uri?: string; updated_at?: string; source_system?: string }>) => void
+  listAutoregProjectsApi: (
+    limit?: number,
+    filters?: { enterpriseId?: string; namespaceUri?: string }
+  ) => Promise<unknown>,
+  setAutoregRows: (rows: Array<{ project_code?: string; project_name?: string; project_uri?: string; site_uri?: string; updated_at?: string; source_system?: string }>) => void,
+  filters?: { enterpriseId?: string; namespaceUri?: string }
 ): Promise<void> => {
-  const latest = (await listAutoregProjectsApi(20)) as {
+  const latest = (await listAutoregProjectsApi(20, filters)) as {
     items?: Array<{ project_code?: string; project_name?: string; project_uri?: string; site_uri?: string; updated_at?: string; source_system?: string }>
   } | null
   if (latest?.items) setAutoregRows(latest.items)
@@ -159,7 +170,10 @@ export async function retryProjectAutoregFlow({
           ? `项目「${projectName}」已创建 GitPeg 注册会话，已打开激活页`
           : `项目「${projectName}」已创建 GitPeg 注册会话，待完成激活`
       )
-      await refreshAutoregRows(listAutoregProjectsApi, setAutoregRows)
+      await refreshAutoregRows(listAutoregProjectsApi, setAutoregRows, {
+        enterpriseId,
+        namespaceUri: enterpriseVUri,
+      })
       return
     }
 
@@ -169,7 +183,10 @@ export async function retryProjectAutoregFlow({
     } else {
       showToast(`项目「${projectName}」自动登记成功`)
     }
-    await refreshAutoregRows(listAutoregProjectsApi, setAutoregRows)
+    await refreshAutoregRows(listAutoregProjectsApi, setAutoregRows, {
+      enterpriseId,
+      namespaceUri: enterpriseVUri,
+    })
     return
   }
 
@@ -194,14 +211,20 @@ export async function retryProjectAutoregFlow({
   const directRes = (await registerAutoregProjectApi(directPayload)) as { success?: boolean } | null
   if (directRes?.success) {
     showToast(`项目「${projectName}」自动登记成功（直连通道）`)
-    await refreshAutoregRows(listAutoregProjectsApi, setAutoregRows)
+    await refreshAutoregRows(listAutoregProjectsApi, setAutoregRows, {
+      enterpriseId,
+      namespaceUri: enterpriseVUri,
+    })
     return
   }
 
   const aliasRes = (await registerAutoregProjectAliasApi(directPayload)) as { success?: boolean } | null
   if (aliasRes?.success) {
     showToast(`项目「${projectName}」自动登记成功（兼容通道）`)
-    await refreshAutoregRows(listAutoregProjectsApi, setAutoregRows)
+    await refreshAutoregRows(listAutoregProjectsApi, setAutoregRows, {
+      enterpriseId,
+      namespaceUri: enterpriseVUri,
+    })
     return
   }
 
@@ -219,6 +242,7 @@ export async function directProjectAutoregFlow({
   registerAutoregProjectAliasApi,
   listAutoregProjectsApi,
   setAutoregRows,
+  enterpriseId,
   setSyncingProjectId,
   showToast,
 }: DirectProjectAutoregFlowArgs): Promise<void> {
@@ -263,7 +287,10 @@ export async function directProjectAutoregFlow({
     return
   }
 
-  await refreshAutoregRows(listAutoregProjectsApi, setAutoregRows)
+  await refreshAutoregRows(listAutoregProjectsApi, setAutoregRows, {
+    enterpriseId,
+    namespaceUri: enterpriseVUri,
+  })
   showToast(`项目「${projectName}」直连登记成功`)
 }
 

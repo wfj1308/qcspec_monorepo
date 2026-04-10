@@ -32,6 +32,43 @@ def _namespace(value: Optional[str]) -> str:
     return ns
 
 
+def _optional_namespace(value: Optional[str]) -> Optional[str]:
+    text = str(value or "").strip()
+    if not text:
+        return None
+    return _namespace(text)
+
+
+def _resolve_filter_namespace(
+    *,
+    sb: Client,
+    enterprise_id: Optional[str],
+    namespace_uri: Optional[str],
+) -> Optional[str]:
+    explicit_namespace = _optional_namespace(namespace_uri)
+    if explicit_namespace:
+        return explicit_namespace
+
+    enterprise = str(enterprise_id or "").strip()
+    if not enterprise:
+        return None
+    try:
+        ent_res = (
+            sb.table("enterprises")
+            .select("v_uri")
+            .eq("id", enterprise)
+            .limit(1)
+            .execute()
+        )
+    except Exception as exc:
+        raise HTTPException(500, f"autoreg enterprise lookup failed: {exc}") from exc
+
+    row = (ent_res.data or [None])[0] if ent_res else None
+    if not isinstance(row, dict):
+        return None
+    return _optional_namespace(str(row.get("v_uri") or ""))
+
+
 class AutoRegisterProjectRequest(BaseModel):
     project_code: Optional[str] = None
     project_name: str
@@ -169,15 +206,27 @@ async def autoreg_project_flow(*, req: AutoRegisterProjectRequest, sb: Client) -
     }
 
 
-def autoreg_projects_flow(*, limit: int, sb: Client) -> dict[str, Any]:
+def autoreg_projects_flow(
+    *,
+    limit: int,
+    sb: Client,
+    enterprise_id: Optional[str] = None,
+    namespace_uri: Optional[str] = None,
+) -> dict[str, Any]:
     try:
-        res = (
+        filter_namespace = _resolve_filter_namespace(
+            sb=sb,
+            enterprise_id=enterprise_id,
+            namespace_uri=namespace_uri,
+        )
+        query = (
             sb.table("coord_gitpeg_project_registry")
             .select("*")
             .order("updated_at", desc=True)
-            .limit(limit)
-            .execute()
         )
+        if filter_namespace:
+            query = query.eq("namespace_uri", filter_namespace)
+        res = query.limit(limit).execute()
     except Exception as exc:
         raise HTTPException(500, f"autoreg query failed: {exc}") from exc
 

@@ -27,7 +27,10 @@ interface UseProjectCatalogControllerArgs {
   syncAutoregApi: (projectId: string) => Promise<unknown>
   registerAutoregProjectApi: (payload: Record<string, unknown>) => Promise<unknown>
   registerAutoregProjectAliasApi: (payload: Record<string, unknown>) => Promise<unknown>
-  listAutoregProjectsApi: (limit?: number) => Promise<unknown>
+  listAutoregProjectsApi: (
+    limit?: number,
+    filters?: { enterpriseId?: string; namespaceUri?: string }
+  ) => Promise<unknown>
   setProjects: (projects: Project[]) => void
   setCurrentProject: (project: Project | null) => void
   setProjectMeta: Dispatch<SetStateAction<Record<string, ProjectRegisterMeta>>>
@@ -68,14 +71,17 @@ export function useProjectCatalogController({
   }), [projects, searchText, statusFilter, typeFilter])
 
   const refreshAutoregRows = async () => {
-    const latest = await listAutoregProjectsApi(20) as { items?: AutoregRow[] } | null
+    const latest = await listAutoregProjectsApi(20, {
+      enterpriseId,
+      namespaceUri: enterpriseVUri,
+    }) as { items?: AutoregRow[] } | null
     if (latest?.items) setAutoregRows(latest.items)
   }
 
   useEffect(() => {
     if (!canUseEnterpriseApi || (activeTab !== 'projects' && activeTab !== 'settings')) return
     void refreshAutoregRows()
-  }, [activeTab, canUseEnterpriseApi, listAutoregProjectsApi])
+  }, [activeTab, canUseEnterpriseApi, enterpriseId, enterpriseVUri, listAutoregProjectsApi])
 
   useEffect(() => {
     if (!appReady || !canUseEnterpriseApi || !enterpriseId) return
@@ -137,6 +143,7 @@ export function useProjectCatalogController({
       projectId,
       projectName,
       canUseEnterpriseApi,
+      enterpriseId,
       enterpriseVUri,
       settingsGitpegEnabled: settings.gitpegEnabled,
       projects,

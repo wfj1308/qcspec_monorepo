@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import csv
+import re
 from io import StringIO
 from typing import Any, Callable, Optional
 
@@ -42,6 +43,53 @@ _DOT_BY_TYPE = {
     "photo": "#059669",
     "report": "#D97706",
 }
+
+
+def _slug_segment(value: Any) -> str:
+    text = str(value or "").strip()
+    if not text:
+        return ""
+    segment = re.sub(r"[^a-zA-Z0-9_-]+", "-", text).strip("-").lower()
+    return segment[:64]
+
+
+def _build_autoreg_project_code_candidates(project_row: dict[str, Any]) -> list[str]:
+    candidates: list[str] = []
+    for raw in (
+        project_row.get("erp_project_code"),
+        project_row.get("contract_no"),
+        project_row.get("id"),
+    ):
+        text = str(raw or "").strip()
+        if text:
+            candidates.append(text)
+            slug = _slug_segment(text)
+            if slug and slug != text:
+                candidates.append(slug)
+    deduped: list[str] = []
+    for code in candidates:
+        if code not in deduped:
+            deduped.append(code)
+    return deduped
+
+
+def _purge_autoreg_registry_for_project(sb: Client, *, project_row: dict[str, Any]) -> None:
+    project_codes = _build_autoreg_project_code_candidates(project_row)
+    project_uri = str(project_row.get("v_uri") or "").strip()
+    project_uris = [uri for uri in {project_uri, project_uri.rstrip("/")} if uri]
+
+    try:
+        if project_codes:
+            sb.table("coord_gitpeg_project_registry").delete().in_("project_code", project_codes).execute()
+            sb.table("coord_gitpeg_nodes").delete().in_("project_code", project_codes).execute()
+
+        for uri in project_uris:
+            sb.table("coord_gitpeg_project_registry").delete().eq("project_uri", uri).execute()
+            sb.table("coord_gitpeg_project_registry").delete().eq("site_uri", uri).execute()
+            sb.table("coord_gitpeg_nodes").delete().eq("uri", uri).execute()
+    except Exception:
+        # Keep project deletion resilient even if autoreg cleanup fails.
+        pass
 
 
 def _normalize_activity_summary(summary: Any, object_type: str, action: str) -> str:
@@ -215,12 +263,13 @@ def delete_project_data(
     project_id: str,
     enterprise_id: Optional[str] = None,
 ) -> dict[str, bool]:
-    check = sb.table("projects").select("id").eq("id", project_id)
+    check = sb.table("projects").select("id,erp_project_code,contract_no,v_uri").eq("id", project_id)
     if enterprise_id:
         check = check.eq("enterprise_id", enterprise_id)
     exists = check.limit(1).execute()
     if not exists.data:
         return {"found": False, "deleted": False}
+    project_row = exists.data[0] if isinstance(exists.data[0], dict) else {"id": project_id}
 
     # proof_chain.project_id -> projects.id is not ON DELETE CASCADE.
     sb.table("proof_chain").delete().eq("project_id", project_id).execute()
@@ -231,7 +280,10 @@ def delete_project_data(
     q.execute()
 
     left = sb.table("projects").select("id").eq("id", project_id).limit(1).execute()
-    return {"found": True, "deleted": not bool(left.data)}
+    deleted = not bool(left.data)
+    if deleted:
+        _purge_autoreg_registry_for_project(sb, project_row=project_row)
+    return {"found": True, "deleted": deleted}
 
 
 __all__ = [
