@@ -6,7 +6,7 @@ from fastapi import Depends
 
 from services.api.dependencies import require_auth_identity
 
-from . import auth, autoreg, boq, boqpeg, documents, erpnext, execution, finance, inspections, intelligence, logpeg, mobile, normref_ingest, photos, process_iqc, projects, proof, reporting, settings, signpeg, smu, specification, specir, team, trip_mock, utxo, verify
+from . import auth, autoreg, boq, boqpeg, documents, dtorole_proxy, erpnext, execution, finance, inspections, intelligence, logpeg, mobile, normref_ingest, photos, process_iqc, projects, proof, reporting, settings, signpeg, smu, specification, specir, team, trip_mock, utxo, verify
 
 AUTH_DEP = [Depends(require_auth_identity)]
 
@@ -21,6 +21,8 @@ ROUTER_REGISTRY = [
     {"router": boqpeg.router, "prefix": "/v1/proof", "tags": ["boqpeg"], "dependencies": AUTH_DEP},
     {"router": reporting.router, "prefix": "/v1/reports", "tags": ["reporting"], "dependencies": AUTH_DEP},
     {"router": reporting.router, "prefix": "/api/reports", "tags": ["reporting-api"], "dependencies": AUTH_DEP},
+    {"router": dtorole_proxy.router, "prefix": "/v1/dtorole", "tags": ["dtorole"], "dependencies": AUTH_DEP},
+    {"router": dtorole_proxy.router, "prefix": "/api/v1/dtorole", "tags": ["dtorole-api"], "dependencies": AUTH_DEP},
     {"router": mobile.router, "prefix": "/api/v1/mobile", "tags": ["mobile"]},
     {"router": trip_mock.router, "prefix": "/api/trip", "tags": ["trip-api"], "dependencies": AUTH_DEP},
     {"router": signpeg.router, "tags": ["signpeg"], "dependencies": AUTH_DEP},
