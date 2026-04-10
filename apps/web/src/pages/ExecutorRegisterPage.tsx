@@ -248,6 +248,7 @@ export default function ExecutorRegisterPage() {
           <p>{result?.executor_uri || result?.executor?.executor_uri}</p>
           <p>Registration Proof: {result?.registration_proof || result?.executor?.registration_proof}</p>
           <p>Status: {result?.status || result?.executor?.status}</p>
+          <p style={{ color: '#475569', fontSize: 13 }}>Use sidebar "执行体管理" for org member lifecycle operations.</p>
           <button onClick={() => setStep(1)}>register next</button>
         </section>
       )}

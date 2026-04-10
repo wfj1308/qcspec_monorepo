@@ -1,4 +1,4 @@
-﻿"""Compile SpecIR norm definitions into process-chain step configs."""
+"""Compile SpecIR norm definitions into process-chain step configs."""
 
 from __future__ import annotations
 

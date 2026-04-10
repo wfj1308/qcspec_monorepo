@@ -61,11 +61,14 @@ export const NAV = [
   { key: 'dashboard', icon: '📊', label: '控制台' },
   { key: 'inspection', icon: '📝', label: '质检录入' },
   { key: 'photos', icon: '📷', label: '现场照片' },
+  { key: 'normref', icon: '📚', label: 'NormRef规则' },
   { key: 'reports', icon: '📄', label: '报告生成' },
   { key: 'logpeg', icon: '📘', label: '施工日志' },
   { key: 'proof', icon: '🔒', label: 'Proof 链' },
   { key: 'projects', icon: '🏗️', label: '项目管理' },
   { key: 'register', icon: '➕', label: '注册新项目' },
+  { key: 'executor-register', icon: '🛠️', label: '执行体注册' },
+  { key: 'executors', icon: '🧩', label: '执行体管理' },
   { key: 'team', icon: '👥', label: '团队成员' },
   { key: 'permissions', icon: '🔐', label: '权限管理' },
   { key: 'settings', icon: '⚙️', label: '系统设置' },
@@ -73,8 +76,8 @@ export const NAV = [
 
 export const NAV_SECTIONS: Array<{ label: string; keys: string[] }> = [
   { label: '概览', keys: ['dashboard'] },
-  { label: '质检业务', keys: ['inspection', 'photos', 'reports', 'logpeg', 'proof'] },
-  { label: '项目管理', keys: ['projects', 'register'] },
+  { label: '质检业务', keys: ['inspection', 'photos', 'normref', 'reports', 'logpeg', 'proof'] },
+  { label: '项目管理', keys: ['projects', 'register', 'executor-register', 'executors'] },
   { label: '团队', keys: ['team', 'permissions'] },
   { label: '系统', keys: ['settings'] },
 ]

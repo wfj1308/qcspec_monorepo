@@ -247,6 +247,9 @@ def test_signpeg_normal_full_signature_flow() -> None:
     assert status["all_signed"] is True
     assert status["next_required"] == ""
     assert len(status["signatures"]) == 5
+    assert int(status["current_slot"]) == 5
+    assert int(status["next_slot"]) == 0
+    assert status["blocked_reason"] == ""
 
 
 def test_executor_uri_stable_holder_change_signatures_remain_valid() -> None:

@@ -1,4 +1,4 @@
-﻿"""BOQPeg product-level orchestration helpers.
+"""BOQPeg product-level orchestration helpers.
 
 These helpers package BOQPeg engines into an independent product surface while
 keeping DocPeg Core + GitPeg as the foundational runtime.

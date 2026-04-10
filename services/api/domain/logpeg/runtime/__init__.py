@@ -1,4 +1,4 @@
-﻿"""LogPeg runtime exports."""
+"""LogPeg runtime exports."""
 
 from services.api.domain.logpeg.runtime.logpeg import (
     LogPegEngine,

@@ -347,9 +347,9 @@ export default function App() {
   const globalAllowedNavKeys = currentDtoRole === 'AI'
     ? ['dashboard', 'inspection', 'photos', 'proof', 'projects', 'logpeg']
     : currentDtoRole === 'SUPERVISOR'
-      ? ['dashboard', 'inspection', 'photos', 'proof', 'reports', 'projects', 'register', 'logpeg']
+      ? ['dashboard', 'inspection', 'photos', 'normref', 'proof', 'reports', 'projects', 'register', 'executor-register', 'executors', 'logpeg']
       : currentDtoRole === 'OWNER'
-        ? ['dashboard', 'inspection', 'photos', 'proof', 'reports', 'projects', 'register', 'team', 'permissions', 'settings', 'logpeg']
+        ? ['dashboard', 'inspection', 'photos', 'normref', 'proof', 'reports', 'projects', 'register', 'executor-register', 'executors', 'team', 'permissions', 'settings', 'logpeg']
         : ['dashboard', 'proof', 'reports', 'projects', 'logpeg']
   const roleAwareNavItems = NAV.filter((item) => globalAllowedNavKeys.includes(item.key))
   const roleAwareNavSections = NAV_SECTIONS

@@ -1,4 +1,4 @@
-﻿
+
 """LogPeg runtime: auto-generated construction logs."""
 
 from __future__ import annotations

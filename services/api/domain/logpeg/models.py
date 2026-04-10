@@ -1,4 +1,4 @@
-﻿"""LogPeg models: system-evidence based construction logs."""
+"""LogPeg models: system-evidence based construction logs."""
 
 from __future__ import annotations
 

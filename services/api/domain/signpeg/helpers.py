@@ -9,6 +9,9 @@ from supabase import Client
 from services.api.domain.signpeg.flows import (
     add_executor_requires_flow,
     add_org_member_flow,
+    create_org_member_flow,
+    update_org_member_flow,
+    disable_org_member_flow,
     add_org_project_flow,
     check_tool_status_flow,
     add_executor_certificate_flow,
@@ -89,6 +92,18 @@ def get_org_branches_service_flow(*, sb: Client, org_uri: str) -> dict[str, Any]
 
 def add_org_member_service_flow(*, sb: Client, org_uri: str, body: Any) -> dict[str, Any]:
     return add_org_member_flow(sb=sb, org_uri=org_uri, body=body)
+
+
+def create_org_member_service_flow(*, sb: Client, org_uri: str, body: Any) -> dict[str, Any]:
+    return create_org_member_flow(sb=sb, org_uri=org_uri, body=body)
+
+
+def update_org_member_service_flow(*, sb: Client, org_uri: str, member_executor_uri: str, body: Any) -> dict[str, Any]:
+    return update_org_member_flow(sb=sb, org_uri=org_uri, member_executor_uri=member_executor_uri, body=body)
+
+
+def disable_org_member_service_flow(*, sb: Client, org_uri: str, member_executor_uri: str, body: Any) -> dict[str, Any]:
+    return disable_org_member_flow(sb=sb, org_uri=org_uri, member_executor_uri=member_executor_uri, body=body)
 
 
 def add_org_project_service_flow(*, sb: Client, org_uri: str, body: Any) -> dict[str, Any]:

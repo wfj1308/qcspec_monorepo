@@ -1,4 +1,4 @@
-﻿"""LogPeg domain facade."""
+"""LogPeg domain facade."""
 
 from __future__ import annotations
 

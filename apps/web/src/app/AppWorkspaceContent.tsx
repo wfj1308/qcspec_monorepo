@@ -6,6 +6,9 @@ import InspectionPage from '../pages/InspectionPage'
 import PhotosPage from '../pages/PhotosPage'
 import ReportsPage from '../pages/ReportsPage'
 import LogPegPage from '../pages/LogPegPage'
+import NormRefRulesPage from '../pages/NormRefRulesPage'
+import ExecutorAdminPage from '../pages/ExecutorAdminPage'
+import ExecutorRegisterPage from '../pages/ExecutorRegisterPage'
 import ProofPanel from '../components/proof/ProofPanel'
 import PaymentAuditPanel from '../components/proof/PaymentAuditPanel'
 import SpatialGovernancePanel from '../components/proof/SpatialGovernancePanel'
@@ -70,8 +73,11 @@ export default function AppWorkspaceContent({
       {activeTab === 'dashboard' && <Dashboard />}
       {activeTab === 'inspection' && <InspectionPage />}
       {activeTab === 'photos' && <PhotosPage />}
+      {activeTab === 'normref' && <NormRefRulesPage />}
       {activeTab === 'reports' && <ReportsPage />}
       {activeTab === 'logpeg' && <LogPegPage />}
+      {activeTab === 'executors' && <ExecutorAdminPage />}
+      {activeTab === 'executor-register' && <ExecutorRegisterPage />}
 
       {activeTab === 'proof' && (
         <>

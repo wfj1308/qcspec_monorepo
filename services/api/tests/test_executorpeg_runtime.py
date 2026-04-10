@@ -8,6 +8,8 @@ from typing import Any
 
 from services.api.domain.signpeg.flows import (
     add_org_member_flow,
+    create_org_member_flow,
+    disable_org_member_flow,
     add_org_project_flow,
     add_executor_requires_flow,
     add_executor_certificate_flow,
@@ -19,6 +21,7 @@ from services.api.domain.signpeg.flows import (
     maintain_executor_flow,
     register_executorpeg_flow,
     search_executors_flow,
+    update_org_member_flow,
     use_executor_flow,
 )
 from services.api.domain.signpeg.runtime.signpeg import validate_executor
@@ -334,22 +337,41 @@ def test_org_executor_registration_hierarchy_and_gate() -> None:
     assert len(org["executor"]["org_spec"]["branches"]) == 50
     assert str(org["executor"]["org_spec"]["business_license_scan_hash"]).startswith("sha256:")
 
-    member = register_executorpeg_flow(
+    created_member = create_org_member_flow(
         sb=sb,
-        body=ExecutorCreateRequest(
-            name="王治",
-            executor_type="human",
-            org_uri=str(org["executor_uri"]),
-            certificates=[_cert(cert_id="m1", days=365)],
-            skills=[_skill("v://normref.com/skill/bridge-inspection@v1")],
-        ),
+        org_uri=str(org["executor_uri"]),
+        body={
+            "name": "王治",
+            "executor_type": "human",
+            "role_keys": ["designer", "checker"],
+            "project_uris": ["v://cn.大锦/DJGS"],
+            "certificates": [_cert(cert_id="m1", days=365).model_dump(mode="json")],
+            "skills": [_skill("v://normref.com/skill/bridge-inspection@v1").model_dump(mode="json")],
+        },
     )
+    assert created_member["ok"] is True
+    assert created_member["member_executor_uri"].startswith("v://")
+
     add_member = add_org_member_flow(
         sb=sb,
         org_uri=str(org["executor_uri"]),
-        body={"member_executor_uri": str(member["executor_uri"])},
+        body={"member_executor_uri": str(created_member["member_executor_uri"])},
     )
     assert add_member["ok"] is True
+    updated_member = update_org_member_flow(
+        sb=sb,
+        org_uri=str(org["executor_uri"]),
+        member_executor_uri=str(created_member["member_executor_uri"]),
+        body={
+            "role_keys": ["designer"],
+            "project_uris": ["v://cn.大锦/DJGS", "v://cn.中北/DEMO"],
+            "status": "available",
+        },
+    )
+    assert updated_member["ok"] is True
+    assert set(updated_member["role_keys"]) == {"designer"}
+    assert set(updated_member["project_uris"]) == {"v://cn.大锦/DJGS", "v://cn.中北/DEMO"}
+    assert updated_member["status"] == "available"
 
     members = get_org_members_flow(sb=sb, org_uri=str(org["executor_uri"]))
     branches = get_org_branches_flow(sb=sb, org_uri=str(org["executor_uri"]))
@@ -359,16 +381,36 @@ def test_org_executor_registration_hierarchy_and_gate() -> None:
         body={"project_uri": "v://cn.大锦/DJGS"},
     )
     assert members["ok"] is True and len(members["members"]) >= 1
+    first_member = next((item for item in members["members"] if item["executor_uri"] == created_member["member_executor_uri"]), None)
+    assert first_member is not None
+    assert set(first_member.get("role_keys") or []) == {"designer"}
+    assert set(first_member.get("project_uris") or []) == {"v://cn.大锦/DJGS", "v://cn.中北/DEMO"}
     assert branches["ok"] is True and int(branches["branch_count"]) == 50
     assert add_project["ok"] is True and "v://cn.大锦/DJGS" in add_project["project_uris"]
 
     gate_before = validate_executor(
         sb,
-        executor_uri=str(member["executor_uri"]),
+        executor_uri=str(created_member["member_executor_uri"]),
         required_skill="bridge-inspection",
         trip_role="supervisor.approve",
     )
     assert gate_before["passed"] is True
+    disabled_member = disable_org_member_flow(
+        sb=sb,
+        org_uri=str(org["executor_uri"]),
+        member_executor_uri=str(created_member["member_executor_uri"]),
+        body={"reason": "manual_disable"},
+    )
+    assert disabled_member["ok"] is True
+    assert disabled_member["status"] == "suspended"
+
+    gate_after_disable = validate_executor(
+        sb,
+        executor_uri=str(created_member["member_executor_uri"]),
+        required_skill="bridge-inspection",
+        trip_role="supervisor.approve",
+    )
+    assert gate_after_disable["passed"] is False
 
     for row in sb._data["san_executors"]:
         if row.get("executor_uri") == str(org["executor_uri"]):
@@ -377,7 +419,7 @@ def test_org_executor_registration_hierarchy_and_gate() -> None:
             break
     gate_after = validate_executor(
         sb,
-        executor_uri=str(member["executor_uri"]),
+        executor_uri=str(created_member["member_executor_uri"]),
         required_skill="bridge-inspection",
         trip_role="supervisor.approve",
     )

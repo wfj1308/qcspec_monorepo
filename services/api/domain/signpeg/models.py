@@ -1,4 +1,4 @@
-﻿"""SignPeg models: executor registry, signatures, scheduler, delegation."""
+"""SignPeg models: executor registry, signatures, scheduler, delegation."""
 
 from __future__ import annotations
 
@@ -201,6 +201,8 @@ class OrgSpec(BaseModel):
     branches: list[str] = Field(default_factory=list)
     branch_count: int = 0
     member_executor_uris: list[str] = Field(default_factory=list)
+    member_role_bindings: dict[str, list[str]] = Field(default_factory=dict)
+    member_project_bindings: dict[str, list[str]] = Field(default_factory=dict)
     project_uris: list[str] = Field(default_factory=list)
     business_license_scan_hash: str = ""
 
@@ -398,8 +400,59 @@ class OrgMemberAddRequest(BaseModel):
     member_executor_uri: str
 
 
+class OrgMemberCreateRequest(BaseModel):
+    name: str
+    executor_type: Literal["human", "machine", "tool", "ai"] = "human"
+    role_keys: list[str] = Field(default_factory=list)
+    project_uris: list[str] = Field(default_factory=list)
+    capacity: CapacitySpec = Field(default_factory=CapacitySpec)
+    certificates: list[Certificate] = Field(default_factory=list)
+    energy: EnergySpec = Field(default_factory=EnergySpec)
+    skills: list[Skill] = Field(default_factory=list)
+    requires: list[str] = Field(default_factory=list)
+    tool_spec: ToolSpec | None = None
+    status: Literal[
+        "active",
+        "inactive",
+        "suspended",
+        "available",
+        "busy",
+        "offline",
+        "in_use",
+        "maintenance",
+        "depleted",
+        "retired",
+    ] = "available"
+    holder_name: str = ""
+    holder_id: str = ""
+    machine_code: str = ""
+    tool_code: str = ""
+    ai_version: str = ""
+
+
 class OrgProjectAddRequest(BaseModel):
     project_uri: str
+
+
+class OrgMemberUpdateRequest(BaseModel):
+    role_keys: list[str] = Field(default_factory=list)
+    project_uris: list[str] = Field(default_factory=list)
+    status: Literal[
+        "active",
+        "inactive",
+        "suspended",
+        "available",
+        "busy",
+        "offline",
+        "in_use",
+        "maintenance",
+        "depleted",
+        "retired",
+    ] | None = None
+
+
+class OrgMemberDisableRequest(BaseModel):
+    reason: str = "disabled_by_org_admin"
 
 
 class ExecutorStatusResponse(BaseModel):
@@ -712,6 +765,9 @@ class SignStatusResponse(BaseModel):
     all_signed: bool = False
     next_required: str = ""
     next_executor: str = ""
+    current_slot: int = 0
+    next_slot: int = 0
+    blocked_reason: str = ""
 
 
 class RailPactEntry(BaseModel):

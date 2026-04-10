@@ -23,6 +23,9 @@ from services.api.domain.signpeg.models import (
     GateExplainRequest,
     HolderChangeRequest,
     OrgMemberAddRequest,
+    OrgMemberCreateRequest,
+    OrgMemberDisableRequest,
+    OrgMemberUpdateRequest,
     OrgProjectAddRequest,
     ProcessExplainRequest,
     RequiresAddRequest,
@@ -151,6 +154,43 @@ async def org_add_member(
     signpeg_service: SignPegService = Depends(get_signpeg_service),
 ):
     return await signpeg_service.add_org_member(org_uri=_decode_uri(org_uri), body=body)
+
+
+@router.post("/api/v1/executors/orgs/{org_uri:path}/members/create")
+async def org_create_member(
+    org_uri: str,
+    body: OrgMemberCreateRequest,
+    signpeg_service: SignPegService = Depends(get_signpeg_service),
+):
+    return await signpeg_service.create_org_member(org_uri=_decode_uri(org_uri), body=body)
+
+
+@router.put("/api/v1/executors/orgs/{org_uri:path}/members/{member_executor_uri:path}")
+async def org_update_member(
+    org_uri: str,
+    member_executor_uri: str,
+    body: OrgMemberUpdateRequest,
+    signpeg_service: SignPegService = Depends(get_signpeg_service),
+):
+    return await signpeg_service.update_org_member(
+        org_uri=_decode_uri(org_uri),
+        member_executor_uri=_decode_uri(member_executor_uri),
+        body=body,
+    )
+
+
+@router.post("/api/v1/executors/orgs/{org_uri:path}/members/{member_executor_uri:path}/disable")
+async def org_disable_member(
+    org_uri: str,
+    member_executor_uri: str,
+    body: OrgMemberDisableRequest,
+    signpeg_service: SignPegService = Depends(get_signpeg_service),
+):
+    return await signpeg_service.disable_org_member(
+        org_uri=_decode_uri(org_uri),
+        member_executor_uri=_decode_uri(member_executor_uri),
+        body=body,
+    )
 
 
 @router.post("/api/v1/executors/orgs/{org_uri:path}/projects/add")

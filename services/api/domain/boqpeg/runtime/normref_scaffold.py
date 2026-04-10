@@ -1,4 +1,4 @@
-﻿"""NormRef logic scaffold and Tab-to-Peg runtime utilities.
+"""NormRef logic scaffold and Tab-to-Peg runtime utilities.
 
 This module provides BOQPeg-facing helpers for:
 - Bootstrapping NormRef L0/L1/L2 scaffold.

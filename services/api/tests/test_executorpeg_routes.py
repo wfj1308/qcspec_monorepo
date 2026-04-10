@@ -64,6 +64,60 @@ class _FakeSignPegService:
         self.calls.append(("add_org_member", {"org_uri": org_uri, "body": payload}))
         return {"ok": True, "org_uri": org_uri, "member_executor_uri": payload.get("member_executor_uri")}
 
+    async def create_org_member(self, *, org_uri: str, body: Any) -> dict[str, Any]:
+        payload = self._payload(body)
+        self.calls.append(("create_org_member", {"org_uri": org_uri, "body": payload}))
+        return {
+            "ok": True,
+            "org_uri": org_uri,
+            "member_executor_uri": "v://cn.中北/executor/new-member",
+            "executor_id": "EXEC-NEW",
+            "role_keys": payload.get("role_keys") or [],
+            "project_uris": payload.get("project_uris") or [],
+        }
+
+    async def update_org_member(self, *, org_uri: str, member_executor_uri: str, body: Any) -> dict[str, Any]:
+        payload = self._payload(body)
+        self.calls.append(
+            (
+                "update_org_member",
+                {
+                    "org_uri": org_uri,
+                    "member_executor_uri": member_executor_uri,
+                    "body": payload,
+                },
+            )
+        )
+        return {
+            "ok": True,
+            "org_uri": org_uri,
+            "member_executor_uri": member_executor_uri,
+            "role_keys": payload.get("role_keys") or [],
+            "project_uris": payload.get("project_uris") or [],
+            "status": payload.get("status") or "available",
+        }
+
+    async def disable_org_member(self, *, org_uri: str, member_executor_uri: str, body: Any) -> dict[str, Any]:
+        payload = self._payload(body)
+        self.calls.append(
+            (
+                "disable_org_member",
+                {
+                    "org_uri": org_uri,
+                    "member_executor_uri": member_executor_uri,
+                    "body": payload,
+                },
+            )
+        )
+        return {
+            "ok": True,
+            "org_uri": org_uri,
+            "member_executor_uri": member_executor_uri,
+            "status": "suspended",
+            "reason": payload.get("reason") or "disabled_by_org_admin",
+            "disable_proof": "PROOF-ORG-DISABLE-001",
+        }
+
     async def add_org_project(self, *, org_uri: str, body: Any) -> dict[str, Any]:
         payload = self._payload(body)
         self.calls.append(("add_org_project", {"org_uri": org_uri, "body": payload}))
@@ -145,6 +199,32 @@ def test_executorpeg_routes() -> None:
             json={"member_executor_uri": "v://cn.涓寳/executor/zhang-san"},
             headers={"Authorization": "Bearer test-token"},
         )
+        org_create_member_res = client.post(
+            "/api/v1/executors/orgs/v://cn.%E4%B8%AD%E5%8C%97/members/create",
+            json={
+                "name": "新成员",
+                "executor_type": "human",
+                "role_keys": ["constructor"],
+                "project_uris": ["v://cn.大锦/DJGS"],
+                "certificates": [],
+                "skills": [],
+            },
+            headers={"Authorization": "Bearer test-token"},
+        )
+        org_update_member_res = client.put(
+            "/api/v1/executors/orgs/v://cn.%E4%B8%AD%E5%8C%97/members/v://cn.%E4%B8%AD%E5%8C%97/executor/new-member",
+            json={
+                "role_keys": ["checker"],
+                "project_uris": ["v://cn.大锦/DJGS"],
+                "status": "available",
+            },
+            headers={"Authorization": "Bearer test-token"},
+        )
+        org_disable_member_res = client.post(
+            "/api/v1/executors/orgs/v://cn.%E4%B8%AD%E5%8C%97/members/v://cn.%E4%B8%AD%E5%8C%97/executor/new-member/disable",
+            json={"reason": "manual_disable"},
+            headers={"Authorization": "Bearer test-token"},
+        )
         org_add_project_res = client.post(
             "/api/v1/executors/orgs/v://cn.%E4%B8%AD%E5%8C%97/projects/add",
             json={"project_uri": "v://cn.澶ч敠/DJGS"},
@@ -211,6 +291,9 @@ def test_executorpeg_routes() -> None:
     assert org_members_res.status_code == 200
     assert org_branches_res.status_code == 200
     assert org_add_member_res.status_code == 200
+    assert org_create_member_res.status_code == 200
+    assert org_update_member_res.status_code == 200
+    assert org_disable_member_res.status_code == 200
     assert org_add_project_res.status_code == 200
     assert status_res.status_code == 200
     assert get_res.status_code == 200
@@ -228,6 +311,9 @@ def test_executorpeg_routes() -> None:
     assert "org_members" in call_names
     assert "org_branches" in call_names
     assert "add_org_member" in call_names
+    assert "create_org_member" in call_names
+    assert "update_org_member" in call_names
+    assert "disable_org_member" in call_names
     assert "add_org_project" in call_names
     assert "status" in call_names
     assert "get" in call_names

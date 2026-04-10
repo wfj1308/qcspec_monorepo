@@ -1,4 +1,4 @@
-﻿"""SignPeg runtime: executor registry, signing, verification, status."""
+"""SignPeg runtime: executor registry, signing, verification, status."""
 
 from __future__ import annotations
 
@@ -26,6 +26,9 @@ from services.api.domain.signpeg.models import (
     Executor,
     ExecutorCreateRequest,
     OrgMemberAddRequest,
+    OrgMemberCreateRequest,
+    OrgMemberDisableRequest,
+    OrgMemberUpdateRequest,
     OrgProjectAddRequest,
     OrgSpec,
     ExecutorUseRequest,
@@ -65,6 +68,49 @@ ROLE_TO_REQUIRED_SKILL = {
     "reviewer": "review",
     "constructor": "construction",
     "supervisor": "bridge-inspection",
+}
+
+ORG_ROLE_TEMPLATES: dict[str, tuple[str, ...]] = {
+    "construction": (
+        "constructor",
+        "inspector",
+        "recorder",
+        "reviewer",
+        "iqc",
+        "equipment",
+        "project_manager",
+        "qc_lead",
+    ),
+    "supervisor": (
+        "supervisor_measure_engineer",
+        "supervisor_professional",
+        "supervisor_chief",
+        "supervisor_reviewer",
+        "supervisor_recorder",
+    ),
+    "owner": ("owner_representative", "contract_admin", "payment_reviewer"),
+    "inspection": ("tester", "reviewer", "inspection_lead"),
+    "subcontractor": ("constructor", "recorder", "reviewer", "project_manager"),
+    "design": ("designer", "checker", "approver", "drafter"),
+}
+
+ORG_TYPE_ALIASES: dict[str, str] = {
+    "constructor": "construction",
+    "construction": "construction",
+    "施工": "construction",
+    "supervision": "supervisor",
+    "supervisor": "supervisor",
+    "监理": "supervisor",
+    "owner": "owner",
+    "业主": "owner",
+    "inspection": "inspection",
+    "testing": "inspection",
+    "检测": "inspection",
+    "subcontractor": "subcontractor",
+    "分包": "subcontractor",
+    "designer": "design",
+    "design": "design",
+    "设计": "design",
 }
 
 
@@ -408,6 +454,16 @@ def _next_required_role(signatures: list[SignStatusItem]) -> str:
     return ""
 
 
+def _slot_from_role(role: str) -> int:
+    token = _to_text(role).strip().lower()
+    if not token:
+        return 0
+    try:
+        return SIGN_FLOW_ROLES.index(token) + 1
+    except ValueError:
+        return 0
+
+
 def _load_signatures(sb: Any, doc_id: str) -> list[SignStatusItem]:
     rows = (
         sb.table("gate_trips")
@@ -445,9 +501,12 @@ def _upsert_doc_state(
     signatures: list[SignStatusItem],
     next_required: str,
     next_executor: str,
+    blocked_reason: str = "",
 ) -> None:
     all_signed = next_required == ""
     lifecycle_stage = "approved" if all_signed else "submitted"
+    current_slot = _slot_from_role(next_required) if next_required else len(SIGN_FLOW_ROLES)
+    next_slot = _slot_from_role(next_required)
     payload = {
         "doc_id": doc_id,
         "lifecycle_stage": lifecycle_stage,
@@ -457,6 +516,9 @@ def _upsert_doc_state(
         "state_data": {
             "signature_count": len(signatures),
             "roles_signed": [item.dto_role for item in signatures],
+            "current_slot": int(current_slot),
+            "next_slot": int(next_slot),
+            "blocked_reason": _to_text(blocked_reason).strip(),
         },
         "updated_at": _utc_now().isoformat(),
     }
@@ -676,10 +738,41 @@ def _normalize_org_spec(
             "branches": branch_list,
             "branch_count": branch_count,
             "member_executor_uris": members,
+            "member_role_bindings": {
+                _normalize_uri(k): [str(item).strip().lower() for item in list(v) if str(item).strip()]
+                for k, v in dict(spec.member_role_bindings or {}).items()
+                if _to_text(k).strip()
+            },
+            "member_project_bindings": {
+                _normalize_uri(k): [_normalize_uri(item) for item in list(v) if _to_text(item).strip()]
+                for k, v in dict(spec.member_project_bindings or {}).items()
+                if _to_text(k).strip()
+            },
             "project_uris": projects,
             "business_license_scan_hash": license_hash,
         }
     )
+
+
+def _normalize_role_keys(role_keys: list[str]) -> list[str]:
+    out: list[str] = []
+    seen: set[str] = set()
+    for raw in role_keys:
+        token = _to_text(raw).strip().lower()
+        if not token or token in seen:
+            continue
+        seen.add(token)
+        out.append(token)
+    return out
+
+
+def _org_allowed_roles(org: Executor) -> set[str]:
+    spec = org.org_spec or OrgSpec()
+    org_type = ORG_TYPE_ALIASES.get(_to_text(spec.org_type).strip().lower(), "")
+    if not org_type:
+        return set()
+    template = ORG_ROLE_TEMPLATES.get(org_type, ())
+    return {item.strip().lower() for item in template if item.strip()}
 
 
 def _ensure_requires_exist(sb: Any, *, requires: list[str]) -> None:
@@ -999,6 +1092,12 @@ def _get_org_executor(sb: Any, org_uri: str) -> Executor:
 
 def get_org_members(sb: Any, *, org_uri: str) -> dict[str, Any]:
     org = _get_org_executor(sb, org_uri)
+    spec = org.org_spec or OrgSpec()
+    role_bindings = { _normalize_uri(k): _normalize_role_keys(list(v)) for k, v in dict(spec.member_role_bindings or {}).items() }
+    project_bindings = {
+        _normalize_uri(k): [_normalize_uri(item) for item in list(v) if _to_text(item).strip()]
+        for k, v in dict(spec.member_project_bindings or {}).items()
+    }
     members: list[dict[str, Any]] = []
     seen: set[str] = set()
     for row in _list_executor_rows(sb):
@@ -1015,6 +1114,8 @@ def get_org_members(sb: Any, *, org_uri: str) -> dict[str, Any]:
                 "name": executor.name,
                 "executor_type": executor.executor_type,
                 "status": executor.status,
+                "role_keys": role_bindings.get(executor.executor_uri, []),
+                "project_uris": project_bindings.get(executor.executor_uri, []),
             }
         )
     if org.org_spec:
@@ -1032,6 +1133,8 @@ def get_org_members(sb: Any, *, org_uri: str) -> dict[str, Any]:
                     "name": executor.name,
                     "executor_type": executor.executor_type,
                     "status": executor.status,
+                    "role_keys": role_bindings.get(executor.executor_uri, []),
+                    "project_uris": project_bindings.get(executor.executor_uri, []),
                 }
             )
     members.sort(key=lambda item: (item.get("executor_type") == "org", _to_text(item.get("name")).strip()))
@@ -1063,6 +1166,205 @@ def add_org_member(sb: Any, *, org_uri: str, body: OrgMemberAddRequest) -> dict[
     updated_member = member.model_copy(update={"org_uri": org.executor_uri, "last_active": _utc_now()})
     _upsert_executor(sb, updated_member)
     return {"ok": True, "org_uri": org.executor_uri, "member_executor_uri": member.executor_uri}
+
+
+def create_org_member(sb: Any, *, org_uri: str, body: OrgMemberCreateRequest) -> dict[str, Any]:
+    org = _get_org_executor(sb, org_uri)
+    if body.executor_type == "org":
+        raise HTTPException(status_code=422, detail="org_member_must_not_be_org")
+
+    requested_roles = _normalize_role_keys(list(body.role_keys))
+    allowed = _org_allowed_roles(org)
+    if allowed and requested_roles:
+        invalid = sorted([item for item in requested_roles if item not in allowed])
+        if invalid:
+            raise HTTPException(
+                status_code=422,
+                detail=f"role_not_allowed_for_org_type: {','.join(invalid)}",
+            )
+
+    create_payload = ExecutorCreateRequest(
+        name=body.name,
+        executor_type=body.executor_type,
+        org_uri=org.executor_uri,
+        capacity=body.capacity,
+        certificates=body.certificates,
+        energy=body.energy,
+        skills=body.skills,
+        requires=body.requires,
+        tool_spec=body.tool_spec,
+        status=body.status,
+        holder_name=_to_text(body.holder_name).strip() or _to_text(body.name).strip(),
+        holder_id=_to_text(body.holder_id).strip(),
+        machine_code=body.machine_code,
+        tool_code=body.tool_code,
+        ai_version=body.ai_version,
+    )
+    member = register_executorpeg(sb=sb, body=create_payload)
+
+    spec = org.org_spec or OrgSpec()
+    members = _normalize_executor_requires(list(spec.member_executor_uris) + [member.executor_uri])
+    role_bindings = dict(spec.member_role_bindings or {})
+    if requested_roles:
+        role_bindings[member.executor_uri] = requested_roles
+    project_bindings = dict(spec.member_project_bindings or {})
+    requested_projects = [_normalize_uri(item) for item in list(body.project_uris) if _to_text(item).strip()]
+    if requested_projects:
+        project_bindings[member.executor_uri] = requested_projects
+
+    org_projects = [_normalize_uri(item) for item in list(spec.project_uris) if _to_text(item).strip()]
+    for project_uri in requested_projects:
+        if project_uri not in org_projects:
+            org_projects.append(project_uri)
+
+    updated_spec = spec.model_copy(
+        update={
+            "member_executor_uris": members,
+            "member_role_bindings": role_bindings,
+            "member_project_bindings": project_bindings,
+            "project_uris": org_projects,
+        }
+    )
+    updated_org = org.model_copy(update={"org_spec": updated_spec, "last_active": _utc_now()})
+    _upsert_executor(sb, updated_org)
+
+    updated_member = member.model_copy(update={"org_uri": org.executor_uri, "last_active": _utc_now()})
+    _upsert_executor(sb, updated_member)
+
+    return {
+        "ok": True,
+        "org_uri": org.executor_uri,
+        "member_executor_uri": member.executor_uri,
+        "executor_id": member.executor_id,
+        "name": member.name,
+        "executor_type": member.executor_type,
+        "role_keys": requested_roles,
+        "project_uris": requested_projects,
+    }
+
+
+def update_org_member(sb: Any, *, org_uri: str, member_executor_uri: str, body: OrgMemberUpdateRequest) -> dict[str, Any]:
+    org = _get_org_executor(sb, org_uri)
+    member = _get_executor(sb, _normalize_uri(member_executor_uri))
+    if member.executor_type == "org":
+        raise HTTPException(status_code=422, detail="org_member_must_not_be_org")
+
+    spec = org.org_spec or OrgSpec()
+    normalized_org_uri = _normalize_org_uri(org.executor_uri)
+    in_same_org = _normalize_org_uri(member.org_uri) == normalized_org_uri
+    known_member = member.executor_uri in set(spec.member_executor_uris or [])
+    if not in_same_org and not known_member:
+        raise HTTPException(status_code=404, detail="member_not_in_org")
+
+    requested_roles = _normalize_role_keys(list(body.role_keys))
+    allowed = _org_allowed_roles(org)
+    if allowed and requested_roles:
+        invalid = sorted([item for item in requested_roles if item not in allowed])
+        if invalid:
+            raise HTTPException(
+                status_code=422,
+                detail=f"role_not_allowed_for_org_type: {','.join(invalid)}",
+            )
+
+    requested_projects = [_normalize_uri(item) for item in list(body.project_uris) if _to_text(item).strip()]
+    members = _normalize_executor_requires(list(spec.member_executor_uris) + [member.executor_uri])
+    role_bindings = dict(spec.member_role_bindings or {})
+    project_bindings = dict(spec.member_project_bindings or {})
+    role_bindings[member.executor_uri] = requested_roles
+    project_bindings[member.executor_uri] = requested_projects
+
+    org_projects = [_normalize_uri(item) for item in list(spec.project_uris) if _to_text(item).strip()]
+    for project_uri in requested_projects:
+        if project_uri not in org_projects:
+            org_projects.append(project_uri)
+
+    updated_spec = spec.model_copy(
+        update={
+            "member_executor_uris": members,
+            "member_role_bindings": role_bindings,
+            "member_project_bindings": project_bindings,
+            "project_uris": org_projects,
+        }
+    )
+    updated_org = org.model_copy(update={"org_spec": updated_spec, "last_active": _utc_now()})
+    _upsert_executor(sb, updated_org)
+
+    next_status = member.status if body.status is None else _executor_status_default(body.status)
+    updated_member = member.model_copy(
+        update={
+            "org_uri": org.executor_uri,
+            "status": next_status,
+            "last_active": _utc_now(),
+        }
+    )
+    _upsert_executor(sb, updated_member)
+
+    return {
+        "ok": True,
+        "org_uri": org.executor_uri,
+        "member_executor_uri": member.executor_uri,
+        "role_keys": requested_roles,
+        "project_uris": requested_projects,
+        "status": next_status,
+    }
+
+
+def disable_org_member(sb: Any, *, org_uri: str, member_executor_uri: str, body: OrgMemberDisableRequest) -> dict[str, Any]:
+    org = _get_org_executor(sb, org_uri)
+    member = _get_executor(sb, _normalize_uri(member_executor_uri))
+    if member.executor_type == "org":
+        raise HTTPException(status_code=422, detail="org_member_must_not_be_org")
+
+    spec = org.org_spec or OrgSpec()
+    normalized_org_uri = _normalize_org_uri(org.executor_uri)
+    in_same_org = _normalize_org_uri(member.org_uri) == normalized_org_uri
+    known_member = member.executor_uri in set(spec.member_executor_uris or [])
+    if not in_same_org and not known_member:
+        raise HTTPException(status_code=404, detail="member_not_in_org")
+
+    role_bindings = dict(spec.member_role_bindings or {})
+    project_bindings = dict(spec.member_project_bindings or {})
+    role_bindings.pop(member.executor_uri, None)
+    project_bindings.pop(member.executor_uri, None)
+
+    updated_spec = spec.model_copy(
+        update={
+            "member_executor_uris": _normalize_executor_requires(list(spec.member_executor_uris) + [member.executor_uri]),
+            "member_role_bindings": role_bindings,
+            "member_project_bindings": project_bindings,
+        }
+    )
+    updated_org = org.model_copy(update={"org_spec": updated_spec, "last_active": _utc_now()})
+    _upsert_executor(sb, updated_org)
+
+    reason = _to_text(body.reason).strip() or "disabled_by_org_admin"
+    disable_proof = _proof_id(
+        "PROOF-ORG-DISABLE",
+        {
+            "org_uri": org.executor_uri,
+            "member_executor_uri": member.executor_uri,
+            "reason": reason,
+            "at": _utc_now().isoformat(),
+        },
+    )
+    updated_member = member.model_copy(
+        update={
+            "org_uri": org.executor_uri,
+            "status": "suspended",
+            "last_active": _utc_now(),
+            "proof_history": list(member.proof_history) + [disable_proof],
+        }
+    )
+    _upsert_executor(sb, updated_member)
+
+    return {
+        "ok": True,
+        "org_uri": org.executor_uri,
+        "member_executor_uri": member.executor_uri,
+        "status": "suspended",
+        "reason": reason,
+        "disable_proof": disable_proof,
+    }
 
 
 def add_org_project(sb: Any, *, org_uri: str, body: OrgProjectAddRequest) -> dict[str, Any]:
@@ -1622,6 +1924,17 @@ def sign(sb: Any, req: SignPegRequest, executor: Executor) -> SignPegResult:
     if executor.energy.consumed >= executor.energy.credit_limit:
         raise HTTPException(status_code=409, detail="energy_credit_exhausted")
 
+    # Enforce serial signing once the chain has started to avoid out-of-order slots.
+    existing = _load_signatures(sb, req.doc_id)
+    requested_role = _to_text(req.dto_role).strip().lower()
+    if existing:
+        next_required_now = _next_required_role(existing)
+        if next_required_now and requested_role in SIGN_FLOW_ROLES and requested_role != next_required_now:
+            raise HTTPException(
+                status_code=409,
+                detail=f"slot_out_of_order: expected_{next_required_now}",
+            )
+
     tool_usages = [item for item in list(req.tool_usages or []) if _to_text(getattr(item, "tool_uri", "")).strip()]
     for usage in tool_usages:
         usage_uri = _normalize_uri(usage.tool_uri)
@@ -1831,6 +2144,7 @@ def sign(sb: Any, req: SignPegRequest, executor: Executor) -> SignPegResult:
     signatures = _load_signatures(sb, req.doc_id)
     next_required = _next_required_role(signatures)
     next_executor = ""
+    blocked_reason = ""
     if next_required:
         scheduler = ExecutorScheduler(sb=sb)
         try:
@@ -1838,12 +2152,14 @@ def sign(sb: Any, req: SignPegRequest, executor: Executor) -> SignPegResult:
             next_executor = picked.executor_uri
         except NoAvailableExecutorError:
             next_executor = ""
+            blocked_reason = f"no_available_executor:{next_required}"
     _upsert_doc_state(
         sb,
         doc_id=req.doc_id,
         signatures=signatures,
         next_required=next_required,
         next_executor=next_executor,
+        blocked_reason=blocked_reason,
     )
     return result
 
@@ -1891,6 +2207,7 @@ def status(sb: Any, doc_id: str) -> SignStatusResponse:
     signatures = _load_signatures(sb, doc_id)
     next_required = _next_required_role(signatures)
     next_executor = ""
+    blocked_reason = ""
     if next_required:
         scheduler = ExecutorScheduler(sb=sb)
         try:
@@ -1898,12 +2215,18 @@ def status(sb: Any, doc_id: str) -> SignStatusResponse:
             next_executor = picked.executor_uri
         except NoAvailableExecutorError:
             next_executor = ""
+            blocked_reason = f"no_available_executor:{next_required}"
     all_signed = next_required == ""
+    current_slot = _slot_from_role(next_required) if next_required else len(SIGN_FLOW_ROLES)
+    next_slot = _slot_from_role(next_required)
     return SignStatusResponse(
         signatures=signatures,
         all_signed=all_signed,
         next_required=next_required,
         next_executor=next_executor,
+        current_slot=int(current_slot),
+        next_slot=int(next_slot),
+        blocked_reason=blocked_reason,
     )
 
 

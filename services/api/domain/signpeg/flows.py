@@ -20,6 +20,9 @@ from services.api.domain.signpeg.models import (
     GateExplainRequest,
     HolderChangeRequest,
     OrgMemberAddRequest,
+    OrgMemberCreateRequest,
+    OrgMemberDisableRequest,
+    OrgMemberUpdateRequest,
     OrgProjectAddRequest,
     ProcessExplainRequest,
     RequiresAddRequest,
@@ -46,12 +49,15 @@ from services.api.domain.signpeg.runtime import (
     get_org_members,
     get_org_branches,
     add_org_member,
+    create_org_member,
+    disable_org_member,
     add_org_project,
     list_executors,
     get_executor_record,
     register_executorpeg,
     register_executor,
     maintain_executor,
+    update_org_member,
     search_executors,
     register_tool,
     get_tool,
@@ -147,6 +153,31 @@ def get_org_branches_flow(*, sb: Any, org_uri: str) -> dict[str, Any]:
 def add_org_member_flow(*, sb: Any, org_uri: str, body: OrgMemberAddRequest) -> dict[str, Any]:
     payload = body if isinstance(body, OrgMemberAddRequest) else OrgMemberAddRequest.model_validate(body)
     return add_org_member(sb=sb, org_uri=_decode_executor_uri(org_uri), body=payload)
+
+
+def create_org_member_flow(*, sb: Any, org_uri: str, body: OrgMemberCreateRequest) -> dict[str, Any]:
+    payload = body if isinstance(body, OrgMemberCreateRequest) else OrgMemberCreateRequest.model_validate(body)
+    return create_org_member(sb=sb, org_uri=_decode_executor_uri(org_uri), body=payload)
+
+
+def update_org_member_flow(*, sb: Any, org_uri: str, member_executor_uri: str, body: OrgMemberUpdateRequest) -> dict[str, Any]:
+    payload = body if isinstance(body, OrgMemberUpdateRequest) else OrgMemberUpdateRequest.model_validate(body)
+    return update_org_member(
+        sb=sb,
+        org_uri=_decode_executor_uri(org_uri),
+        member_executor_uri=_decode_executor_uri(member_executor_uri),
+        body=payload,
+    )
+
+
+def disable_org_member_flow(*, sb: Any, org_uri: str, member_executor_uri: str, body: OrgMemberDisableRequest) -> dict[str, Any]:
+    payload = body if isinstance(body, OrgMemberDisableRequest) else OrgMemberDisableRequest.model_validate(body)
+    return disable_org_member(
+        sb=sb,
+        org_uri=_decode_executor_uri(org_uri),
+        member_executor_uri=_decode_executor_uri(member_executor_uri),
+        body=payload,
+    )
 
 
 def add_org_project_flow(*, sb: Any, org_uri: str, body: OrgProjectAddRequest) -> dict[str, Any]:

@@ -1,4 +1,4 @@
-﻿"""BOQItem markdown dossier generation and auto-refresh helpers."""
+"""BOQItem markdown dossier generation and auto-refresh helpers."""
 
 from __future__ import annotations
 

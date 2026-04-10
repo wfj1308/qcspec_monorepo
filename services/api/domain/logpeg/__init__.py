@@ -1,4 +1,4 @@
-﻿"""LogPeg domain exports."""
+"""LogPeg domain exports."""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-﻿"""LogPeg flow entrypoints."""
+"""LogPeg flow entrypoints."""
 
 from __future__ import annotations
 

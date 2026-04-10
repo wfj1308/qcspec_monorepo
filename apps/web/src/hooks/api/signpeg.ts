@@ -48,6 +48,9 @@ export type SignPegStatusResponse = {
   all_signed: boolean
   next_required: string
   next_executor: string
+  current_slot?: number
+  next_slot?: number
+  blocked_reason?: string
 }
 
 export type ExecutorSkill = {
@@ -165,7 +168,45 @@ export type OrgMembersResponse = {
     name: string
     executor_type: string
     status: string
+    role_keys?: string[]
+    project_uris?: string[]
   }>
+}
+
+export type OrgMemberCreatePayload = {
+  name: string
+  executor_type?: 'human' | 'machine' | 'tool' | 'ai'
+  role_keys?: string[]
+  project_uris?: string[]
+  capacity?: { current?: number; maximum?: number; unit?: string }
+  energy?: { billing_unit?: string; rate?: number; currency?: string; billing_formula?: string; smu_type?: string }
+  certificates?: ExecutorCertificate[]
+  skills?: ExecutorSkill[]
+  requires?: string[]
+  tool_spec?: ExecutorRegisterPayload['tool_spec']
+  status?: 'active' | 'inactive' | 'suspended' | 'available' | 'busy' | 'offline' | 'in_use' | 'maintenance' | 'depleted' | 'retired'
+  holder_name?: string
+  holder_id?: string
+  machine_code?: string
+  tool_code?: string
+  ai_version?: string
+}
+
+export type OrgMemberUpdatePayload = {
+  role_keys?: string[]
+  project_uris?: string[]
+  status?: 'active' | 'inactive' | 'suspended' | 'available' | 'busy' | 'offline' | 'in_use' | 'maintenance' | 'depleted' | 'retired'
+}
+
+export type OrgMemberMutationResponse = {
+  ok: boolean
+  org_uri: string
+  member_executor_uri: string
+  role_keys?: string[]
+  project_uris?: string[]
+  status?: string
+  reason?: string
+  disable_proof?: string
 }
 
 export type OrgBranchesResponse = {
@@ -442,6 +483,38 @@ export function useSignPegApi() {
     })
   }, [request])
 
+  const createOrgMember = useCallback(async (orgUri: string, payload: OrgMemberCreatePayload) => {
+    const encoded = encodeURIComponent(String(orgUri || '').trim())
+    if (!encoded) return null
+    return request(`/api/v1/executors/orgs/${encoded}/members/create`, {
+      method: 'POST',
+      body: JSON.stringify(payload || {}),
+      skipAuthRedirect: true,
+    }) as Promise<OrgMemberMutationResponse | null>
+  }, [request])
+
+  const updateOrgMember = useCallback(async (orgUri: string, memberExecutorUri: string, payload: OrgMemberUpdatePayload) => {
+    const encodedOrg = encodeURIComponent(String(orgUri || '').trim())
+    const encodedMember = encodeURIComponent(String(memberExecutorUri || '').trim())
+    if (!encodedOrg || !encodedMember) return null
+    return request(`/api/v1/executors/orgs/${encodedOrg}/members/${encodedMember}`, {
+      method: 'PUT',
+      body: JSON.stringify(payload || {}),
+      skipAuthRedirect: true,
+    }) as Promise<OrgMemberMutationResponse | null>
+  }, [request])
+
+  const disableOrgMember = useCallback(async (orgUri: string, memberExecutorUri: string, reason = 'disabled_by_org_admin') => {
+    const encodedOrg = encodeURIComponent(String(orgUri || '').trim())
+    const encodedMember = encodeURIComponent(String(memberExecutorUri || '').trim())
+    if (!encodedOrg || !encodedMember) return null
+    return request(`/api/v1/executors/orgs/${encodedOrg}/members/${encodedMember}/disable`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+      skipAuthRedirect: true,
+    }) as Promise<OrgMemberMutationResponse | null>
+  }, [request])
+
   const addOrgProject = useCallback(async (orgUri: string, projectUri: string) => {
     const encoded = encodeURIComponent(String(orgUri || '').trim())
     if (!encoded) return null
@@ -620,6 +693,9 @@ export function useSignPegApi() {
     getOrgMembers,
     getOrgBranches,
     addOrgMember,
+    createOrgMember,
+    updateOrgMember,
+    disableOrgMember,
     addOrgProject,
     addExecutorRequires,
     useExecutor,

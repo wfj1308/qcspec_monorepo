@@ -10,6 +10,9 @@ from services.api.core.base import BaseService
 from services.api.domain.signpeg.helpers import (
     add_executor_requires_service_flow,
     add_org_member_service_flow,
+    create_org_member_service_flow,
+    update_org_member_service_flow,
+    disable_org_member_service_flow,
     add_org_project_service_flow,
     check_tool_status_service_flow,
     add_executor_certificate_service_flow,
@@ -99,6 +102,38 @@ class SignPegService(BaseService):
             add_org_member_service_flow,
             sb=supabase,
             org_uri=org_uri,
+            body=body,
+        )
+
+    async def create_org_member(self, *, org_uri: str, body: Any) -> Any:
+        supabase = self.require_supabase()
+        return await self.run_guarded(
+            "create_org_member",
+            create_org_member_service_flow,
+            sb=supabase,
+            org_uri=org_uri,
+            body=body,
+        )
+
+    async def update_org_member(self, *, org_uri: str, member_executor_uri: str, body: Any) -> Any:
+        supabase = self.require_supabase()
+        return await self.run_guarded(
+            "update_org_member",
+            update_org_member_service_flow,
+            sb=supabase,
+            org_uri=org_uri,
+            member_executor_uri=member_executor_uri,
+            body=body,
+        )
+
+    async def disable_org_member(self, *, org_uri: str, member_executor_uri: str, body: Any) -> Any:
+        supabase = self.require_supabase()
+        return await self.run_guarded(
+            "disable_org_member",
+            disable_org_member_service_flow,
+            sb=supabase,
+            org_uri=org_uri,
+            member_executor_uri=member_executor_uri,
             body=body,
         )
 

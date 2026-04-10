@@ -1,4 +1,4 @@
-﻿"""LogPeg service helper wrappers."""
+"""LogPeg service helper wrappers."""
 
 from __future__ import annotations
 
