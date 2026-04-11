@@ -1,4 +1,3 @@
-
 interface LoginFormState {
   account: string
   pass: string
@@ -23,7 +22,7 @@ export default function AuthEntry({
     return (
       <div className="login-screen">
         <div className="login-card">
-          <div className="l-hint">�ỰУ����...</div>
+          <div className="l-hint">会话校验中...</div>
         </div>
       </div>
     )
@@ -37,7 +36,7 @@ export default function AuthEntry({
             <span className="qc">QC</span>
             <span className="spec">Spec</span>
           </div>
-          <div className="login-tagline">�����ʼ����ƽ̨</div>
+          <div className="login-tagline">工程质检管理平台</div>
         </div>
 
         <div className="login-form">
@@ -49,7 +48,7 @@ export default function AuthEntry({
             onKeyDown={(e) => {
               if (e.key === 'Enter') onLogin()
             }}
-            placeholder="�ֻ��� / ����"
+            placeholder="手机号 / 邮箱"
           />
           <input
             className="l-input"
@@ -60,10 +59,10 @@ export default function AuthEntry({
             onKeyDown={(e) => {
               if (e.key === 'Enter') onLogin()
             }}
-            placeholder="����"
+            placeholder="密码"
           />
           <button className="l-btn" onClick={onLogin} disabled={loggingIn}>
-            {loggingIn ? '��¼��...' : '��¼'}
+            {loggingIn ? '登录中...' : '登录'}
           </button>
         </div>
       </div>

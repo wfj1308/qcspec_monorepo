@@ -4,13 +4,13 @@
   "version": "v1",
   "metadata": {
     "norm_code": "JTG F80/1-2017",
-    "description": "׮�����Э���",
+    "description": "????????",
     "domain": "construction/highway"
   },
   "gates": [
     {
       "check_id": "verticality",
-      "label": "��ֱ��ƫ��",
+      "label": "?????",
       "norm_ref": "JTG F80/1-2017",
       "threshold": {
         "value": 1,
@@ -21,7 +21,7 @@
     },
     {
       "check_id": "concrete_strength",
-      "label": "׮�������ǿ��",
+      "label": "???????",
       "norm_ref": "JTG F80/1-2017",
       "threshold": {
         "value": 30,
@@ -32,7 +32,7 @@
     }
   ],
   "verdict_logic": {
-    "rule": "verticality �� concrete_strength ��ͨ���� PASS",
+    "rule": "verticality ? concrete_strength ????? PASS",
     "input": {
       "actual_values": {},
       "design_values": {}
@@ -65,8 +65,8 @@
         "supervisor.approve"
       ],
       "pre_conditions": [
-        "ԭ���Ϻϸ�",
-        "�豸У׼��Ч"
+        "?????",
+        "??????"
       ],
       "entry_rules": [
         {
@@ -93,17 +93,17 @@
         {
           "item": "verticality",
           "measured": 0,
-          "result": "�ϸ�|���ϸ�"
+          "result": "??|???"
         },
         {
           "item": "integrity",
           "measured": 0,
-          "result": "�ϸ�|���ϸ�"
+          "result": "??|???"
         },
         {
           "item": "bearing_capacity",
           "measured": 0,
-          "result": "�ϸ�|���ϸ�"
+          "result": "??|???"
         }
       ],
       "relations": [
@@ -125,7 +125,7 @@
         "signed": 0,
         "pending": 0
       },
-      "next_action": "���׮�������Զ������ż�״̬����"
+      "next_action": "????????????????? Proof"
     }
   }
 }

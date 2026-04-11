@@ -5,7 +5,7 @@
   "metadata": {
     "norm_code": "GB50204-2015 5.3.2 + JTG F80/1-2017",
     "boq_item_id": "403-1-2",
-    "description": "�ֽ�ӹ�����װ�����������䡢��װ�����ӣ�",
+    "description": "????????????????????????????",
     "applicable_component": [
       "pile",
       "pier",
@@ -17,7 +17,7 @@
   "gates": [
     {
       "check_id": "diameter",
-      "label": "ֱ������ƫ��",
+      "label": "????",
       "norm_ref": "GB50204-2015 5.3.2",
       "threshold": {
         "value": 0.02,
@@ -25,11 +25,11 @@
         "unit": "%"
       },
       "severity": "mandatory",
-      "explain": "ʵ��ֱ�������ֵƫ�����2%"
+      "explain": "?????????2%"
     },
     {
       "check_id": "spacing",
-      "label": "�ֽ���ƫ��",
+      "label": "??????",
       "norm_ref": "GB50204-2015 5.3.2",
       "threshold": {
         "value": 10,
@@ -40,7 +40,7 @@
     },
     {
       "check_id": "protection_layer",
-      "label": "��������",
+      "label": "?????",
       "norm_ref": "JTG F80/1-2017",
       "threshold": {
         "value": 5,
@@ -65,7 +65,7 @@
     "output": {
       "result": "PASS|FAIL|WARNING",
       "failed_gates": [],
-      "explain": "���м���������淶Ҫ��",
+      "explain": "?????????????",
       "proof_hash": "PF-XXXX..."
     }
   },
@@ -90,8 +90,8 @@
         "supervisor.approve"
       ],
       "pre_conditions": [
-        "ԭ���Ϻϸ�",
-        "�豸У׼��Ч"
+        "?????",
+        "??????"
       ],
       "entry_rules": [
         {
@@ -116,24 +116,24 @@
     },
     "body": {
       "basic": {
-        "rebar_spec": "HRB400-��20",
+        "rebar_spec": "HRB400-20",
         "total_weight": 0
       },
       "test_data": [
         {
           "check_item": "diameter",
           "measured": 0,
-          "result": "�ϸ�|���ϸ�"
+          "result": "??|???"
         },
         {
           "check_item": "spacing",
           "measured": 0,
-          "result": "�ϸ�|���ϸ�"
+          "result": "??|???"
         },
         {
           "check_item": "protection",
           "measured": 0,
-          "result": "�ϸ�|���ϸ�"
+          "result": "??|???"
         }
       ],
       "relations": [
@@ -155,7 +155,7 @@
         "signed": 0,
         "pending": 0
       },
-      "next_action": "�ȴ��ֳ�����Ա��дʵ������"
+      "next_action": "????????????"
     }
   }
 }

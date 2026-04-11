@@ -4,24 +4,24 @@
   "version": "v1",
   "metadata": {
     "norm_code": "GB/T 50081 + JTG F80/1-2017",
-    "description": "��������ѹǿ�ȼ��Э���",
+    "description": "???????????",
     "domain": "construction/highway"
   },
   "gates": [
     {
       "check_id": "sample_size",
-      "label": "�Լ�����С����",
+      "label": "??????",
       "norm_ref": "GB/T 50081",
       "threshold": {
         "value": 3,
         "operator": "gte",
-        "unit": "��"
+        "unit": "?"
       },
       "severity": "mandatory"
     },
     {
       "check_id": "test_age",
-      "label": "��������",
+      "label": "????",
       "norm_ref": "GB/T 50081",
       "threshold": {
         "value": 28,
@@ -32,7 +32,7 @@
     },
     {
       "check_id": "compressive_strength",
-      "label": "��ѹǿ��",
+      "label": "????",
       "norm_ref": "JTG F80/1-2017",
       "threshold": {
         "value": 30,
@@ -43,7 +43,7 @@
     }
   ],
   "verdict_logic": {
-    "rule": "sample_size/test_age/compressive_strength ȫ��ͨ���� PASS",
+    "rule": "sample_size/test_age/compressive_strength ????? PASS",
     "input": {
       "actual_values": {},
       "design_values": {}
@@ -76,8 +76,8 @@
         "supervisor.approve"
       ],
       "pre_conditions": [
-        "ԭ���Ϻϸ�",
-        "�豸У׼��Ч"
+        "?????",
+        "??????"
       ],
       "entry_rules": [
         {
@@ -86,7 +86,7 @@
         },
         {
           "name": "curing_method",
-          "value": "��׼����28d"
+          "value": "????28d"
         },
         {
           "name": "test_age",
@@ -109,7 +109,7 @@
           ],
           "average": 0,
           "min_value": 0,
-          "result": "�ϸ�|���ϸ�"
+          "result": "??|???"
         }
       ],
       "relations": [
@@ -129,7 +129,7 @@
         "total_groups": 0,
         "qualified_groups": 0
       },
-      "next_action": "�����ǿ�ȼ����Զ����ɻ�����ǿ�� Proof"
+      "next_action": "??????????????? Proof"
     }
   }
 }

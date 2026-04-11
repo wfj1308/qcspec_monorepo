@@ -1,3547 +1,1454 @@
-# DocPeg 全量联调 API 文档（参数 + 返回结构）
+﻿# DocPeg 联调 API 清单（执行体逻辑版）
 
-- 基准地址: `https://api.docpeg.cn`
-- OpenAPI: `https://api.docpeg.cn/openapi.json`
-- 生成时间: 2026-04-10T07:20:28.775Z
+> 用途：直接转给 QCSPEC 前端同事联调。
+> 范围：昨晚执行体逻辑落地后的可用 API，按业务闭环顺序整理。
 
-## 通用请求头
-- `content-type: application/json`（POST/PATCH/PUT 时）
-- `x-actor-role: designer`（按你的角色替换）
-- `x-actor-name: designer-user`（按你的账号替换）
-- `authorization: Bearer <token>`（若接入会话鉴权时）
+## 0. 统一约定
 
-## projectId 获取
-1. 调用 `GET /projects`
-2. 使用返回的 `items[].id` 作为 `{projectId}`（例如 `PJT-D34A70B8`）
+### Base URL
+- `https://api.docpeg.cn`
 
-## 全量接口明细
+### OpenAPI
+- `GET /openapi.json`
 
-### GET /admin/alert-events
-- 概要: List alert events
-- Path 参数:
-- 无
-- Query 参数:
-- status (可选, string)
-- severity (可选, string)
-- rule_id (可选, string)
-- from (可选, string)
-- to (可选, string)
-- limit (可选, integer)
-- offset (可选, integer)
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 403: Forbidden；返回结构：未声明
+### 通用请求头
+- `Content-Type: application/json`
+- `x-actor-role: designer|contractor|supervisor|owner|admin`
+- `x-actor-name: designer-user`
+- 需要幂等时：`x-idempotency-key: <uuid>`
 
-### POST /admin/alert-events/{eventId}/ack
-- 概要: Acknowledge alert event
-- Path 参数:
-- eventId (必填, string)
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 403: Forbidden；返回结构：未声明
-- 404: Not found；返回结构：未声明
+### 通用响应包
+大多数接口：
 
-### GET /admin/alert-events/{eventId}/actions
-- 概要: List alert event action trail
-- Path 参数:
-- eventId (必填, string)
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 403: Forbidden；返回结构：未声明
-- 404: Not found；返回结构：未声明
-
-### POST /admin/alert-events/{eventId}/resolve
-- 概要: Resolve alert event
-- Path 参数:
-- eventId (必填, string)
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 403: Forbidden；返回结构：未声明
-- 404: Not found；返回结构：未声明
-
-### GET /admin/alerts
-- 概要: List alert rules
-- Path 参数:
-- 无
-- Query 参数:
-- enabled (可选, boolean)
-- severity (可选, string)
-- metric_key (可选, string)
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 403: Forbidden；返回结构：未声明
-
-### POST /admin/alerts
-- 概要: Upsert alert rule
-- Path 参数:
-- 无
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 403: Forbidden；返回结构：未声明
-
-### GET /admin/alerts/summary
-- 概要: Alert summary counters
-- Path 参数:
-- 无
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 403: Forbidden；返回结构：未声明
-
-### DELETE /admin/alerts/{ruleId}
-- 概要: Delete alert rule
-- Path 参数:
-- ruleId (必填, string)
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 403: Forbidden；返回结构：未声明
-- 404: Not found；返回结构：未声明
-
-### GET /admin/api-coverage
-- 概要: API coverage catalog for integrator automation
-- Path 参数:
-- 无
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-
-### GET /admin/audit-logs
-- 概要: Global audit logs query
-- Path 参数:
-- 无
-- Query 参数:
-- project_id (可选, string)
-- actor_name (可选, string)
-- actor_role (可选, string)
-- action (可选, string)
-- from (可选, string)
-- to (可选, string)
-- limit (可选, integer)
-- offset (可选, integer)
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 403: Forbidden；返回结构：未声明
-
-### GET /admin/deployments
-- 概要: List deployment records
-- Path 参数:
-- 无
-- Query 参数:
-- env (可选, string)
-- status (可选, string)
-- limit (可选, integer)
-- offset (可选, integer)
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 403: Forbidden；返回结构：未声明
-
-### POST /admin/deployments
-- 概要: Create deployment record
-- Path 参数:
-- 无
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 403: Forbidden；返回结构：未声明
-
-### GET /admin/deployments/rollbacks
-- 概要: List rollback records globally
-- Path 参数:
-- 无
-- Query 参数:
-- env (可选, string)
-- operator (可选, string)
-- from (可选, string)
-- to (可选, string)
-- limit (可选, integer)
-- offset (可选, integer)
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 403: Forbidden；返回结构：未声明
-
-### PATCH /admin/deployments/{deploymentId}
-- 概要: Update deployment status
-- Path 参数:
-- deploymentId (必填, string)
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 403: Forbidden；返回结构：未声明
-- 404: Not found；返回结构：未声明
-
-### POST /admin/deployments/{deploymentId}/rollback
-- 概要: Rollback one deployment and register rollback record
-- Path 参数:
-- deploymentId (必填, string)
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 403: Forbidden；返回结构：未声明
-- 404: Not found；返回结构：未声明
-
-### GET /admin/deployments/{deploymentId}/rollbacks
-- 概要: List rollback records for one deployment
-- Path 参数:
-- deploymentId (必填, string)
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 403: Forbidden；返回结构：未声明
-- 404: Not found；返回结构：未声明
-
-### GET /admin/idempotency-keys
-- 概要: List idempotency key records
-- Path 参数:
-- 无
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 403: Forbidden；返回结构：未声明
-
-### DELETE /admin/idempotency-keys/{key}
-- 概要: Delete one idempotency key record
-- Path 参数:
-- key (必填, string)
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 403: Forbidden；返回结构：未声明
-- 404: Not found；返回结构：未声明
-
-### POST /admin/init
-- 概要: Initialize schema and seed
-- Path 参数:
-- 无
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-
-### POST /admin/maintenance/cleanup
-- 概要: Cleanup expired sessions and stale idempotency records
-- Path 参数:
-- 无
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 403: Forbidden；返回结构：未声明
-
-### GET /admin/ops/summary
-- 概要: Get operational summary metrics
-- Path 参数:
-- 无
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 403: Forbidden；返回结构：未声明
-
-### GET /admin/permission-check
-- 概要: Evaluate permission with optional actor/project override
-- Path 参数:
-- 无
-- Query 参数:
-- permission (必填, string)
-- project_id (可选, string)
-- actor_role (可选, string)
-- actor_name (可选, string)
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 400: Bad request；返回结构：未声明
-
-### GET /admin/policy-rules
-- 概要: List D1 policy rules
-- Path 参数:
-- 无
-- Query 参数:
-- project_id (可选, string)
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-
-### POST /admin/policy-rules
-- 概要: Upsert policy rule
-- Path 参数:
-- 无
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 403: Forbidden；返回结构：未声明
-
-### DELETE /admin/policy-rules/{ruleId}
-- 概要: Delete policy rule
-- Path 参数:
-- ruleId (必填, string)
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 403: Forbidden；返回结构：未声明
-- 404: Not found；返回结构：未声明
-
-### GET /admin/rate-limits
-- 概要: List API rate-limit policies
-- Path 参数:
-- 无
-- Query 参数:
-- scope_type (可选, string)
-- scope_value (可选, string)
-- method (可选, string)
-- path_pattern (可选, string)
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 403: Forbidden；返回结构：未声明
-
-### POST /admin/rate-limits
-- 概要: Upsert API rate-limit policy
-- Path 参数:
-- 无
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 403: Forbidden；返回结构：未声明
-
-### GET /admin/rate-limits/hits
-- 概要: List API rate-limit hit buckets
-- Path 参数:
-- 无
-- Query 参数:
-- policy_id (可选, string)
-- from (可选, string)
-- to (可选, string)
-- limit (可选, integer)
-- offset (可选, integer)
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 403: Forbidden；返回结构：未声明
-
-### DELETE /admin/rate-limits/{ruleId}
-- 概要: Delete API rate-limit policy
-- Path 参数:
-- ruleId (必填, string)
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 403: Forbidden；返回结构：未声明
-- 404: Not found；返回结构：未声明
-
-### DELETE /admin/rate-limits/{ruleId}/hits
-- 概要: Delete one rate-limit policy hit buckets
-- Path 参数:
-- ruleId (必填, string)
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 403: Forbidden；返回结构：未声明
-- 404: Not found；返回结构：未声明
-
-### GET /admin/role-bindings
-- 概要: List role bindings
-- Path 参数:
-- 无
-- Query 参数:
-- project_id (可选, string)
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-
-### POST /admin/role-bindings
-- 概要: Upsert role binding
-- Path 参数:
-- 无
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 403: Forbidden；返回结构：未声明
-
-### DELETE /admin/role-bindings/{bindingId}
-- 概要: Delete role binding
-- Path 参数:
-- bindingId (必填, string)
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 403: Forbidden；返回结构：未声明
-- 404: Not found；返回结构：未声明
-
-### POST /api/ai/plan-trips
-- 概要: AI Trip planner (rules engine, model-free)
-- Path 参数:
-- 无
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 400: Bad request；返回结构：未声明
-
-### POST /api/ai/trip-interpret
-- 概要: AI Trip Interpreter (rules engine, model-free)
-- Path 参数:
-- 无
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 400: Bad request；返回结构：未声明
-
-### GET /api/proofs
-- 概要: List proofs
-- Path 参数:
-- 无
-- Query 参数:
-- project_id (可选, string)
-- document_id (可选, string)
-- version_id (可选, string)
-- result (可选, string)
-- validation_status (可选, string)
-- executor_uri (可选, string)
-- norm_ref (可选, string)
-- search (可选, string)
-- from (可选, string)
-- to (可选, string)
-- limit (可选, integer)
-- offset (可选, integer)
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-
-### GET /api/proofs/{proofId}
-- 概要: Get proof detail
-- Path 参数:
-- proofId (必填, string)
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 404: Not found；返回结构：未声明
-
-### GET /api/trips
-- 概要: List trips
-- Path 参数:
-- 无
-- Query 参数:
-- project_id (可选, string)
-- action (可选, string)
-- status (可选, string)
-- document_id (可选, string)
-- version_id (可选, string)
-- executor_uri (可选, string)
-- target_uri (可选, string)
-- search (可选, string)
-- from (可选, string)
-- to (可选, string)
-- limit (可选, integer)
-- offset (可选, integer)
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-
-### POST /api/trips
-- 概要: Create trip
-- Path 参数:
-- 无
-- Query 参数:
-- 无
-- Header 参数:
-- x-idempotency-key (可选, string)
-- 请求体:
-- 无
-- 响应:
-- 201: Created；返回结构：未声明
-- 403: Forbidden；返回结构：未声明
-
-### GET /api/trips/{tripId}
-- 概要: Get trip detail
-- Path 参数:
-- tripId (必填, string)
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 404: Not found；返回结构：未声明
-
-### POST /api/trips/{tripId}/complete
-- 概要: Complete trip
-- Path 参数:
-- tripId (必填, string)
-- Query 参数:
-- 无
-- Header 参数:
-- x-idempotency-key (可选, string)
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 403: Forbidden；返回结构：未声明
-- 404: Not found；返回结构：未声明
-
-### POST /approvals/batch-resolve
-- 概要: Resolve approval nodes in batch
-- Path 参数:
-- 无
-- Query 参数:
-- 无
-- Header 参数:
-- x-idempotency-key (可选, string)
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 207: Partial success；返回结构：未声明
-- 400: Bad request；返回结构：未声明
-
-### POST /approvals/{approvalId}/resolve
-- 概要: Resolve approval node
-- Path 参数:
-- approvalId (必填, string)
-- Query 参数:
-- 无
-- Header 参数:
-- x-idempotency-key (可选, string)
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 403: Forbidden；返回结构：未声明
-- 404: Not found；返回结构：未声明
-
-### GET /auth/api-keys
-- 概要: List API keys (owner/system)
-- Path 参数:
-- 无
-- Query 参数:
-- subject (可选, string)
-- actor_role (可选, string)
-- active (可选, boolean)
-- include_disabled (可选, boolean)
-- limit (可选, integer)
-- offset (可选, integer)
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 403: Forbidden；返回结构：未声明
-
-### POST /auth/api-keys
-- 概要: Create API key (returns plain token once)
-- Path 参数:
-- 无
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 400: Bad request；返回结构：未声明
-- 403: Forbidden；返回结构：未声明
-
-### DELETE /auth/api-keys/{keyId}
-- 概要: Delete one API key
-- Path 参数:
-- keyId (必填, string)
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 403: Forbidden；返回结构：未声明
-- 404: Not found；返回结构：未声明
-
-### PATCH /auth/api-keys/{keyId}
-- 概要: Update API key metadata or status
-- Path 参数:
-- keyId (必填, string)
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 400: Bad request；返回结构：未声明
-- 403: Forbidden；返回结构：未声明
-- 404: Not found；返回结构：未声明
-
-### POST /auth/api-keys/{keyId}/rotate
-- 概要: Rotate API key token (returns new plain token once)
-- Path 参数:
-- keyId (必填, string)
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 400: Bad request；返回结构：未声明
-- 403: Forbidden；返回结构：未声明
-- 404: Not found；返回结构：未声明
-
-### POST /auth/introspect
-- 概要: Introspect session or API key token (AuthPeg/OIDC seam)
-- Path 参数:
-- 无
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 401: Unauthorized；返回结构：未声明
-
-### POST /auth/logout
-- 概要: Logout current API session
-- Path 参数:
-- 无
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 401: Unauthorized；返回结构：未声明
-
-### GET /auth/me
-- 概要: Resolve current actor by Bearer or API key token
-- Path 参数:
-- 无
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 401: Unauthorized；返回结构：未声明
-
-### POST /auth/session
-- 概要: Issue API session token (OIDC/AuthPeg seam)
-- Path 参数:
-- 无
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 400: Bad request；返回结构：未声明
-
-### GET /auth/sessions
-- 概要: List API sessions for current subject (or system-scoped query)
-- Path 参数:
-- 无
-- Query 参数:
-- subject (可选, string)
-- active (可选, boolean)
-- limit (可选, integer)
-- offset (可选, integer)
-- include_token (可选, boolean)
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 401: Unauthorized；返回结构：未声明
-- 403: Forbidden；返回结构：未声明
-
-### DELETE /auth/sessions/{token}
-- 概要: Revoke one API session by token (supports token=current)
-- Path 参数:
-- token (必填, string)
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 401: Unauthorized；返回结构：未声明
-- 403: Forbidden；返回结构：未声明
-- 404: Not found；返回结构：未声明
-
-### GET /files
-- 概要: List file metadata
-- Path 参数:
-- 无
-- Query 参数:
-- project_id (可选, string)
-- document_id (可选, string)
-- version_id (可选, string)
-- proof_id (可选, string)
-- uploaded_by (可选, string)
-- content_type (可选, string)
-- search (可选, string)
-- size_min (可选, integer)
-- size_max (可选, integer)
-- from (可选, string)
-- to (可选, string)
-- limit (可选, integer)
-- offset (可选, integer)
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-
-### DELETE /files/{fileId}
-- 概要: Delete file metadata and object
-- Path 参数:
-- fileId (必填, string)
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 403: Forbidden；返回结构：未声明
-- 404: Not found；返回结构：未声明
-
-### GET /files/{fileId}
-- 概要: Get file metadata by id
-- Path 参数:
-- fileId (必填, string)
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 404: Not found；返回结构：未声明
-
-### GET /health
-- 概要: Health check
-- Path 参数:
-- 无
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-
-### GET /health/ready
-- 概要: Readiness check (DB/R2)
-- Path 参数:
-- 无
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: Ready；返回结构：未声明
-- 503: Not ready；返回结构：未声明
-
-### GET /integrations/bot-events
-- 概要: List bot event jobs
-- Path 参数:
-- 无
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-
-### POST /integrations/bot-events
-- 概要: Enqueue one bot event job
-- Path 参数:
-- 无
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 403: Forbidden；返回结构：未声明
-
-### POST /integrations/bot-events/dispatch
-- 概要: Dispatch pending bot event jobs
-- Path 参数:
-- 无
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 403: Forbidden；返回结构：未声明
-
-### GET /integrations/bot-events/stats
-- 概要: Get bot event job statistics
-- Path 参数:
-- 无
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-
-### POST /integrations/bot-events/{eventJobId}/replay
-- 概要: Replay one bot event job (requeue)
-- Path 参数:
-- eventJobId (必填, string)
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 403: Forbidden；返回结构：未声明
-- 404: Not found；返回结构：未声明
-
-### GET /integrations/bots
-- 概要: List integration bots
-- Path 参数:
-- 无
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-
-### POST /integrations/bots
-- 概要: Create or update integration bot
-- Path 参数:
-- 无
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 403: Forbidden；返回结构：未声明
-
-### POST /integrations/bots/dispatch-pending
-- 概要: Dispatch enabled bots (manual/scheduler seam)
-- Path 参数:
-- 无
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 403: Forbidden；返回结构：未声明
-
-### GET /integrations/bots/runs
-- 概要: List recent runs across bots
-- Path 参数:
-- 无
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-
-### GET /integrations/bots/runs/export.csv
-- 概要: Export recent runs across bots as CSV
-- Path 参数:
-- 无
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-
-### GET /integrations/bots/stats
-- 概要: Get integration bots aggregate statistics
-- Path 参数:
-- 无
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-
-### DELETE /integrations/bots/{botId}
-- 概要: Delete integration bot
-- Path 参数:
-- botId (必填, string)
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 404: Not found；返回结构：未声明
-
-### GET /integrations/bots/{botId}
-- 概要: Get integration bot detail
-- Path 参数:
-- botId (必填, string)
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 404: Not found；返回结构：未声明
-
-### PATCH /integrations/bots/{botId}
-- 概要: Patch integration bot
-- Path 参数:
-- botId (必填, string)
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 404: Not found；返回结构：未声明
-
-### POST /integrations/bots/{botId}/run
-- 概要: Manually run one bot now
-- Path 参数:
-- botId (必填, string)
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 404: Not found；返回结构：未声明
-
-### GET /integrations/bots/{botId}/runs
-- 概要: List bot run history
-- Path 参数:
-- botId (必填, string)
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 404: Not found；返回结构：未声明
-
-### GET /integrations/bots/{botId}/runs/{runId}
-- 概要: Get one bot run detail
-- Path 参数:
-- botId (必填, string)
-- runId (必填, string)
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 404: Not found；返回结构：未声明
-
-### POST /integrations/bots/{botId}/runs/{runId}/replay
-- 概要: Replay one bot run
-- Path 参数:
-- botId (必填, string)
-- runId (必填, string)
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 404: Not found；返回结构：未声明
-
-### GET /integrations/bots/{botId}/stats
-- 概要: Get one bot run statistics
-- Path 参数:
-- botId (必填, string)
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 404: Not found；返回结构：未声明
-
-### GET /integrations/statuses
-- 概要: List integration statuses and seams
-- Path 参数:
-- 无
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-
-### GET /integrations/webhooks
-- 概要: List webhook subscriptions
-- Path 参数:
-- 无
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-
-### POST /integrations/webhooks
-- 概要: Create webhook subscription
-- Path 参数:
-- 无
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 403: Forbidden；返回结构：未声明
-
-### DELETE /integrations/webhooks/{webhookId}
-- 概要: Delete webhook subscription
-- Path 参数:
-- webhookId (必填, string)
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 404: Not found；返回结构：未声明
-
-### GET /integrations/webhooks/{webhookId}
-- 概要: Get webhook subscription detail
-- Path 参数:
-- webhookId (必填, string)
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 404: Not found；返回结构：未声明
-
-### PATCH /integrations/webhooks/{webhookId}
-- 概要: Update webhook subscription
-- Path 参数:
-- webhookId (必填, string)
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 400: Bad request；返回结构：未声明
-- 403: Forbidden；返回结构：未声明
-- 404: Not found；返回结构：未声明
-
-### GET /integrations/webhooks/{webhookId}/dead-letter
-- 概要: List webhook dead-letter deliveries
-- Path 参数:
-- webhookId (必填, string)
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 404: Not found；返回结构：未声明
-
-### POST /integrations/webhooks/{webhookId}/dead-letter/replay
-- 概要: Batch replay dead-letter deliveries
-- Path 参数:
-- webhookId (必填, string)
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 403: Forbidden；返回结构：未声明
-- 404: Not found；返回结构：未声明
-
-### GET /integrations/webhooks/{webhookId}/deliveries
-- 概要: List webhook delivery history
-- Path 参数:
-- webhookId (必填, string)
-- Query 参数:
-- status (可选, string)
-- search (可选, string)
-- from (可选, string)
-- to (可选, string)
-- limit (可选, integer)
-- offset (可选, integer)
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 404: Not found；返回结构：未声明
-
-### GET /integrations/webhooks/{webhookId}/deliveries/{deliveryId}
-- 概要: Get webhook delivery detail
-- Path 参数:
-- webhookId (必填, string)
-- deliveryId (必填, string)
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 404: Not found；返回结构：未声明
-
-### POST /integrations/webhooks/{webhookId}/deliveries/{deliveryId}/replay
-- 概要: Replay one webhook delivery (optionally bypass retry policy)
-- Path 参数:
-- webhookId (必填, string)
-- deliveryId (必填, string)
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 403: Forbidden；返回结构：未声明
-- 404: Not found；返回结构：未声明
-
-### POST /integrations/webhooks/{webhookId}/deliveries/{deliveryId}/retry
-- 概要: Retry one webhook delivery
-- Path 参数:
-- webhookId (必填, string)
-- deliveryId (必填, string)
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 403: Forbidden；返回结构：未声明
-- 404: Not found；返回结构：未声明
-
-### GET /integrations/webhooks/{webhookId}/delivery-stats
-- 概要: Get webhook delivery statistics
-- Path 参数:
-- webhookId (必填, string)
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 404: Not found；返回结构：未声明
-
-### POST /integrations/webhooks/{webhookId}/dispatch-pending
-- 概要: Dispatch pending/failed deliveries in batch
-- Path 参数:
-- webhookId (必填, string)
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 403: Forbidden；返回结构：未声明
-- 404: Not found；返回结构：未声明
-
-### GET /integrations/webhooks/{webhookId}/retry-policy
-- 概要: Get webhook retry policy
-- Path 参数:
-- webhookId (必填, string)
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 404: Not found；返回结构：未声明
-
-### PUT /integrations/webhooks/{webhookId}/retry-policy
-- 概要: Upsert webhook retry policy
-- Path 参数:
-- webhookId (必填, string)
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 403: Forbidden；返回结构：未声明
-- 404: Not found；返回结构：未声明
-
-### POST /integrations/webhooks/{webhookId}/rotate-secret
-- 概要: Rotate webhook secret
-- Path 参数:
-- webhookId (必填, string)
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 403: Forbidden；返回结构：未声明
-- 404: Not found；返回结构：未声明
-
-### POST /integrations/webhooks/{webhookId}/test
-- 概要: Send webhook test delivery record
-- Path 参数:
-- webhookId (必填, string)
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 404: Not found；返回结构：未声明
-
-### GET /openapi.json
-- 概要: OpenAPI spec
-- Path 参数:
-- 无
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-
-### GET /projects
-- 概要: List projects
-- Path 参数:
-- 无
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-
-### POST /projects
-- 概要: Create project
-- Path 参数:
-- 无
-- Query 参数:
-- 无
-- Header 参数:
-- x-idempotency-key (可选, string)
-- 请求体:
-- 无
-- 响应:
-- 201: Created；返回结构：未声明
-- 403: Forbidden；返回结构：未声明
-- 409: Conflict；返回结构：未声明
-
-### GET /projects/{projectId}
-- 概要: Get project overview
-- Path 参数:
-- projectId (必填, string)
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 404: Not found；返回结构：未声明
-
-### PATCH /projects/{projectId}
-- 概要: Update project metadata
-- Path 参数:
-- projectId (必填, string)
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 403: Forbidden；返回结构：未声明
-- 404: Not found；返回结构：未声明
-
-### GET /projects/{projectId}/approvals
-- 概要: List approvals
-- Path 参数:
-- projectId (必填, string)
-- Query 参数:
-- status (可选, string)
-- role (可选, string)
-- document_id (可选, string)
-- version_id (可选, string)
-- current_only (可选, boolean)
-- limit (可选, integer)
-- offset (可选, integer)
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-
-### GET /projects/{projectId}/audit-hash-chain
-- 概要: Build audit hash chain
-- Path 参数:
-- projectId (必填, string)
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-
-### GET /projects/{projectId}/audit-logs
-- 概要: List audit logs
-- Path 参数:
-- projectId (必填, string)
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-
-### POST /projects/{projectId}/audit-logs
-- 概要: Append audit log
-- Path 参数:
-- projectId (必填, string)
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 201: Created；返回结构：未声明
-- 403: Forbidden；返回结构：未声明
-
-### GET /projects/{projectId}/boq/deviation-summary
-- 概要: Get BOQ deviation summary
-- Path 参数:
-- projectId (必填, string)
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-
-### POST /projects/{projectId}/boq/execute-trip
-- 概要: Execute BOQ trip action (measure.record / quality.check)
-- Path 参数:
-- projectId (必填, string)
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 400: Bad request；返回结构：未声明
-
-### POST /projects/{projectId}/boq/import
-- 概要: Import BOQ rows and generate initial UTXOs
-- Path 参数:
-- projectId (必填, string)
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 400: Bad request；返回结构：未声明
-
-### GET /projects/{projectId}/boq/items
-- 概要: List BOQ items
-- Path 参数:
-- projectId (必填, string)
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-
-### GET /projects/{projectId}/boq/nodes
-- 概要: List BOQ nodes
-- Path 参数:
-- projectId (必填, string)
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-
-### GET /projects/{projectId}/boq/utxos
-- 概要: List BOQ UTXOs
-- Path 参数:
-- projectId (必填, string)
-- Query 参数:
-- is_spent (可选, integer)
-- code (可选, string)
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-
-### GET /projects/{projectId}/boq/zero-ledger
-- 概要: List zero-ledger entries
-- Path 参数:
-- projectId (必填, string)
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-
-### GET /projects/{projectId}/calendar/ai-insights
-- 概要: Calendar AI insights (model-first, rule fallback)
-- Path 参数:
-- projectId (必填, string)
-- Query 参数:
-- from (可选, string)
-- to (可选, string)
-- types (可选, string)
-- status (可选, string)
-- limit (可选, integer)
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 404: Not found；返回结构：未声明
-
-### GET /projects/{projectId}/calendar/events
-- 概要: Project calendar event stream
-- Path 参数:
-- projectId (必填, string)
-- Query 参数:
-- from (可选, string)
-- to (可选, string)
-- types (可选, string)
-- status (可选, string)
-- limit (可选, integer)
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 404: Not found；返回结构：未声明
-
-### GET /projects/{projectId}/calendar/export.csv
-- 概要: Export project calendar events as CSV
-- Path 参数:
-- projectId (必填, string)
-- Query 参数:
-- from (可选, string)
-- to (可选, string)
-- types (可选, string)
-- status (可选, string)
-- limit (可选, integer)
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 404: Not found；返回结构：未声明
-
-### GET /projects/{projectId}/components
-- 概要: List component UTXO snapshots
-- Path 参数:
-- projectId (必填, string)
-- Query 参数:
-- entity_id (可选, string)
-- kind (可选, string)
-- status (可选, string)
-- all_versions (可选, boolean)
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-
-### POST /projects/{projectId}/components
-- 概要: Create component UTXO root snapshot
-- Path 参数:
-- projectId (必填, string)
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 201: Created；返回结构：未声明
-- 400: Bad request；返回结构：未声明
-
-### GET /projects/{projectId}/components/{componentId}
-- 概要: Get current component UTXO snapshot
-- Path 参数:
-- projectId (必填, string)
-- componentId (必填, string)
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 404: Not found；返回结构：未声明
-
-### GET /projects/{projectId}/components/{componentId}/allocations
-- 概要: List BOQ allocation records for one component
-- Path 参数:
-- projectId (必填, string)
-- componentId (必填, string)
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 404: Not found；返回结构：未声明
-
-### GET /projects/{projectId}/components/{componentId}/conservation
-- 概要: Get component conservation validation result
-- Path 参数:
-- projectId (必填, string)
-- componentId (必填, string)
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 404: Not found；返回结构：未声明
-
-### GET /projects/{projectId}/components/{componentId}/governance
-- 概要: Get component BOM/BOQ governance result
-- Path 参数:
-- projectId (必填, string)
-- componentId (必填, string)
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 404: Not found；返回结构：未声明
-
-### POST /projects/{projectId}/components/{componentId}/trips
-- 概要: Execute one TripRole action on component and derive next snapshot
-- Path 参数:
-- projectId (必填, string)
-- componentId (必填, string)
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 404: Not found；返回结构：未声明
-
-### GET /projects/{projectId}/documents
-- 概要: List documents
-- Path 参数:
-- projectId (必填, string)
-- Query 参数:
-- status (可选, string)
-- category (可选, string)
-- search (可选, string)
-- limit (可选, integer)
-- offset (可选, integer)
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-
-### POST /projects/{projectId}/documents
-- 概要: Create document
-- Path 参数:
-- projectId (必填, string)
-- Query 参数:
-- 无
-- Header 参数:
-- x-idempotency-key (可选, string)
-- 请求体:
-- 无
-- 响应:
-- 201: Created；返回结构：未声明
-- 403: Forbidden；返回结构：未声明
-- 409: Conflict；返回结构：未声明
-
-### DELETE /projects/{projectId}/documents/{documentId}
-- 概要: Delete one draft document (no versions)
-- Path 参数:
-- projectId (必填, string)
-- documentId (必填, string)
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: Deleted；返回结构：未声明
-- 403: Forbidden；返回结构：未声明
-- 404: Not found；返回结构：未声明
-- 409: Document has versions or is not draft；返回结构：未声明
-
-### GET /projects/{projectId}/documents/{documentId}
-- 概要: Get document summary
-- Path 参数:
-- projectId (必填, string)
-- documentId (必填, string)
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 404: Not found；返回结构：未声明
-
-### PATCH /projects/{projectId}/documents/{documentId}
-- 概要: Update document metadata/status
-- Path 参数:
-- projectId (必填, string)
-- documentId (必填, string)
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 403: Forbidden；返回结构：未声明
-- 404: Not found；返回结构：未声明
-
-### GET /projects/{projectId}/documents/{documentId}/detail
-- 概要: Get document detail with current version and UTXO snapshot
-- Path 参数:
-- projectId (必填, string)
-- documentId (必填, string)
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 404: Not found；返回结构：未声明
-
-### GET /projects/{projectId}/documents/{documentId}/utxo-tree
-- 概要: Build document UTXO tree view
-- Path 参数:
-- projectId (必填, string)
-- documentId (必填, string)
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 404: Not found；返回结构：未声明
-
-### GET /projects/{projectId}/documents/{documentId}/versions
-- 概要: List versions
-- Path 参数:
-- projectId (必填, string)
-- documentId (必填, string)
-- Query 参数:
-- status (可选, string)
-- author (可选, string)
-- proof_id (可选, string)
-- limit (可选, integer)
-- offset (可选, integer)
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-
-### POST /projects/{projectId}/documents/{documentId}/versions
-- 概要: Create version
-- Path 参数:
-- projectId (必填, string)
-- documentId (必填, string)
-- Query 参数:
-- 无
-- Header 参数:
-- x-idempotency-key (可选, string)
-- 请求体:
-- 无
-- 响应:
-- 201: Created；返回结构：未声明
-- 403: Forbidden；返回结构：未声明
-- 409: Conflict；返回结构：未声明
-
-### GET /projects/{projectId}/documents/{documentId}/versions/{versionId}
-- 概要: Get version summary with proof/validation aggregates
-- Path 参数:
-- projectId (必填, string)
-- documentId (必填, string)
-- versionId (必填, string)
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 404: Not found；返回结构：未声明
-
-### PATCH /projects/{projectId}/documents/{documentId}/versions/{versionId}
-- 概要: Update version status/metadata
-- Path 参数:
-- projectId (必填, string)
-- documentId (必填, string)
-- versionId (必填, string)
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 403: Forbidden；返回结构：未声明
-- 404: Not found；返回结构：未声明
-
-### POST /projects/{projectId}/documents/{documentId}/versions/{versionId}/activate
-- 概要: Activate one version as current effective
-- Path 参数:
-- projectId (必填, string)
-- documentId (必填, string)
-- versionId (必填, string)
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 403: Forbidden；返回结构：未声明
-- 404: Not found；返回结构：未声明
-
-### GET /projects/{projectId}/documents/{documentId}/versions/{versionId}/evidence-package
-- 概要: Get version evidence package aggregate
-- Path 参数:
-- projectId (必填, string)
-- documentId (必填, string)
-- versionId (必填, string)
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 404: Not found；返回结构：未声明
-
-### GET /projects/{projectId}/entities
-- 概要: List engineering entities
-- Path 参数:
-- projectId (必填, string)
-- Query 参数:
-- status (可选, string)
-- entity_type (可选, string)
-- search (可选, string)
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-
-### POST /projects/{projectId}/entities
-- 概要: Create engineering entity
-- Path 参数:
-- projectId (必填, string)
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 201: Created；返回结构：未声明
-- 400: Bad request；返回结构：未声明
-
-### DELETE /projects/{projectId}/entities/{entityId}
-- 概要: Delete engineering entity
-- Path 参数:
-- projectId (必填, string)
-- entityId (必填, string)
-- Query 参数:
-- force (可选, boolean)
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 404: Not found；返回结构：未声明
-- 409: Conflict；返回结构：未声明
-
-### PATCH /projects/{projectId}/entities/{entityId}
-- 概要: Update engineering entity
-- Path 参数:
-- projectId (必填, string)
-- entityId (必填, string)
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 404: Not found；返回结构：未声明
-
-### GET /projects/{projectId}/entities/{entityId}/components
-- 概要: List components under one engineering entity
-- Path 参数:
-- projectId (必填, string)
-- entityId (必填, string)
-- Query 参数:
-- all_versions (可选, boolean)
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 404: Not found；返回结构：未声明
-
-### GET /projects/{projectId}/evidence-summary
-- 概要: Project evidence summary
-- Path 参数:
-- projectId (必填, string)
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 404: Not found；返回结构：未声明
-
-### POST /projects/{projectId}/final-proof
-- 概要: Generate project-level final proof from current component snapshots
-- Path 参数:
-- projectId (必填, string)
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 404: Not found；返回结构：未声明
-
-### GET /projects/{projectId}/final-proof/precheck
-- 概要: Get final-proof precheck status from current snapshots
-- Path 参数:
-- projectId (必填, string)
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 404: Not found；返回结构：未声明
-
-### GET /projects/{projectId}/final-proof/summary
-- 概要: Final proof risk snapshot and aggregates
-- Path 参数:
-- projectId (必填, string)
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 404: Not found；返回结构：未声明
-
-### GET /projects/{projectId}/members
-- 概要: List project members
-- Path 参数:
-- projectId (必填, string)
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-
-### POST /projects/{projectId}/members
-- 概要: Upsert project member
-- Path 参数:
-- projectId (必填, string)
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 403: Forbidden；返回结构：未声明
-
-### DELETE /projects/{projectId}/members/{memberId}
-- 概要: Delete project member
-- Path 参数:
-- projectId (必填, string)
-- memberId (必填, string)
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 403: Forbidden；返回结构：未声明
-- 404: Not found；返回结构：未声明
-
-### PATCH /projects/{projectId}/members/{memberId}
-- 概要: Update project member
-- Path 参数:
-- projectId (必填, string)
-- memberId (必填, string)
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 400: Bad request；返回结构：未声明
-- 403: Forbidden；返回结构：未声明
-- 404: Not found；返回结构：未声明
-
-### GET /projects/{projectId}/milestones
-- 概要: List project milestones
-- Path 参数:
-- projectId (必填, string)
-- Query 参数:
-- status (可选, string)
-- limit (可选, integer)
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 404: Not found；返回结构：未声明
-
-### POST /projects/{projectId}/milestones
-- 概要: Create project milestone
-- Path 参数:
-- projectId (必填, string)
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 201: Created；返回结构：未声明
-- 403: Forbidden；返回结构：未声明
-- 404: Not found；返回结构：未声明
-
-### DELETE /projects/{projectId}/milestones/{milestoneId}
-- 概要: Delete project milestone
-- Path 参数:
-- projectId (必填, string)
-- milestoneId (必填, string)
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 403: Forbidden；返回结构：未声明
-- 404: Not found；返回结构：未声明
-
-### PATCH /projects/{projectId}/milestones/{milestoneId}
-- 概要: Update project milestone
-- Path 参数:
-- projectId (必填, string)
-- milestoneId (必填, string)
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 403: Forbidden；返回结构：未声明
-- 404: Not found；返回结构：未声明
-
-### GET /projects/{projectId}/normref/families
-- 概要: List bridge NormRef families
-- Path 参数:
-- projectId (必填, string)
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 404: Not found；返回结构：未声明
-
-### GET /projects/{projectId}/normref/forms
-- 概要: List bridge NormRef form catalog
-- Path 参数:
-- projectId (必填, string)
-- Query 参数:
-- family_code (可选, string)
-- q (可选, string)
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 404: Not found；返回结构：未声明
-
-### GET /projects/{projectId}/normref/forms/{formCode}
-- 概要: Get one bridge NormRef form template and protocol stub
-- Path 参数:
-- projectId (必填, string)
-- formCode (必填, string)
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 404: Not found；返回结构：未声明
-
-### POST /projects/{projectId}/normref/forms/{formCode}/draft-instances
-- 概要: Save one NormRef draft instance from preview payload
-- Path 参数:
-- projectId (必填, string)
-- formCode (必填, string)
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 400: Bad request；返回结构：未声明
-- 404: Not found；返回结构：未声明
-
-### GET /projects/{projectId}/normref/forms/{formCode}/draft-instances/latest
-- 概要: Get latest NormRef draft instance
-- Path 参数:
-- projectId (必填, string)
-- formCode (必填, string)
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 400: Bad request；返回结构：未声明
-- 404: Not found；返回结构：未声明
-
-### POST /projects/{projectId}/normref/forms/{formCode}/draft-instances/{instanceId}/submit
-- 概要: Submit one NormRef draft instance
-- Path 参数:
-- projectId (必填, string)
-- formCode (必填, string)
-- instanceId (必填, string)
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 400: Bad request；返回结构：未声明
-- 404: Not found；返回结构：未声明
-- 409: Invalid status transition；返回结构：未声明
-
-### POST /projects/{projectId}/normref/forms/{formCode}/interpret-preview
-- 概要: Interpret NormRef form input and return five-layer preview
-- Path 参数:
-- projectId (必填, string)
-- formCode (必填, string)
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 400: Bad request；返回结构：未声明
-- 404: Not found；返回结构：未声明
-
-### GET /projects/{projectId}/normref/forms/{formCode}/latest-submitted
-- 概要: Get latest submitted NormRef instance
-- Path 参数:
-- projectId (必填, string)
-- formCode (必填, string)
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 400: Bad request；返回结构：未声明
-- 404: Not found；返回结构：未声明
-
-### GET /projects/{projectId}/normref/instances
-- 概要: List bridge NormRef instances
-- Path 参数:
-- projectId (必填, string)
-- Query 参数:
-- form_code (可选, string)
-- status (可选, string)
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 404: Not found；返回结构：未声明
-
-### POST /projects/{projectId}/pipeline/run
-- 概要: Run unified DocPeg pipeline (component create/trip/check/final-proof)
-- Path 参数:
-- projectId (必填, string)
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 400: Bad request；返回结构：未声明
-- 404: Not found；返回结构：未声明
-
-### GET /projects/{projectId}/quality-gate-executions
-- 概要: List quality gate executions
-- Path 参数:
-- projectId (必填, string)
-- Query 参数:
-- subitem_code (可选, string)
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-
-### GET /projects/{projectId}/quality-gates
-- 概要: List quality gates
-- Path 参数:
-- projectId (必填, string)
-- Query 参数:
-- subitem_code (可选, string)
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-
-### POST /projects/{projectId}/quality-gates
-- 概要: Upsert quality gate
-- Path 参数:
-- projectId (必填, string)
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 400: Bad request；返回结构：未声明
-
-### POST /projects/{projectId}/quality-gates/{gateId}/execute
-- 概要: Execute one quality gate
-- Path 参数:
-- projectId (必填, string)
-- gateId (必填, string)
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 400: Bad request；返回结构：未声明
-- 404: Not found；返回结构：未声明
-
-### POST /projects/{projectId}/quality-gates/{gateId}/execute-with-trip
-- 概要: Execute one quality gate and atomically create completed trip with proof
-- Path 参数:
-- projectId (必填, string)
-- gateId (必填, string)
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 400: Bad request；返回结构：未声明
-- 404: Not found；返回结构：未声明
-
-### GET /projects/{projectId}/state-events
-- 概要: Project state-event ledger snapshot
-- Path 参数:
-- projectId (必填, string)
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 404: Not found；返回结构：未声明
-
-### GET /projects/{projectId}/utxo-conflicts
-- 概要: List project UTXO conflicts
-- Path 参数:
-- projectId (必填, string)
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 404: Not found；返回结构：未声明
-
-### GET /projects/{projectId}/utxo-tree
-- 概要: Build project document-level UTXO tree view
-- Path 参数:
-- projectId (必填, string)
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 404: Not found；返回结构：未声明
-
-### GET /projects/{projectId}/utxos
-- 概要: List project UTXOs (optionally filtered by document/version/status)
-- Path 参数:
-- projectId (必填, string)
-- Query 参数:
-- document_id (可选, string)
-- version_id (可选, string)
-- status (可选, string)
-- is_spent (可选, integer)
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 404: Not found；返回结构：未声明
-
-### POST /projects/{projectId}/utxos/{utxoId}/resolve-conflict
-- 概要: Resolve one UTXO conflict
-- Path 参数:
-- projectId (必填, string)
-- utxoId (必填, string)
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 400: Bad request；返回结构：未声明
-- 404: Not found；返回结构：未声明
-
-### DELETE /repo/snapshot
-- 概要: Delete repository snapshot
-- Path 参数:
-- 无
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-
-### GET /repo/snapshot
-- 概要: Get repository snapshot
-- Path 参数:
-- 无
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-
-### PUT /repo/snapshot
-- 概要: Save repository snapshot
-- Path 参数:
-- 无
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-
-### GET /spec-dicts
-- 概要: List quality spec dictionaries
-- Path 参数:
-- 无
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-
-### POST /upload
-- 概要: Upload file to R2 and write metadata to D1
-- Path 参数:
-- 无
-- Query 参数:
-- 无
-- Header 参数:
-- x-upload-token (可选, string)
-- x-upload-session-token (可选, string)
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 401: Unauthorized；返回结构：未声明
-- 403: Forbidden；返回结构：未声明
-
-### GET /uploads/sessions
-- 概要: List upload sessions
-- Path 参数:
-- 无
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-
-### POST /uploads/sessions
-- 概要: Create one-time upload session token
-- Path 参数:
-- 无
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 403: Forbidden；返回结构：未声明
-
-### DELETE /uploads/sessions/{sessionId}
-- 概要: Revoke upload session
-- Path 参数:
-- sessionId (必填, string)
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 403: Forbidden；返回结构：未声明
-- 404: Not found；返回结构：未声明
-
-### GET /uploads/sessions/{sessionId}
-- 概要: Get upload session
-- Path 参数:
-- sessionId (必填, string)
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 404: Not found；返回结构：未声明
-
-### GET /verify/final/{finalProofId}
-- 概要: Public verify endpoint for project-level final proof
-- Path 参数:
-- finalProofId (必填, string)
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 404: Not found；返回结构：未声明
-
-### GET /verify/proof/{proofId}
-- 概要: Public verify endpoint
-- Path 参数:
-- proofId (必填, string)
-- Query 参数:
-- 无
-- Header 参数:
-- 无
-- 请求体:
-- 无
-- 响应:
-- 200: OK；返回结构：未声明
-- 404: Not found；返回结构：未声明
-
-## /api/v1 兼容域接口（当前后端已开放，部分未写入 openapi）
-
-### GET /api/v1/docpeg/summary
-- Query 参数: 无
-- 返回结构（示例）: `{ ok:boolean, domain:"docpeg", summary:{ projects:number, documents:number, versions:number, trips:number, proofs:number } }`
-
-### GET /api/v1/dtorole/role-bindings
-- Query 参数: `project_id?`
-- 返回结构: 与 `/admin/role-bindings` 一致
-
-### POST /api/v1/dtorole/role-bindings
-- 请求体: 与 `/admin/role-bindings` upsert 一致
-- 返回结构: upsert 结果
-
-### DELETE /api/v1/dtorole/role-bindings/{bindingId}
-- Path 参数: `bindingId`
-- 返回结构: 删除结果
-
-### GET /api/v1/dtorole/permission-check
-- Query 参数: `permission`(必填), `project_id?`, `actor_role?`, `actor_name?`
-- 返回结构: 权限评估结果（allow/deny + reason）
-
-### GET /api/v1/triprole/trips
-- Query 参数: `project_id?`, `component_uri?`, `pile_id?`, `limit?`, `offset?`
-- 返回结构: trip 列表（与 `/api/trips` 兼容）
-
-### POST /api/v1/triprole/trips
-- 请求体: trip 创建参数（与 `/api/trips` 一致）
-- 返回结构: trip 创建结果
-
-### POST /api/v1/triprole/preview
-- 请求体: Trip 提交预演参数
-- 返回结构: `{ ok, guard, projection }`
-
-### POST /api/v1/triprole/submit
-- 请求体: Trip 提交参数
-- 返回结构: `{ ok, result }`
-
-### GET /api/v1/layerpeg/chain-status
-- Query 参数: `project_id?`
-- 返回结构（示例）: `{ ok, mode, reason, checks }`
-
-### POST /api/v1/layerpeg/anchor
-- 请求体: `{ project_id:string, entity_uri:string, hash:string, payload?:object }`
-- 返回结构: `{ ok, anchor_id, hash, created_at }`
-
-### GET /api/v1/layerpeg/anchor
-- Query 参数: `project_id`(必填), `entity_uri`(必填)
-- 返回结构: `{ ok, items:[{ id, project_id, entity_uri, hash, payload, created_by, created_at }] }`
-
-### NormRef /api/v1 路径
-- GET `/api/v1/normref/projects/{projectId}/forms`
-- GET `/api/v1/normref/projects/{projectId}/forms/{formCode}`
-- POST `/api/v1/normref/projects/{projectId}/forms/{formCode}/interpret-preview`
-- POST `/api/v1/normref/projects/{projectId}/forms/{formCode}/draft-instances`
-- GET `/api/v1/normref/projects/{projectId}/forms/{formCode}/draft-instances/latest`
-- POST `/api/v1/normref/projects/{projectId}/forms/{formCode}/draft-instances/{instanceId}/submit`
-- GET `/api/v1/normref/projects/{projectId}/forms/{formCode}/latest-submitted`
-- 参数与返回结构: 与 `/projects/{projectId}/normref/...` 同口径
-
-### BOQItem /api/v1 路径
-- GET `/api/v1/boqitem/projects/{projectId}/nodes`
-- GET `/api/v1/boqitem/projects/{projectId}/items`
-- GET `/api/v1/boqitem/projects/{projectId}/utxos`
-- 参数与返回结构: 与 `/projects/{projectId}/boq/nodes|items|utxos` 同口径
-
-## 目标口径 P0/P1 复核
-- 已在上一个版本复核：部分为“目标接口”，当前需使用替代口径（如 `/api/proofs/{proofId}`, `/upload`, `/api/trips/{tripId}` 等）。
-## 核心业务接口（已补充明确字段结构，给 QCSpec 直接联调）
-
-### 1) 工程树与实体
-
-#### GET /projects/{projectId}/entities
-- Path 参数:
-  - `projectId`(必填,string)
-- Query 参数:
-  - `status?` `entity_type?` `search?`
-- 返回结构（示例）:
 ```json
 {
   "ok": true,
-  "items": [
-    {
-      "id": "ENT-...",
-      "project_id": "PJT-D34A70B8",
-      "entity_uri": "v://cn.docpeg/project/PJT-D34A70B8/entity/桥-400-1-1",
-      "entity_code": "桥-400-1-1",
-      "entity_name": "钻孔灌注桩",
-      "entity_type": "subitem",
-      "parent_id": "ENT-...",
-      "status": "active",
-      "created_at": "2026-04-10 06:12:51",
-      "updated_at": "2026-04-10 06:12:51"
-    }
-  ]
+  "...": "业务字段"
 }
 ```
 
-## DTO Role Canonical Permission Model (Proof Lifecycle, 2026-04-10)
+---
 
-This section is the recommended integration contract for QCSPEC frontend/backend when using `/api/v1/dtorole/*`.
+## 1) 项目创建与基础信息（DocPeg）
 
-### 1) Canonical definition
+### 1.1 创建项目
+`POST /projects`
 
-- `Exec`: execution subject (person/team/device), e.g. `EXEC-ZHANG-SAN-001`.
-- `DTO Role`: permission set on Proof lifecycle for an Exec in one project scope.
-- `TripRole`: concrete executable action in process chain, e.g. `trip.execute`.
-
-DTO Role is not only a generic user role. It is the explicit permission layer that controls who can create/fill/review/approve/reject/view Proof, and whether a caller can execute a TripRole.
-
-### 2) Core relation
-
-- One `Exec` can have multiple `DTO Role` bindings in a project.
-- One `TripRole` execution must pass a DTO Role permission check.
-- Every Proof mutation should be auditable with actor and role context.
-
-Recommended chain: `Exec -> DTO Role binding -> permission-check -> TripRole execution -> Proof write`.
-
-### 3) Recommended permission vocabulary
-
-- `proof.create.<proof_type>`
-- `proof.fill.<proof_type>` or `proof.fill.<field_group>`
-- `proof.approve.<proof_type>`
-- `proof.reject.<proof_type>`
-- `proof.view.<proof_type>`
-- `trip.execute` (current frontend usage)
-- `trip.execute.<trip_role>` (recommended next step for finer granularity)
-
-### 4) DTO Role object (recommended stable schema)
+#### 请求参数
+- Header：`x-idempotency-key`（可选）
+- Body：
 
 ```json
 {
-  "dtorole_id": "DTOROLE-ZHANG-SAN-001",
-  "exec_id": "EXEC-ZHANG-SAN-001",
   "project_id": "PJT-D34A70B8",
-  "permissions": {
-    "create_proof": ["lab_report", "construction_record"],
-    "fill_proof": ["temperature", "slump_mm", "actual_volume"],
-    "approve_proof": ["iqc_report", "pqc_report"],
-    "reject_proof": ["all"],
-    "view_proof": ["all"],
-    "trip_execute": ["trip.execute", "trip.execute.pile.concrete"]
-  },
-  "constraints": {
-    "max_concurrent_approvals": 5,
-    "require_second_approval_for": ["fqc_report"]
-  },
-  "valid_until": "2026-12-31",
-  "updated_at": "2026-04-10T09:00:00Z"
+  "name": "PJT-D34A70B8",
+  "description": "demo project"
 }
 ```
 
-### 5) Permission-check decision rule
+#### 返回结构
 
-Input: `project_id`, `permission`, optional `actor_role`, optional `actor_name`.
+```json
+{
+  "ok": true,
+  "project": {
+    "id": "PJT-D34A70B8",
+    "name": "PJT-D34A70B8",
+    "description": "demo project",
+    "created_at": "2026-04-11T00:00:00.000Z"
+  }
+}
+```
 
-Decision:
-1. Resolve actor context from query or request headers/session.
-2. Load active role bindings in `project_id`.
-3. Merge all granted permissions for matched bindings.
-4. Evaluate permission and constraints.
-5. Return `allowed` and machine-readable `reason`.
+### 1.2 项目列表
+`GET /projects`
 
-Recommended deny reasons:
-- `binding_not_found`
-- `permission_not_granted`
-- `constraint_exceeded`
-- `role_expired`
+#### 请求参数
+- Query：`q`（可选）、`limit`（可选）、`offset`（可选）
 
-### 6) `/api/v1/dtorole/*` integration contract
-
-#### GET /api/v1/dtorole/role-bindings
-
-- Query: `project_id?`, `exec_id?`, `actor_name?`
-- Recommended response:
+#### 返回结构
 
 ```json
 {
   "ok": true,
   "items": [
     {
-      "binding_id": "RB-001",
-      "project_id": "PJT-D34A70B8",
-      "exec_id": "EXEC-ZHANG-SAN-001",
-      "actor_name": "zhangsan",
-      "actor_role": "quality_inspector",
-      "dtorole_id": "DTOROLE-ZHANG-SAN-001",
-      "permissions": {
-        "trip_execute": ["trip.execute"]
-      },
-      "valid_until": "2026-12-31"
+      "id": "PJT-D34A70B8",
+      "name": "PJT-D34A70B8",
+      "description": "demo",
+      "created_at": "..."
     }
   ],
   "total": 1
 }
 ```
 
-#### POST /api/v1/dtorole/role-bindings
+### 1.3 项目详情
+`GET /projects/{projectId}`
 
-- Request:
+#### 请求参数
+- Path：`projectId`
 
-```json
-{
-  "project_id": "PJT-D34A70B8",
-  "exec_id": "EXEC-ZHANG-SAN-001",
-  "actor_name": "zhangsan",
-  "actor_role": "quality_inspector",
-  "dtorole_id": "DTOROLE-ZHANG-SAN-001",
-  "permissions": {
-    "trip_execute": ["trip.execute"],
-    "approve_proof": ["iqc_report"]
-  },
-  "valid_until": "2026-12-31"
-}
-```
-
-- Response:
+#### 返回结构
 
 ```json
 {
   "ok": true,
-  "upserted": true,
-  "binding_id": "RB-001"
+  "project": {
+    "id": "PJT-D34A70B8",
+    "name": "...",
+    "description": "...",
+    "created_at": "...",
+    "updated_at": "..."
+  }
 }
 ```
 
-#### GET /api/v1/dtorole/permission-check
+---
 
-- Query: `permission` (required), `project_id?`, `actor_role?`, `actor_name?`
-- Recommended response:
+## 2) 主权层 / 执行体（ExecPeg）
+
+### 2.1 执行 TripRole（核心）
+`POST /api/v1/execpeg/execute`
+
+#### 请求参数
+- Body：
+
+```json
+{
+  "tripRoleId": "highway_spu_creation@v1.0",
+  "projectRef": "v://cn.project/PJT-D34A70B8",
+  "componentRef": "v://cn.highway/G42",
+  "context": {
+    "autoData": {},
+    "manualInput": {
+      "highway_code": "G42",
+      "highway_name": "沪蓉高速"
+    }
+  },
+  "callbackUrl": "https://xxx/callback"
+}
+```
+
+#### tripRoleId 当前可用
+- `highway_spu_creation@v1.0`
+- `register_project_participants@v1.0`
+- `create_section@v1.0`
+
+#### 返回结构
+
+```json
+{
+  "ok": true,
+  "execId": "EXEC-20260411-0001",
+  "status": "EXECUTED",
+  "proof": {
+    "proofId": "PF-EXEC-...",
+    "hash": "sha256:...",
+    "valid": true
+  },
+  "nextRecommendedTrip": "register_project_participants@v1.0",
+  "boqUpdate": {
+    "componentRef": "v://...",
+    "actualQty": 0,
+    "smuConfirmed": false
+  },
+  "gateResult": {
+    "passed": true,
+    "reasons": []
+  },
+  "contextEcho": {
+    "projectRef": "v://...",
+    "componentRef": "v://..."
+  }
+}
+```
+
+### 2.2 查询执行状态
+`GET /api/v1/execpeg/status/{execId}`
+
+#### 请求参数
+- Path：`execId`
+
+#### 返回结构
+
+```json
+{
+  "ok": true,
+  "exec": {
+    "execId": "EXEC-...",
+    "status": "EXECUTED",
+    "tripRoleId": "create_section@v1.0",
+    "projectRef": "v://...",
+    "componentRef": "v://...",
+    "proofId": "PF-...",
+    "created_at": "...",
+    "updated_at": "..."
+  }
+}
+```
+
+### 2.3 手工补录上下文
+`POST /api/v1/execpeg/manual-input`
+
+#### 请求参数
+
+```json
+{
+  "execId": "EXEC-...",
+  "manualInput": {
+    "remarks": "现场补录",
+    "operatorDid": "did:ir8:executor:zhangsan"
+  }
+}
+```
+
+#### 返回结构
+
+```json
+{
+  "ok": true,
+  "execId": "EXEC-...",
+  "mergedContext": {
+    "autoData": {},
+    "manualInput": {
+      "remarks": "现场补录",
+      "operatorDid": "did:..."
+    }
+  }
+}
+```
+
+### 2.4 注册执行模板
+`POST /api/v1/execpeg/register`
+
+#### 请求参数
+
+```json
+{
+  "tripRoleId": "custom_trip@v1.0",
+  "displayName": "自定义执行体",
+  "schema": {},
+  "gate": {},
+  "actions": []
+}
+```
+
+#### 返回结构
+
+```json
+{
+  "ok": true,
+  "tripRoleId": "custom_trip@v1.0",
+  "version": "v1.0"
+}
+```
+
+---
+
+## 3) DTORole（角色权限）
+
+### 3.1 写入/更新角色绑定
+`POST /api/v1/dtorole/role-bindings`
+
+#### 请求参数
+
+```json
+{
+  "project_id": "PJT-D34A70B8",
+  "subject": "designer-user",
+  "role": "designer",
+  "scopes": ["project.read", "trip.execute"]
+}
+```
+
+#### 返回结构
+
+```json
+{
+  "ok": true,
+  "binding": {
+    "id": "RB-...",
+    "project_id": "PJT-D34A70B8",
+    "subject": "designer-user",
+    "role": "designer",
+    "scopes": ["project.read", "trip.execute"],
+    "updated_at": "..."
+  }
+}
+```
+
+### 3.2 查询角色绑定
+`GET /api/v1/dtorole/role-bindings?project_id=...&subject=...`
+
+#### 请求参数
+- Query：`project_id`（可选）、`subject`（可选）
+
+#### 返回结构
+
+```json
+{
+  "ok": true,
+  "items": [
+    {
+      "id": "RB-...",
+      "project_id": "PJT-D34A70B8",
+      "subject": "designer-user",
+      "role": "designer",
+      "scopes": ["..."]
+    }
+  ]
+}
+```
+
+## 16) 项目合同上传与绑定（追加，按文档逻辑）
+
+说明：项目合同建议作为“项目主权链证据对象”进行绑定。  
+本节使用当前已落地接口组合实现，不破坏既有流程。
+
+---
+
+### 16.1 上传合同文件（R2）
+`POST /upload`  
+（别名：`POST /api/v1/files/upload`）
+
+#### Header
+- `x-upload-token` 或 `x-upload-session-token`
+- `x-actor-role`（建议：`owner` / `designer`）
+- `x-actor-name`
+
+#### Body
+- `multipart/form-data`
+- 文件字段：`file`
+
+#### 返回结构
+```json
+{
+  "ok": true,
+  "file": {
+    "id": "FILE-...",
+    "project_id": "PJT-...",
+    "filename": "项目总承包合同.pdf",
+    "content_type": "application/pdf",
+    "size_bytes": 1234567,
+    "sha256": "sha256:...",
+    "r2_key": "projects/PJT-.../contracts/...",
+    "created_at": "..."
+  }
+}
+```
+
+---
+
+### 16.2 为项目创建“合同文档”对象
+`POST /projects/{projectId}/documents`
+
+#### Path 参数
+- `projectId`
+
+#### 请求体
+```json
+{
+  "name": "项目合同（主合同）",
+  "category": "contract",
+  "doc_type": "project_contract",
+  "meta": {
+    "contract_no": "HT-2026-001",
+    "contract_party_a": "业主单位",
+    "contract_party_b": "总包单位"
+  }
+}
+```
+
+#### 返回结构
+```json
+{
+  "ok": true,
+  "document": {
+    "id": "DOC-...",
+    "project_id": "PJT-...",
+    "name": "项目合同（主合同）",
+    "category": "contract",
+    "status": "draft",
+    "created_at": "..."
+  }
+}
+```
+
+---
+
+### 16.3 创建合同版本并挂接附件
+`POST /projects/{projectId}/documents/{documentId}/versions`
+
+#### 请求体
+```json
+{
+  "version_no": "v1.0",
+  "note": "首次上传主合同",
+  "file_ids": ["FILE-..."]
+}
+```
+
+#### 返回结构
+```json
+{
+  "ok": true,
+  "version": {
+    "id": "VER-...",
+    "document_id": "DOC-...",
+    "version_no": "v1.0",
+    "status": "draft",
+    "created_at": "..."
+  }
+}
+```
+
+---
+
+### 16.4 生成合同绑定证明（Proof）
+`POST /v1/execpeg/execute`  
+（别名：`POST /api/v1/execpeg/execute`）
+
+#### 请求体（合同绑定建议 TripRole）
+```json
+{
+  "tripRoleId": "bind_project_contract@v1.0",
+  "projectRef": "v://cn.project/PJT-D34A70B8",
+  "componentRef": "v://cn.project/PJT-D34A70B8",
+  "context": {
+    "manualInput": {
+      "contract_document_id": "DOC-...",
+      "contract_version_id": "VER-...",
+      "contract_file_id": "FILE-...",
+      "contract_hash": "sha256:..."
+    }
+  }
+}
+```
+
+#### 返回结构
+```json
+{
+  "ok": true,
+  "execId": "EXEC-...",
+  "status": "EXECUTED",
+  "proof": {
+    "proofId": "PF-...",
+    "hash": "sha256:...",
+    "valid": true
+  },
+  "nextRecommendedTrip": null
+}
+```
+
+---
+
+### 16.5 查询合同绑定状态（执行态）
+`GET /v1/execpeg/status/{execId}`  
+（别名：`GET /api/v1/execpeg/status/{execId}`）
+
+#### 返回结构（示例关键字段）
+```json
+{
+  "ok": true,
+  "execId": "EXEC-...",
+  "status": "EXECUTED",
+  "gateResult": {
+    "passed": true
+  },
+  "proof": {
+    "proofId": "PF-...",
+    "hash": "sha256:...",
+    "valid": true
+  },
+  "output": {
+    "contract_bound": true,
+    "contract_document_id": "DOC-...",
+    "contract_version_id": "VER-..."
+  }
+}
+```
+
+---
+
+### 16.6 推荐联调调用顺序（给前端同事）
+1. `POST /upload` 上传合同文件，拿到 `file.id` 与 `sha256`
+2. `POST /projects/{projectId}/documents` 创建合同文档（`category=contract`）
+3. `POST /projects/{projectId}/documents/{documentId}/versions` 创建版本并挂 `file_ids`
+4. `POST /v1/execpeg/execute` 执行 `bind_project_contract@v1.0`，产出 `proof`
+5. `GET /v1/execpeg/status/{execId}` 轮询确认 `contract_bound=true`
+
+### 3.3 权限校验
+`GET /api/v1/dtorole/permission-check?permission=...&project_id=...&actor_role=...&actor_name=...`
+
+#### 请求参数
+- Query：
+  - `permission`（必填）
+  - `project_id`（可选）
+  - `actor_role`（可选）
+  - `actor_name`（可选）
+
+#### 返回结构
 
 ```json
 {
   "ok": true,
   "allowed": true,
-  "reason": "granted_by_binding",
-  "permission": "trip.execute",
-  "matched_binding_ids": ["RB-001"],
-  "trace_id": "perm-20260410-001"
+  "permission": "document.create",
+  "actor": {
+    "role": "designer",
+    "name": "designer-user"
+  },
+  "reason": "matched_by_role_binding"
 }
 ```
 
-Denied example:
+---
+
+## 4) LayerPeg（链状态与锚点）
+
+### 4.1 链健康状态
+`GET /api/v1/layerpeg/chain-status?project_id={projectId}`
+
+#### 返回结构
 
 ```json
 {
   "ok": true,
-  "allowed": false,
-  "reason": "permission_not_granted",
-  "permission": "trip.execute.pile.concrete",
-  "matched_binding_ids": ["RB-001"],
-  "trace_id": "perm-20260410-002"
-}
-```
-
-### 7) Frontend integration guideline
-
-- Before `triprole/preview` and `triprole/submit`, always call `dtorole/permission-check`.
-- Continue using current `permission=trip.execute` first; then extend to `trip.execute.<trip_role>` per action.
-- On deny:
-  - disable submit button;
-  - show reason text from API;
-  - keep `trace_id` visible/copyable for troubleshooting.
-- On allow:
-  - continue preview/submit flow;
-  - store `permission`, `reason`, `trace_id` in operation log.
-- For write APIs, send `x-actor-role` and `x-actor-name` consistently.
-
-### 8) UI display recommendation (Role & Permission)
-
-- Role card: show `actor_name`, `actor_role`, `dtorole_id`, `valid_until`.
-- Permission matrix:
-  - rows: proof/trip actions;
-  - columns: create, fill, approve, reject, view, execute;
-  - cell states: allow/deny/inherited/expired.
-- Action area:
-  - if deny, button disabled and inline reason;
-  - if allow, show a small "authorized" status line with last `trace_id`.
-
-This keeps DTO Role visible, explainable, and auditable during Proof and Trip workflows.
-
-### 9) Common DTO Role templates
-
-The templates below are baseline presets. You can narrow permissions by `project_id`, `component_uri`, `trip_role`, and validity constraints.
-
-#### Template A: quality_inspector (质检员)
-
-```json
-{
-  "dtorole_code": "quality_inspector",
-  "permissions": {
-    "create_proof": ["iqc_report", "pqc_report", "lab_report"],
-    "fill_proof": ["test_value", "sampling_info", "attachment", "remark"],
-    "approve_proof": [],
-    "reject_proof": [],
-    "view_proof": ["all"],
-    "trip_execute": ["trip.execute.quality.sample", "trip.execute.quality.submit"]
-  },
-  "constraints": {
-    "can_approve_own_proof": false,
-    "require_attachment_for_submit": true
+  "mode": "ready",
+  "reason": "all_checks_passed",
+  "checks": {
+    "docpeg_api": { "ok": true, "count": 1 },
+    "normref": { "ok": true, "count": 332 },
+    "triprole": { "ok": true, "count": 51 },
+    "layerpeg_proof": { "ok": true, "count": 105 },
+    "boqitem": { "ok": true, "count": 55 },
+    "documents": { "ok": true, "count": 2 }
   }
 }
 ```
 
-#### Template B: site_operator (施工员)
+### 4.2 写锚点
+`POST /api/v1/layerpeg/anchor`
+
+#### 请求参数
 
 ```json
 {
-  "dtorole_code": "site_operator",
-  "permissions": {
-    "create_proof": ["construction_record", "material_receipt", "daily_log"],
-    "fill_proof": ["actual_volume", "location", "crew", "equipment"],
-    "approve_proof": [],
-    "reject_proof": [],
-    "view_proof": ["construction_record", "daily_log", "iqc_report", "pqc_report"],
-    "trip_execute": ["trip.execute.construction.start", "trip.execute.construction.finish"]
-  },
-  "constraints": {
-    "can_approve_own_proof": false,
-    "cross_section_write": false
+  "project_id": "PJT-D34A70B8",
+  "entity_uri": "v://cn.docpeg/project/PJT-D34A70B8/entity/桥-400-1-1",
+  "hash": "hash-test-002",
+  "payload": {
+    "source": "mobile",
+    "note": "anchor from qcspec"
   }
 }
 ```
 
-#### Template C: supervisor (监理)
+#### 返回结构
 
 ```json
 {
-  "dtorole_code": "supervisor",
-  "permissions": {
-    "create_proof": ["supervision_note", "inspection_order"],
-    "fill_proof": ["issue", "rectification_deadline", "review_comment"],
-    "approve_proof": ["iqc_report", "pqc_report", "construction_record"],
-    "reject_proof": ["iqc_report", "pqc_report", "construction_record"],
-    "view_proof": ["all"],
-    "trip_execute": ["trip.execute.supervision.approve", "trip.execute.supervision.reject"]
-  },
-  "constraints": {
-    "max_concurrent_approvals": 20,
-    "can_approve_own_proof": false
-  }
+  "ok": true,
+  "anchor_id": "ANCHOR-...",
+  "hash": "hash-test-002",
+  "created_at": "2026-04-10 06:12:51"
 }
 ```
 
-#### Template D: project_manager (项目经理)
+### 4.3 查锚点列表
+`GET /api/v1/layerpeg/anchor?project_id=...&entity_uri=...`
 
-```json
-{
-  "dtorole_code": "project_manager",
-  "permissions": {
-    "create_proof": ["management_instruction", "final_acceptance_note"],
-    "fill_proof": ["risk_comment", "milestone_comment", "decision"],
-    "approve_proof": ["all"],
-    "reject_proof": ["all"],
-    "view_proof": ["all"],
-    "trip_execute": ["trip.execute.project.milestone_approve", "trip.execute.project.close"]
-  },
-  "constraints": {
-    "require_second_approval_for": ["fqc_report", "final_acceptance_note"],
-    "max_concurrent_approvals": 100
-  }
-}
-```
+#### 返回结构
 
-#### Template E: lab_technician (试验员, optional)
-
-```json
-{
-  "dtorole_code": "lab_technician",
-  "permissions": {
-    "create_proof": ["lab_report"],
-    "fill_proof": ["temperature", "strength", "sample_id", "mix_ratio"],
-    "approve_proof": [],
-    "reject_proof": [],
-    "view_proof": ["lab_report", "iqc_report", "pqc_report"],
-    "trip_execute": ["trip.execute.lab.test", "trip.execute.lab.upload"]
-  },
-  "constraints": {
-    "can_approve_own_proof": false
-  }
-}
-```
-
-#### Template F: data_clerk (资料员, optional)
-
-```json
-{
-  "dtorole_code": "data_clerk",
-  "permissions": {
-    "create_proof": ["document_index", "archive_record"],
-    "fill_proof": ["metadata", "file_tag", "archive_location"],
-    "approve_proof": [],
-    "reject_proof": [],
-    "view_proof": ["all"],
-    "trip_execute": ["trip.execute.docs.archive", "trip.execute.docs.sync"]
-  },
-  "constraints": {
-    "proof_content_editable": false
-  }
-}
-```
-
-#### Suggested rollout order
-
-1. Start with `quality_inspector`, `site_operator`, `supervisor`, `project_manager`.
-2. Bind each template to real `exec_id` by project.
-3. Verify with `/api/v1/dtorole/permission-check` before each Trip submit.
-4. Add `lab_technician` and `data_clerk` only when related Proof workflows are enabled.
-
-#### GET /projects/{projectId}/entities/{entityId}/components
-- Path 参数: `projectId`,`entityId`
-- 返回结构（示例）:
 ```json
 {
   "ok": true,
   "items": [
     {
-      "id": "COMP-...",
-      "component_uri": "v://cn.docpeg/DJGS/pile/桥-400-1-1",
-      "pile_id": "桥-400-1-1",
-      "status": "current",
-      "proof_id": null,
-      "trip_id": null,
-      "updated_at": "2026-04-10 06:12:51"
+      "id": "ANCHOR-...",
+      "project_id": "PJT-D34A70B8",
+      "entity_uri": "v://...",
+      "hash": "hash-test-002",
+      "payload": null,
+      "created_by": "designer-user",
+      "created_at": "..."
     }
   ]
 }
 ```
 
-### 2) 分项绑定与工序链
+---
 
-#### POST /projects/{projectId}/process-chains/bindings
-- 请求体:
+## 5) TripRole（执行动作）
+
+### 5.1 Trip 预演
+`POST /api/v1/triprole/preview`
+
+#### 请求参数
+
 ```json
 {
-  "entity_uri": "v://.../entity/桥-400-1-1",
-  "entity_code": "桥-400-1-1",
-  "entity_name": "钻孔灌注桩",
-  "chain_id": "drilled-pile",
+  "project_id": "PJT-D34A70B8",
   "component_uri": "v://cn.docpeg/DJGS/pile/桥-400-1-1",
-  "pile_id": "桥-400-1-1",
-  "inspection_location": "桥 400 1 1",
-  "source_mode": "hybrid"
+  "trip_role": "护筒埋设",
+  "payload": {
+    "inspection_location": "桥400 1 1"
+  }
 }
 ```
-- 返回结构:
+
+#### 返回结构
+
 ```json
 {
   "ok": true,
-  "binding": {
-    "id": "PCB-...",
-    "project_id": "PJT-D34A70B8",
-    "entity_uri": "v://...",
-    "chain_id": "drilled-pile",
+  "preview": {
+    "trip_role": "护筒埋设",
+    "allowed": true,
+    "required_fields": ["inspection_location"],
+    "next_action": "submit"
+  }
+}
+```
+
+### 5.2 Trip 提交
+`POST /api/v1/triprole/submit`
+
+#### 请求参数
+
+```json
+{
+  "project_id": "PJT-D34A70B8",
+  "component_uri": "v://cn.docpeg/DJGS/pile/桥-400-1-1",
+  "trip_role": "护筒埋设",
+  "form_code": "桥施2表",
+  "instance_id": "NINST-xxxx",
+  "payload": {}
+}
+```
+
+#### 返回结构
+
+```json
+{
+  "ok": true,
+  "trip_id": "TRIP-...",
+  "status": "completed",
+  "proof_id": "PROOF-...",
+  "next_step": "成孔检查"
+}
+```
+
+### 5.3 Trip 列表
+`GET /api/v1/triprole/trips?project_id=...&component_uri=...`
+
+#### 返回结构
+
+```json
+{
+  "ok": true,
+  "items": [
+    {
+      "trip_id": "TRIP-...",
+      "project_id": "...",
+      "component_uri": "...",
+      "trip_role": "护筒埋设",
+      "status": "completed",
+      "proof_id": "PROOF-...",
+      "created_at": "..."
+    }
+  ],
+  "total": 1
+}
+```
+
+---
+
+## 6) NormRef（表单）
+
+### 6.1 表单目录
+`GET /api/v1/normref/projects/{projectId}/forms`
+
+#### 返回结构
+
+```json
+{
+  "ok": true,
+  "items": [
+    {
+      "form_code": "桥施2表",
+      "family": "bridge",
+      "title": "钻（挖）孔桩护筒（壁）、桩位检查表"
+    }
+  ]
+}
+```
+
+### 6.2 表单模板
+`GET /api/v1/normref/projects/{projectId}/forms/{formCode}`
+
+#### 返回结构
+
+```json
+{
+  "ok": true,
+  "form": {
+    "form_code": "桥施2表",
+    "family": "bridge",
+    "template": {},
+    "protocol_stub": {}
+  }
+}
+```
+
+### 6.3 interpret-preview
+`POST /api/v1/normref/projects/{projectId}/forms/{formCode}/interpret-preview`
+
+#### 请求参数
+
+```json
+{
+  "input_json": {
     "component_uri": "v://...",
     "pile_id": "桥-400-1-1",
-    "inspection_location": "桥 400 1 1",
-    "is_active": 1,
-    "updated_at": "2026-04-10 06:12:51"
+    "inspection_location": "桥400 1 1"
   }
 }
 ```
 
-#### GET /projects/{projectId}/process-chains/bindings
-- Query: `chain_id?`, `chain_state?`, `q?`
-- 返回结构:
+#### 返回结构
+
 ```json
 {
   "ok": true,
-  "total": 1,
+  "preview": {
+    "raw": {},
+    "normalized": {},
+    "derived": {},
+    "gate_check": {},
+    "proof_preview": {}
+  }
+}
+```
+
+### 6.4 保存草稿
+`POST /api/v1/normref/projects/{projectId}/forms/{formCode}/draft-instances`
+
+#### 请求参数
+
+```json
+{
+  "input_json": {},
+  "normalized_json": {},
+  "derived_json": {},
+  "component_uri": "v://...",
+  "pile_id": "桥-400-1-1",
+  "inspection_location": "桥400 1 1"
+}
+```
+
+#### 返回结构
+
+```json
+{
+  "ok": true,
+  "instance_id": "NINST-...",
+  "status": "draft",
+  "updated_at": "..."
+}
+```
+
+### 6.5 最新草稿
+`GET /api/v1/normref/projects/{projectId}/forms/{formCode}/draft-instances/latest?component_uri=...`
+
+#### 返回结构
+
+```json
+{
+  "ok": true,
+  "instance": {
+    "instance_id": "NINST-...",
+    "status": "draft",
+    "input_json": {},
+    "updated_at": "..."
+  }
+}
+```
+
+### 6.6 提交草稿
+`POST /api/v1/normref/projects/{projectId}/forms/{formCode}/draft-instances/{instanceId}/submit`
+
+#### 请求参数
+
+```json
+{
+  "actor_name": "designer-user",
+  "actor_role": "designer"
+}
+```
+
+#### 返回结构
+
+```json
+{
+  "ok": true,
+  "instance_id": "NINST-...",
+  "status": "submitted",
+  "trip_id": "TRIP-...",
+  "proof_id": "PROOF-..."
+}
+```
+
+### 6.7 最新已提交
+`GET /api/v1/normref/projects/{projectId}/forms/{formCode}/latest-submitted?component_uri=...`
+
+#### 返回结构
+
+```json
+{
+  "ok": true,
+  "instance": {
+    "instance_id": "NINST-...",
+    "status": "submitted",
+    "submitted_at": "...",
+    "proof_id": "PROOF-..."
+  }
+}
+```
+
+---
+
+## 7) BOQItem（台账）
+
+### 7.1 BOQ items
+`GET /api/v1/boqitem/projects/{projectId}/items`
+
+#### 返回结构
+
+```json
+{
+  "ok": true,
   "items": [
     {
-      "id": "PCB-...",
-      "entity_code": "桥-400-1-1",
-      "entity_name": "钻孔灌注桩",
-      "entity_uri": "v://...",
-      "chain_id": "drilled-pile",
-      "component_uri": "v://...",
-      "pile_id": "桥-400-1-1",
-      "chain_state": "process_complete",
-      "current_step_name": "护筒埋设",
-      "complete": false,
-      "acceptance": "pending",
-      "latest_instance_at": "2026-04-10 06:12:51"
+      "boq_item_ref": "桥-400-1-1-M001",
+      "name": "Mock item",
+      "qty_design": 1000,
+      "qty_actual": 0,
+      "status": "OPEN"
     }
   ]
 }
 ```
 
-#### GET /projects/{projectId}/process-chains/status
-- Query: `chain_id`(必填), `component_uri?`, `pile_id?`, `source_mode?`
-- 返回结构:
+### 7.2 consume
+`POST /api/v1/boqitem/projects/{projectId}/consume`
+
+#### 请求参数
+
+```json
+{
+  "boq_item_ref": "桥-400-1-1-M001",
+  "trip_id": "TRIP-...",
+  "qty": 10
+}
+```
+
+#### 返回结构
+
+```json
+{
+  "ok": true,
+  "boq_item_ref": "桥-400-1-1-M001",
+  "qty_actual": 10,
+  "qty_remaining": 990
+}
+```
+
+### 7.3 settle
+`POST /api/v1/boqitem/projects/{projectId}/settle`
+
+#### 请求参数
+
+```json
+{
+  "boq_item_ref": "桥-400-1-1-M001",
+  "amount": 1000,
+  "proof_id": "PROOF-..."
+}
+```
+
+#### 返回结构
+
+```json
+{
+  "ok": true,
+  "settlement_id": "SETTLE-...",
+  "boq_item_ref": "桥-400-1-1-M001",
+  "amount": 1000,
+  "status": "SETTLED"
+}
+```
+
+---
+
+## 8) Proof（核验）
+
+### 8.1 Proof 详情
+`GET /api/v1/proof/{proofId}`
+
+#### 返回结构
+
+```json
+{
+  "ok": true,
+  "proof": {
+    "proof_id": "PROOF-...",
+    "hash": "sha256:...",
+    "signatures": [],
+    "snapshots": [],
+    "result": "pass",
+    "created_at": "..."
+  }
+}
+```
+
+### 8.2 Proof verify
+`POST /api/v1/proof/{proofId}/verify`
+
+#### 请求参数
+
+```json
+{
+  "actor_name": "qa-user",
+  "reason": "manual check"
+}
+```
+
+#### 返回结构
+
+```json
+{
+  "ok": true,
+  "verified": true,
+  "reason": "manual check"
+}
+```
+
+---
+
+## 9) Files（附件）
+
+### 9.1 文件上传
+`POST /api/v1/files/upload`
+
+#### 请求参数
+- Header：`x-upload-token`（或 `x-upload-session-token`）
+- Body：`multipart/form-data`，字段：`file`
+
+#### 返回结构
+
+```json
+{
+  "ok": true,
+  "file_id": "FILE-...",
+  "url": "https://...",
+  "hash": "sha256:...",
+  "name": "report.docx",
+  "size": 12345,
+  "uploaded_at": "..."
+}
+```
+
+### 9.2 绑定附件到 Proof
+`POST /api/v1/proof/{proofId}/attachments`
+
+#### 请求参数
+
+```json
+{
+  "file_ids": ["FILE-1", "FILE-2"]
+}
+```
+
+#### 返回结构
+
+```json
+{
+  "ok": true,
+  "proof_id": "PROOF-...",
+  "attached": [
+    { "file_id": "FILE-1", "status": "linked" },
+    { "file_id": "FILE-2", "status": "linked" }
+  ]
+}
+```
+
+---
+
+## 10) 工程树（QCSPEC 必需）
+
+### 10.1 实体列表（工程树源）
+`GET /projects/{projectId}/entities`
+
+#### 请求参数
+- Query：`status`（可选）、`entity_type`（可选：unit/division/subitem）、`search`（可选）
+
+#### 返回结构
+
+```json
+{
+  "ok": true,
+  "items": [
+    {
+      "id": "ENT-...",
+      "entity_uri": "v://cn.docpeg/project/PJT-D34A70B8/entity/桥-400-1-1",
+      "entity_code": "桥-400-1-1",
+      "entity_name": "钻孔灌注桩",
+      "entity_type": "subitem",
+      "parent_uri": "v://...",
+      "location_chain": "K0+000-K1+000",
+      "chain_id": "drilled-pile",
+      "status": "active"
+    }
+  ],
+  "total": 39
+}
+```
+
+### 10.2 创建实体
+`POST /projects/{projectId}/entities`
+
+#### 请求参数
+
+```json
+{
+  "entity_code": "100-1-1",
+  "entity_name": "挖方路基",
+  "entity_type": "subitem",
+  "parent_uri": "v://.../entity/100-1",
+  "location_chain": "K0+000-K1+000",
+  "chain_id": "subgrade-001"
+}
+```
+
+#### 返回结构
+
+```json
+{
+  "ok": true,
+  "entity": {
+    "id": "ENT-...",
+    "entity_uri": "v://...",
+    "entity_code": "100-1-1",
+    "entity_name": "挖方路基",
+    "entity_type": "subitem",
+    "chain_id": "subgrade-001",
+    "created_at": "..."
+  }
+}
+```
+
+### 10.3 更新实体
+`PATCH /projects/{projectId}/entities/{entityId}`
+
+#### 请求参数
+
+```json
+{
+  "entity_name": "挖方路基（更新）",
+  "chain_id": "subgrade-001"
+}
+```
+
+#### 返回结构
+
+```json
+{
+  "ok": true,
+  "entity": {
+    "id": "ENT-...",
+    "entity_name": "挖方路基（更新）",
+    "chain_id": "subgrade-001",
+    "updated_at": "..."
+  }
+}
+```
+
+---
+
+## 11) 工序链（前端主流程）
+
+### 11.1 链总览
+`GET /projects/{projectId}/process-chains?source_mode=hybrid`
+
+#### 返回结构
+
+```json
+{
+  "ok": true,
+  "items": [
+    {
+      "chain_id": "drilled-pile",
+      "chain_name": "钻孔灌注桩工序链",
+      "in_progress": 0,
+      "completed": 0,
+      "abnormal": 0
+    }
+  ]
+}
+```
+
+### 11.2 链实例列表
+`GET /projects/{projectId}/process-chains/{chainId}/list?source_mode=hybrid`
+
+#### 返回结构
+
+```json
+{
+  "ok": true,
+  "items": [
+    {
+      "component_uri": "v://...",
+      "pile_id": "桥-400-1-1",
+      "chain_state": "processing",
+      "current_step": "钢筋安装",
+      "steps": [
+        {
+          "step_id": "bridge11",
+          "step_name": "钢筋安装",
+          "form_code": "桥施11表",
+          "latest_instance": {
+            "instance_id": "NINST-...",
+            "status": "submitted",
+            "updated_at": "..."
+          }
+        }
+      ]
+    }
+  ],
+  "total": 1
+}
+```
+
+### 11.3 单体工作台状态
+`GET /projects/{projectId}/process-chains/{chainId}/status?component_uri=...`
+
+#### 返回结构
+
 ```json
 {
   "ok": true,
   "chain_id": "drilled-pile",
-  "chain_name": "钻孔灌注桩工序链",
-  "chain_state": "processing",
   "component_uri": "v://...",
-  "pile_id": "桥-400-1-1",
-  "current_step": "bridge11",
-  "current_step_name": "钢筋安装",
+  "chain_state": "processing",
+  "current_step": "钢筋安装",
   "complete": false,
   "steps": [
     {
       "step_id": "bridge2",
-      "name": "护筒埋设",
-      "table": "桥施2表",
-      "status": "done",
+      "step_name": "护筒埋设",
+      "form_code": "桥施2表",
       "latest_instance": {
         "instance_id": "NINST-...",
         "status": "submitted",
-        "updated_at": "2026-04-10 06:12:51",
-        "created_by": "designer-user"
+        "updated_at": "..."
       }
     }
   ]
 }
 ```
 
-### 3) NormRef（/api/v1）
+---
 
-#### GET /api/v1/normref/projects/{projectId}/forms
-- 返回:
+## 12) 给前端同事的最小调用顺序（闭环）
+
+1. `POST /projects`（建项目）
+2. `POST /api/v1/execpeg/execute` + `highway_spu_creation@v1.0`
+3. `POST /api/v1/execpeg/execute` + `register_project_participants@v1.0`
+4. `POST /api/v1/execpeg/execute` + `create_section@v1.0`
+5. `GET /projects/{projectId}/entities`（取工程树）
+6. `GET /projects/{projectId}/process-chains`（取链）
+7. `POST /api/v1/normref/.../interpret-preview`
+8. `POST /api/v1/normref/.../draft-instances`
+9. `POST /api/v1/normref/.../submit`
+10. `GET /api/v1/proof/{proofId}` / `POST /api/v1/proof/{proofId}/verify`
+11. `POST /api/v1/boqitem/.../consume` / `POST /api/v1/boqitem/.../settle`
+
+---
+
+## 13) projectId 如何确定
+
+- 调 `GET /projects`
+- 使用返回中的 `items[].id` 作为 `{projectId}`
+- 示例：`PJT-D34A70B8`
+
+---
+
+## 14) 说明
+
+- 本文档是联调用 API 包，不等于前端页面清单。
+- 页面是否已切到这些新接口，需要另做前端接线验收。
+
+---
+
+## 15) `projects/new-root` 页面专用接口（已落地）
+
+> 对应页面：`/docpeg/app/projects/new-root`  
+> 目标：三步创建（SPU -> 参与方 -> 标段）+ 阶段验收查询。
+
+### 15.1 第 1/2/3 步统一提交（按钮“创建高速公路SPU/注册项目参与方/创建标段”）
+`POST /v1/execpeg/execute`  
+（别名同样可用：`POST /api/v1/execpeg/execute`）
+
+#### 请求参数（通用）
+
 ```json
-{ "ok": true, "items": [ { "form_code": "桥施2表", "form_name": "...", "family_code": "bridge" } ] }
+{
+  "tripRoleId": "highway_spu_creation@v1.0",
+  "projectRef": "v://cn.highway/YADGS",
+  "componentRef": "v://cn.highway/YADGS",
+  "context": {
+    "manualInput": {}
+  },
+  "callbackUrl": "https://example.com/callback"
+}
 ```
 
-#### GET /api/v1/normref/projects/{projectId}/forms/{formCode}
-- 返回:
+#### 第 1 步字段映射（`highway_spu_creation@v1.0`）
+- `manualInput.highwayName`
+- `manualInput.sectionCode`（用于推导 `spuRef`）
+- `manualInput.fullName`
+- `manualInput.ownerDid`
+- `manualInput.startDate`
+- `manualInput.endDate`
+- `manualInput.description`
+
+#### 第 2 步字段映射（`register_project_participants@v1.0`）
+- `manualInput.highwaySpuRef`
+- `manualInput.participants[]`：
+  - `execType`
+  - `participantName`
+  - `participantDid`
+  - `participantRole`
+
+#### 第 3 步字段映射（`create_section@v1.0`）
+- `manualInput.highwaySpuRef`
+- `manualInput.sectionCode`
+- `manualInput.sectionName`
+- `manualInput.sectionType`
+- `manualInput.quantity`
+- `manualInput.description`
+
+#### 返回结构（通用）
+
 ```json
 {
   "ok": true,
-  "item": {
-    "form_code": "桥施2表",
-    "form_name": "...",
-    "fields": [ { "field_key": "inspection_location", "field_type": "text", "required": true } ],
-    "protocol_stub": {},
-    "mapping_config": {}
+  "execId": "EXEC-...",
+  "tripId": "TRIP-...",
+  "status": "EXECUTED",
+  "proof": {
+    "proofId": "PF-...",
+    "hash": "sha256:...",
+    "valid": true
+  },
+  "output": {
+    "spuRef": "v://cn.highway/YADGS",
+    "sectionRef": "v://cn.highway/YADGS/section/YADGS"
+  },
+  "nextRecommendedTrip": "register_project_participants@v1.0",
+  "callback": {
+    "callbackUrl": "https://example.com/callback",
+    "status": "pending",
+    "httpStatus": null,
+    "error": null
   }
 }
 ```
 
-#### POST /api/v1/normref/projects/{projectId}/forms/{formCode}/interpret-preview
-- 请求体:
-```json
-{ "input": { "inspection_location": "桥 400 1 1", "inspection_date": "2026-04-10", "result": "合格" } }
-```
-- 返回:
-```json
-{ "ok": true, "project_id": "PJT-D34A70B8", "form_code": "桥施2表", "raw": {}, "normalized": {}, "derived": {}, "validation": {}, "five_layer": {} }
-```
+### 15.2 阶段验收：查询执行状态（按钮“查询状态+回调日志”）
+`GET /v1/execpeg/status/{execId}`  
+（别名：`GET /api/v1/execpeg/status/{execId}`）
 
-#### POST /api/v1/normref/projects/{projectId}/forms/{formCode}/draft-instances
-- 请求体:
-```json
-{ "input": { "...": "..." }, "preview": { "...": "..." } }
-```
-- 返回:
-```json
-{ "ok": true, "instance_id": "NINST-...", "status": "draft" }
-```
+#### 返回结构
 
-#### GET /api/v1/normref/projects/{projectId}/forms/{formCode}/draft-instances/latest
-- 返回:
-```json
-{ "ok": true, "instance_id": "NINST-...", "status": "draft", "input_json": {}, "preview_json": {} }
-```
-
-#### POST /api/v1/normref/projects/{projectId}/forms/{formCode}/draft-instances/{instanceId}/submit
-- 返回:
-```json
-{ "ok": true, "instance_id": "NINST-...", "status": "submitted" }
-```
-
-#### GET /api/v1/normref/projects/{projectId}/forms/{formCode}/latest-submitted
-- 返回:
-```json
-{ "ok": true, "instance_id": "NINST-...", "status": "submitted", "input_json": {}, "preview_json": {} }
-```
-
-### 4) TripRole（/api/v1）
-
-#### GET /api/v1/triprole/trips
-- Query: `project_id?`, `component_uri?`, `pile_id?`, `limit?`, `offset?`
-- 返回:
-```json
-{ "ok": true, "items": [ { "trip_id": "TRIP-...", "project_id": "...", "action": "...", "status": "...", "created_at": "..." } ], "total": 1 }
-```
-
-#### POST /api/v1/triprole/trips
-- 请求体: Trip 创建参数
-- 返回:
-```json
-{ "ok": true, "trip": { "trip_id": "TRIP-...", "status": "pending" } }
-```
-
-#### POST /api/v1/triprole/preview
-- 返回:
-```json
-{ "ok": true, "guard": {}, "projection": {} }
-```
-
-#### POST /api/v1/triprole/submit
-- 返回:
-```json
-{ "ok": true, "result": { "trip_id": "TRIP-...", "status": "submitted", "proof_id": "PROOF-..." } }
-```
-
-### 5) LayerPeg（/api/v1）
-
-#### GET /api/v1/layerpeg/chain-status
-- Query: `project_id?`
-- 返回:
-```json
-{ "ok": true, "mode": "ready", "reason": "all_checks_passed", "checks": { "docpeg_api": { "ok": true, "count": 1 } } }
-```
-
-#### POST /api/v1/layerpeg/anchor
-- 请求体:
-```json
-{ "project_id": "PJT-D34A70B8", "entity_uri": "v://.../entity/桥-400-1-1", "hash": "hash-test-001", "payload": {} }
-```
-- 返回:
-```json
-{ "ok": true, "anchor_id": "ANCHOR-...", "hash": "hash-test-001", "created_at": "2026-04-10 06:06:20" }
-```
-
-#### GET /api/v1/layerpeg/anchor
-- Query: `project_id`(必填), `entity_uri`(必填)
-- 返回:
-```json
-{ "ok": true, "items": [ { "id": "ANCHOR-...", "project_id": "...", "entity_uri": "v://...", "hash": "...", "payload": null, "created_by": "designer-user", "created_at": "..." } ] }
-```
-
-### 6) BOQItem（/api/v1）
-
-#### GET /api/v1/boqitem/projects/{projectId}/nodes
-```json
-{ "ok": true, "items": [ { "id": "...", "parent_id": null, "code": "...", "name": "..." } ] }
-```
-
-#### GET /api/v1/boqitem/projects/{projectId}/items
-```json
-{ "ok": true, "items": [ { "id": "...", "item_code": "...", "material_name": "...", "design_qty": 0, "allocated": 0, "remaining": 0 } ] }
-```
-
-#### GET /api/v1/boqitem/projects/{projectId}/utxos
-```json
-{ "ok": true, "items": [ { "id": "...", "code": "...", "qty": 0, "status": "unspent", "linked_v": "v://..." } ] }
-```
-
-### 7) 文件上传与附件
-
-#### POST /uploads/sessions
-- 返回:
-```json
-{ "ok": true, "session_id": "US-...", "token": "...", "expires_at": "..." }
-```
-
-#### POST /upload
-- Header: `x-upload-session-token` 或 `x-upload-token`
-- Body: `multipart/form-data` (`file` + 可选关联字段)
-- 返回:
-```json
-{ "ok": true, "file_id": "FILE-...", "object_key": "...", "url": "...", "hash": "..." }
-```
-
-#### GET /files
-```json
-{ "ok": true, "items": [ { "file_id": "FILE-...", "filename": "...", "uploaded_by": "...", "created_at": "..." } ], "total": 1 }
-```
-
----
-
-## 错误码与分页统一口径（建议同事前端按此处理）
-- 错误码: `400/401/403/404/409/422/500`
-- 分页字段: `page`, `page_size`, `total`（部分历史接口使用 `limit/offset/total`）
-- 时间字段: ISO8601 或 `yyyy-MM-dd HH:mm:ss`（前端需统一格式化）
-- 统一保底错误解析: `error` / `message` / `detail`
-
-### 8) 工程树生成与返回结构（新增）
-
-#### POST /projects/{projectId}/entities/tree-import
-- 用途: 批量导入工程树节点（单位/分部/分项），后端自动 upsert，并返回完整树结构。
-- Path 参数:
-  - `projectId`(必填)
-- 前端模板导入口径（当前 DocPeg 页面）:
-  - 用户先下载“标准工程划分模板（Excel）”
-  - 固定 4 列中文表头：`实体编码` / `实体名称` / `实体类型` / `位置链`
-  - 不再使用 `chain_id` 列
-  - 前端解析后转换为下方 `items[]` 请求体提交
-- 请求体（两种输入都支持，至少传一种）:
 ```json
 {
-  "upsert": true,
-  "items": [
-    { "entity_code": "100", "entity_name": "路基工程", "entity_type": "unit", "location_chain": "" },
-    { "entity_code": "100-1", "entity_name": "土石方工程", "entity_type": "division", "location_chain": "" },
-    { "entity_code": "100-1-1", "entity_name": "挖方路基", "entity_type": "subitem", "location_chain": "K0+000-K1+000" },
-    { "entity_code": "400", "entity_name": "桥梁工程", "entity_type": "unit", "location_chain": "" },
-    { "entity_code": "400-1", "entity_name": "基础与下部构造", "entity_type": "division", "location_chain": "" },
-    { "entity_code": "400-1-1", "entity_name": "钻孔灌注桩", "entity_type": "subitem", "location_chain": "桥400 1 1" },
-    { "entity_code": "900", "entity_name": "附属工程", "entity_type": "unit", "location_chain": "" }
-  ]
+  "ok": true,
+  "execution": {
+    "execId": "EXEC-...",
+    "tripRoleId": "create_section@v1.0",
+    "projectId": "PJT-D34A70B8",
+    "projectRef": "v://cn.highway/YADGS",
+    "componentRef": "v://cn.highway/YADGS/section/YADGS",
+    "status": "EXECUTED",
+    "context": {},
+    "output": {},
+    "proof": {},
+    "nextRecommendedTrip": null,
+    "boqUpdate": null,
+    "gateResult": {
+      "passed": true
+    },
+    "callbackStatus": "delivered",
+    "createdAt": "...",
+    "updatedAt": "..."
+  }
 }
 ```
-或
+
+### 15.3 阶段验收：查询回调日志
+`GET /v1/execpeg/status/{execId}/callbacks`  
+（别名：`GET /api/v1/execpeg/status/{execId}/callbacks`）
+
+#### 返回结构
+
 ```json
 {
-  "upsert": true,
-  "tree": [
+  "ok": true,
+  "execId": "EXEC-...",
+  "total": 1,
+  "items": [
     {
-      "entity_code": "桥",
-      "entity_name": "单位工程桥",
-      "children": [
-        {
-          "entity_code": "桥-400",
-          "entity_name": "桥梁工程",
-          "children": [
-            { "entity_code": "桥-400-1-1", "entity_name": "钻孔灌注桩" }
-          ]
-        }
-      ]
+      "id": "CBLOG-...",
+      "callbackUrl": "https://example.com/callback",
+      "status": "delivered",
+      "attemptNo": 1,
+      "responseStatus": 200,
+      "responseBody": "...",
+      "error": null,
+      "request": {},
+      "createdAt": "..."
     }
   ]
 }
 ```
-- 返回结构:
+
+### 15.4 手工补录（页面调试/修复）
+`POST /v1/execpeg/manual-input`  
+（别名：`POST /api/v1/execpeg/manual-input`）
+
+#### 请求参数
+
 ```json
 {
-  "ok": true,
-  "project_id": "PJT-D34A70B8",
-  "summary": {
-    "imported_count": 7,
-    "created_count": 7,
-    "updated_count": 0,
-    "skipped_count": 0
-  },
-  "created": [ { "entity_id": "ENT-...", "entity_code": "400-1-1", "entity_name": "钻孔灌注桩", "entity_type": "subitem" } ],
-  "updated": [],
-  "skipped": [],
-  "total": 7,
-  "flat_items": [ { "id": "ENT-...", "entity_uri": "v://...", "entity_code": "400-1-1", "entity_name": "钻孔灌注桩", "entity_type": "subitem", "status": "active" } ],
-  "tree": [ { "entity_code": "400", "children": [ { "entity_code": "400-1", "children": [ { "entity_code": "400-1-1", "children": [] } ] } ] } ]
+  "execId": "EXEC-...",
+  "manualInput": {
+    "remarks": "现场补录"
+  }
 }
 ```
 
-#### GET /projects/{projectId}/entities/tree
-- 用途: 获取项目当前工程树（后端按 `entity_code` 层级规则自动组装）。
-- 返回结构:
+#### 返回结构
+
 ```json
 {
   "ok": true,
-  "project_id": "PJT-D34A70B8",
-  "total": 3,
-  "flat_items": [
-    { "id": "ENT-...", "entity_code": "桥", "entity_name": "单位工程桥", "entity_type": "unit" },
-    { "id": "ENT-...", "entity_code": "桥-400", "entity_name": "桥梁工程", "entity_type": "division" },
-    { "id": "ENT-...", "entity_code": "桥-400-1-1", "entity_name": "钻孔灌注桩", "entity_type": "subitem" }
-  ],
-  "tree": [
+  "execId": "EXEC-...",
+  "context": {
+    "manualInput": {
+      "remarks": "现场补录"
+    }
+  },
+  "updatedAt": "..."
+}
+```
+
+### 15.5 项目治理视图：高速公路 SPU 列表
+`GET /v1/execpeg/highway-spus?q=...&limit=...&offset=...`  
+（别名：`GET /api/v1/execpeg/highway-spus`）
+
+#### 返回结构
+
+```json
+{
+  "ok": true,
+  "total": 1,
+  "paging": {
+    "limit": 20,
+    "offset": 0
+  },
+  "items": [
     {
-      "id": "ENT-...",
-      "entity_code": "桥",
-      "entity_name": "单位工程桥",
-      "parent_code": null,
-      "level": 1,
-      "children": [
-        {
-          "entity_code": "桥-400",
-          "level": 2,
-          "children": [
-            { "entity_code": "桥-400-1-1", "level": 3, "children": [] }
-          ]
-        }
-      ]
+      "id": "SPU-...",
+      "highway_code": "YADGS",
+      "highway_name": "国襄高速",
+      "full_name": "国襄高速 YADGS 标段工程",
+      "owner_did": "did:ir8:org:guoxiang-highway",
+      "start_date": "2026-04-01",
+      "end_date": "2028-12-31",
+      "description": "....",
+      "spu_ref": "v://cn.highway/YADGS",
+      "created_by": "designer-user",
+      "created_at": "...",
+      "updated_at": "..."
+    }
+  ]
+}
+```
+
+### 15.6 项目治理视图：高速公路 SPU 详情（含参与方+标段+执行记录）
+`GET /v1/execpeg/highway-spus/{spuRef}`  
+（别名：`GET /api/v1/execpeg/highway-spus/{spuRef}`）
+
+#### Path 参数
+- `spuRef`（需 URL encode）
+
+#### 返回结构
+
+```json
+{
+  "ok": true,
+  "spu": {
+    "id": "SPU-...",
+    "highway_code": "YADGS",
+    "highway_name": "国襄高速",
+    "spu_ref": "v://cn.highway/YADGS"
+  },
+  "participants": [
+    {
+      "id": "PART-...",
+      "highway_spu_ref": "v://cn.highway/YADGS",
+      "exec_type": "owner",
+      "participant_name": "国襄高速集团",
+      "participant_did": "did:ir8:org:guoxiang-highway",
+      "participant_role": "owner",
+      "created_by": "designer-user",
+      "created_at": "..."
+    }
+  ],
+  "sections": [
+    {
+      "id": "SEC-...",
+      "highway_spu_ref": "v://cn.highway/YADGS",
+      "section_code": "YADGS",
+      "section_name": "K0+000 ~ K5+000 路基桥梁段",
+      "section_type": "sub_project",
+      "quantity": "5km",
+      "description": "路基及桥梁施工标段",
+      "section_ref": "v://cn.highway/YADGS/section/YADGS",
+      "created_by": "designer-user",
+      "created_at": "...",
+      "updated_at": "..."
+    }
+  ],
+  "executions": [
+    {
+      "execId": "EXEC-...",
+      "tripRoleId": "create_section@v1.0",
+      "status": "EXECUTED",
+      "gatePassed": true,
+      "proof": {
+        "proofId": "PF-...",
+        "hash": "sha256:...",
+        "valid": true
+      },
+      "nextRecommendedTrip": null,
+      "output": {},
+      "createdBy": "designer-user",
+      "createdAt": "...",
+      "updatedAt": "..."
     }
   ]
 }

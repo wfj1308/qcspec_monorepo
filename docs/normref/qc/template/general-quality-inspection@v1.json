@@ -4,12 +4,12 @@
   "version": "v1",
   "metadata": {
     "norm_code": "GB50204 / JTG F80 / SL223",
-    "description": "ͨ���ʼ�Э��ģ��",
+    "description": "????????",
     "domain": "construction/highway"
   },
   "gates": [],
   "verdict_logic": {
-    "rule": "����Э��鶨�� entry_rules �� gates ��ִ���ж�",
+    "rule": "?? entry_rules ? gates ????",
     "input": {
       "actual_values": {},
       "design_values": {}
@@ -42,8 +42,8 @@
         "supervisor.approve"
       ],
       "pre_conditions": [
-        "ԭ���Ϻϸ�",
-        "�豸У׼��Ч"
+        "?????",
+        "??????"
       ],
       "entry_rules": []
     },
@@ -59,7 +59,7 @@
           "standard": "string",
           "measured": "any",
           "unit": "string",
-          "result": "�ϸ�|���ϸ�|����"
+          "result": "??|???|??"
         }
       ],
       "relations": [
@@ -80,7 +80,7 @@
         "signed": 0,
         "pending": 0
       },
-      "next_action": "������Э��鲹�� entry_rules �� gates"
+      "next_action": "???????? entry_rules ? gates"
     }
   }
 }
