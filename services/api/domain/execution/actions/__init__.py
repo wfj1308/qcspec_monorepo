@@ -1,2 +1,0 @@
-"""TripRole action pipeline modules."""
-

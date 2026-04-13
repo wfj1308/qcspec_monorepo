@@ -103,6 +103,26 @@ async def permission_check(request: Request) -> Response:
     )
 
 
+@router.get("/role-bindings")
+async def list_role_bindings(request: Request) -> Response:
+    return await _proxy(
+        request,
+        method="GET",
+        upstream_path="/api/v1/dtorole/role-bindings",
+        include_body=False,
+    )
+
+
+@router.post("/role-bindings")
+async def save_role_binding(request: Request) -> Response:
+    return await _proxy(
+        request,
+        method="POST",
+        upstream_path="/api/v1/dtorole/role-bindings",
+        include_body=True,
+    )
+
+
 @router.get("/roles")
 async def list_roles(request: Request) -> Response:
     return await _proxy(

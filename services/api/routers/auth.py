@@ -8,7 +8,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
 
 from services.api.dependencies import get_auth_service
-from services.api.domain import AuthService
+from services.api.domain.auth import AuthService
 
 router = APIRouter()
 security = HTTPBearer()
