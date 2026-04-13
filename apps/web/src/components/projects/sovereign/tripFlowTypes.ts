@@ -1,4 +1,4 @@
-import type { Dispatch, SetStateAction } from 'react'
+﻿import type { Dispatch, SetStateAction } from 'react'
 
 import type { Evidence, FormRow, TreeNode } from './types'
 import type { SovereignTripFlowState } from './useSovereignTripFlowState'
@@ -74,3 +74,4 @@ export type UseSovereignTripFlowArgs = {
   tripState: TripFlowState
   onMockDocReady?: () => void
 }
+

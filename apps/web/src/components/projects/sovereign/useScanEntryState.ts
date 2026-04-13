@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+﻿import { useCallback, useEffect, useState } from 'react'
 
 import { sha256Hex } from './fileUtils'
 
@@ -89,7 +89,7 @@ export function useScanEntryState({
       setScanEntryTokenHash('')
       commitRecord('')
     }
-    showToast(status === 'blocked' ? '空间坐标越界（Geo-Leap Error），扫码进入被拦截' : '扫码进入成功，已通过时空围栏')
+    showToast(status === 'blocked' ? '空间坐标越界（时空围栏错误），扫码进入被拦截' : '扫码进入成功，已通过时空围栏')
   }, [activeUri, appendScanEntryLog, enqueueScanEntryPacket, geoTemporalBlocked, lat, lng, loadEvidenceCenter, scanEntryRequired, scanEntryToken, showToast])
 
   return {
@@ -103,3 +103,4 @@ export function useScanEntryState({
     handleScanEntry,
   }
 }
+

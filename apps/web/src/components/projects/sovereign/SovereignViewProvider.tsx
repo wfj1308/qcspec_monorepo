@@ -60,9 +60,9 @@ function defaultViewForRole(role: SovereignWorkbenchRole): SovereignWorkspaceVie
 }
 
 function roleLabelForRole(role: SovereignWorkbenchRole) {
-  if (role === 'contractor') return 'Contractor Workbench'
-  if (role === 'supervisor') return 'Supervisor Workbench'
-  return 'Sovereign Vault'
+  if (role === 'contractor') return '施工工作台'
+  if (role === 'supervisor') return '监理工作台'
+  return '主权总览'
 }
 
 type Props = {

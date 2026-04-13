@@ -1,4 +1,4 @@
-type Props = {
+﻿type Props = {
   meshpegCloudName: string
   meshpegBimName: string
   meshpegRunning: boolean
@@ -109,8 +109,8 @@ export default function ExecutionPegPanels({
           {gatewayRes && (
             <div className="grid gap-1 text-[11px] text-slate-300">
               <div>Project: {String(gatewayRes.project_uri || '-')}</div>
-              <div>Total Proof Hash: {String(gatewayRes.total_proof_hash || '-')}</div>
-              <div>Proof ID: {String(gatewayRes.proof_id || '-')}</div>
+              <div>总存证哈希: {String(gatewayRes.total_proof_hash || '-')}</div>
+              <div>存证ID: {String(gatewayRes.proof_id || '-')}</div>
               <div>Scan Entry: {String(gatewayRes.scan_entry_proof || '-')}</div>
               <div>更新时间: {String(gatewayRes.updated_at || '-')}</div>
               <div className="flex items-center gap-2">
@@ -124,3 +124,4 @@ export default function ExecutionPegPanels({
     </>
   )
 }
+

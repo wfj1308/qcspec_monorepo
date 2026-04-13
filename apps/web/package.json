@@ -11,8 +11,9 @@
   },
   "dependencies": {
     "@qcspec/proof": "file:../../packages/proof",
-    "@qcspec/sdk": "file:../../packages/sdk",
     "@qcspec/types": "file:../../packages/types",
+    "@tanstack/react-query": "^5.97.0",
+    "axios": "^1.15.0",
     "date-fns": "^3.6.0",
     "pdfjs-dist": "^4.10.38",
     "react": "^18.3.0",

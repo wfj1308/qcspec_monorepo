@@ -1,4 +1,4 @@
-import {
+﻿import {
   buildWorkbenchDisplayTexts,
   WORKBENCH_STYLES,
 } from './workbenchConfig'
@@ -34,3 +34,4 @@ export function buildSovereignWorkbenchDisplayState({
     ...display,
   }
 }
+

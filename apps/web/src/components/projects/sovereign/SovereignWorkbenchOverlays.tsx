@@ -1,4 +1,4 @@
-import type { ComponentProps } from 'react'
+﻿import type { ComponentProps } from 'react'
 
 import { toneForDistance } from './analysisUtils'
 import DidFloatingCard from './DidFloatingCard'
@@ -55,8 +55,8 @@ export default function SovereignWorkbenchOverlays({
             <div className="text-sm font-extrabold mb-2">AR 现场验真视窗</div>
             <div className="text-xs text-slate-400 break-all grid gap-1">
               <div>细目: {String(ar.focus.item_no || ar.focus.item_name || ar.focus.boq_item_uri || '-')}</div>
-              <div>Proof ID: {String(ar.focus.proof_id || '-')}</div>
-              <div>Proof Hash: {String(ar.focus.proof_hash || '-')}</div>
+              <div>存证ID: {String(ar.focus.proof_id || '-')}</div>
+              <div>存证哈希: {String(ar.focus.proof_hash || '-')}</div>
               <div>Trip: {String(ar.focus.trip_action || ar.focus.proof_type || '-')}</div>
               <div>阶段: {String(ar.focus.lifecycle_stage || '-')}</div>
               <div>结果: {String(ar.focus.result || '-')}</div>
@@ -67,7 +67,7 @@ export default function SovereignWorkbenchOverlays({
               <span>GPS: {ar.lat}, {ar.lng}</span>
               <button
                 type="button"
-                onClick={() => ar.onCopyText('AR Proof Hash', String(ar.focus?.proof_hash || ''))}
+                onClick={() => ar.onCopyText('AR 存证哈希', String(ar.focus?.proof_hash || ''))}
                 className="px-2 py-1 rounded border border-slate-700 text-[10px] text-slate-200 hover:bg-slate-800"
               >
                 复制 Hash
@@ -216,3 +216,4 @@ export default function SovereignWorkbenchOverlays({
     </>
   )
 }
+

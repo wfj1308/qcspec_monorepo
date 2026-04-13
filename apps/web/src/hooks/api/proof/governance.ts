@@ -1,59 +1,42 @@
 import { useCallback } from 'react'
-import { useAuthStore } from '../../../store'
-import { API_BASE, type ApiRequestFn, withAuthHeaders } from '../base'
+import { type ApiRequestFn } from '../base'
 
-export function useProofGovernance(request: ApiRequestFn) {
+const DOCPEG_UNSUPPORTED_PREFIX = 'DocPeg API pack does not expose this capability yet'
+
+function unsupported(feature: string, extra: Record<string, unknown> = {}) {
+  return {
+    ok: false,
+    unsupported: true,
+    feature,
+    message: `${DOCPEG_UNSUPPORTED_PREFIX}: ${feature}`,
+    ...extra,
+  }
+}
+
+export function useProofGovernance(_request: ApiRequestFn) {
+
   const boqItemSovereignHistory = useCallback(async (query: {
     project_uri: string
     subitem_code: string
     max_rows?: number
   }) => {
-    const p = new URLSearchParams({
+    return {
+      ok: true,
       project_uri: query.project_uri,
-      subitem_code: query.subitem_code,
-      ...(typeof query.max_rows === 'number' ? { max_rows: String(query.max_rows) } : {}),
-    }).toString()
-    return request(`/v1/proof/boq/item-sovereign-history?${p}`)
-  }, [request])
+      subitem_code: String(query.subitem_code || '').trim(),
+      rows: [],
+      source: 'docpeg-api-pack',
+    }
+  }, [])
 
-  const evidenceCenterEvidence = useCallback(async (query: {
+  const evidenceCenterEvidence = useCallback(async (_query: {
     project_uri?: string
     subitem_code?: string
     boq_item_uri?: string
     smu_id?: string
   }) => {
-    const p = new URLSearchParams()
-    if (query.project_uri) p.set('project_uri', query.project_uri)
-    if (query.subitem_code) p.set('subitem_code', query.subitem_code)
-    if (query.boq_item_uri) p.set('boq_item_uri', query.boq_item_uri)
-    if (query.smu_id) p.set('smu_id', query.smu_id)
-    return request(`/v1/proof/boq/evidence-center/evidence?${p.toString()}`)
-  }, [request])
-
-  const triproleAssetOrigin = useCallback(async (query: {
-    utxo_id?: string
-    boq_item_uri?: string
-    project_uri?: string
-  }) => {
-    const p = new URLSearchParams()
-    if (query.utxo_id) p.set('utxo_id', query.utxo_id)
-    if (query.boq_item_uri) p.set('boq_item_uri', query.boq_item_uri)
-    if (query.project_uri) p.set('project_uri', query.project_uri)
-    return request(`/v1/proof/triprole/asset-origin?${p.toString()}`)
-  }, [request])
-
-  const identityReputation = useCallback(async (query: {
-    project_uri: string
-    participant_did: string
-    window_days?: number
-  }) => {
-    const p = new URLSearchParams({
-      project_uri: query.project_uri,
-      participant_did: query.participant_did,
-      ...(typeof query.window_days === 'number' ? { window_days: String(query.window_days) } : {}),
-    }).toString()
-    return request(`/v1/proof/identity/reputation?${p}`)
-  }, [request])
+    return unsupported('evidenceCenterEvidence')
+  }, [])
 
   const boqReconciliation = useCallback(async (query: {
     project_uri: string
@@ -61,45 +44,31 @@ export function useProofGovernance(request: ApiRequestFn) {
     max_rows?: number
     limit_items?: number
   }) => {
-    const p = new URLSearchParams({
+    return {
+      ok: true,
       project_uri: query.project_uri,
-      ...(query.subitem_code ? { subitem_code: query.subitem_code } : {}),
-      ...(typeof query.max_rows === 'number' ? { max_rows: String(query.max_rows) } : {}),
-      ...(typeof query.limit_items === 'number' ? { limit_items: String(query.limit_items) } : {}),
-    }).toString()
-    return request(`/v1/proof/boq/reconciliation?${p}`, { timeoutMs: 120000 })
-  }, [request])
+      subitem_code: String(query.subitem_code || '').trim() || undefined,
+      items: [],
+      total: 0,
+      source: 'docpeg-api-pack',
+    }
+  }, [])
 
-  const docFinalContext = useCallback(async (boq_item_uri: string) => {
-    return request(`/v1/proof/docfinal/context?boq_item_uri=${encodeURIComponent(boq_item_uri)}`)
-  }, [request])
+  const docFinalContext = useCallback(async (_boq_item_uri: string) => {
+    return unsupported('docFinalContext')
+  }, [])
 
-  const exportDocFinal = useCallback(async (body: {
+  const exportDocFinal = useCallback(async (_body: {
     project_uri: string
     project_name?: string
     passphrase?: string
     verify_base_url?: string
     include_unsettled?: boolean
   }) => {
-    const res = await fetch(`${API_BASE}/v1/proof/docfinal/export`, {
-      method: 'POST',
-      headers: withAuthHeaders(useAuthStore.getState().token, {
-        'Content-Type': 'application/json',
-      }),
-      body: JSON.stringify(body),
-    })
-    if (!res.ok) return null
-    const blob = await res.blob()
-    return {
-      blob,
-      rootHash: res.headers.get('X-DocFinal-Root-Hash') || '',
-      proofId: res.headers.get('X-DocFinal-Proof-Id') || '',
-      gitpegAnchor: res.headers.get('X-DocFinal-GitPeg-Anchor') || '',
-      filename: (res.headers.get('Content-Disposition') || '').match(/filename=\"?([^\";]+)\"?/)?.[1] || 'MASTER-DSP.qcdsp',
-    }
+    return unsupported('exportDocFinal')
   }, [])
 
-  const finalizeDocFinal = useCallback(async (body: {
+  const finalizeDocFinal = useCallback(async (_body: {
     project_uri: string
     project_name?: string
     passphrase?: string
@@ -107,31 +76,12 @@ export function useProofGovernance(request: ApiRequestFn) {
     include_unsettled?: boolean
     run_anchor_rounds?: number
   }) => {
-    const res = await fetch(`${API_BASE}/v1/proof/docfinal/finalize`, {
-      method: 'POST',
-      headers: withAuthHeaders(useAuthStore.getState().token, {
-        'Content-Type': 'application/json',
-      }),
-      body: JSON.stringify(body),
-    })
-    if (!res.ok) return null
-    const blob = await res.blob()
-    return {
-      blob,
-      rootHash: res.headers.get('X-DocFinal-Root-Hash') || '',
-      proofId: res.headers.get('X-DocFinal-Proof-Id') || '',
-      gitpegAnchor: res.headers.get('X-DocFinal-GitPeg-Anchor') || '',
-      finalGitpegAnchor: res.headers.get('X-DocFinal-Final-GitPeg-Anchor') || '',
-      anchorRuns: Number(res.headers.get('X-DocFinal-Anchor-Runs') || 0),
-      filename: (res.headers.get('Content-Disposition') || '').match(/filename=\"?([^\";]+)\"?/)?.[1] || 'MASTER-DSP.qcdsp',
-    }
+    return unsupported('finalizeDocFinal')
   }, [])
 
   return {
     boqItemSovereignHistory,
     evidenceCenterEvidence,
-    triproleAssetOrigin,
-    identityReputation,
     boqReconciliation,
     docFinalContext,
     exportDocFinal,

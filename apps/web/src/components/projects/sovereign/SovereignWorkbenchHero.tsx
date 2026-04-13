@@ -1,4 +1,4 @@
-
+﻿
 type Props = {
   activePath: string
   displayProjectUri: string
@@ -71,7 +71,7 @@ export default function SovereignWorkbenchHero({
         <div className="mb-3 border border-emerald-600/80 bg-emerald-950 text-emerald-100 rounded-xl p-2">
           <div className="text-xs font-extrabold">总证明哈希: 主权已锁定</div>
           <div className="mt-1 text-xs">SMU 已冻结，证据链不可篡改</div>
-          <div className="mt-1 text-[11px] font-mono break-all">Total Proof Hash: {totalHash}</div>
+          <div className="mt-1 text-[11px] font-mono break-all">总存证哈希: {totalHash}</div>
         </div>
       )}
 
@@ -91,3 +91,4 @@ export default function SovereignWorkbenchHero({
     </>
   )
 }
+

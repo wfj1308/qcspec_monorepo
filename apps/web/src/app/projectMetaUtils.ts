@@ -119,5 +119,4 @@ export const buildProjectEditDraft = (project: Project): ProjectEditDraft => ({
   end_date: project.end_date || '',
   erp_project_code: project.erp_project_code || '',
   erp_project_name: project.erp_project_name || '',
-  description: project.description || '',
 })

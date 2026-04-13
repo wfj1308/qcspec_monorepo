@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+﻿import { useCallback, useEffect, useRef, useState } from 'react'
 
 type UseScanConfirmActionArgs = {
   apiProjectUri: string
@@ -45,7 +45,7 @@ export function useScanConfirmAction({
   const doScanConfirm = useCallback(async () => {
     const proofId = String(scanProofId || inputProofId || '')
     if (!proofId) {
-      showToast('请输入构件 Proof ID')
+      showToast('请输入构件 存证ID')
       return
     }
     if (!scanPayload) {
@@ -106,3 +106,4 @@ export function useScanConfirmAction({
     closeScanLock,
   }
 }
+

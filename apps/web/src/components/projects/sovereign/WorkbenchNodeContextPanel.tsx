@@ -1,4 +1,4 @@
-type ScanChainBadge = {
+﻿type ScanChainBadge = {
   cls: string
   label: string
 }
@@ -139,3 +139,4 @@ export default function WorkbenchNodeContextPanel({
     </>
   )
 }
+

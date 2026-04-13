@@ -18,7 +18,7 @@ export default function AuditorWorkbench({ project, workspaceView, onNavigateVie
   return (
     <div className="grid gap-3">
       <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
-        Sovereign Vault focuses on evidence lineage, genesis control, norm versioning, and delta actions. Recording widgets stay hidden until needed.
+        审计工作台聚焦证据谱系、Genesis 基线管控、规范版本追踪与差量动作。记录组件按需展开，避免干扰主流程。
       </div>
       <SovereignWorkbenchPanel
         project={project}

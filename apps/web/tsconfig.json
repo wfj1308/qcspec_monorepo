@@ -14,7 +14,6 @@
     "baseUrl": ".",
     "paths": {
       "@qcspec/types": ["../../packages/types/index.ts"],
-      "@qcspec/sdk": ["../../packages/sdk/index.ts"],
       "@qcspec/proof": ["../../packages/proof/index.ts"]
     }
   },

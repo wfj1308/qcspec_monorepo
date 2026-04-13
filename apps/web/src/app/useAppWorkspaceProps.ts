@@ -6,18 +6,11 @@ type WorkspaceContentProps = ComponentProps<typeof AppWorkspaceContent>
 
 type UseAppWorkspacePropsArgs = {
   activeTab: WorkspaceContentProps['activeTab']
-  proofWorkspace: WorkspaceContentProps['proofWorkspace']
   projectsWorkspace: WorkspaceContentProps['projectsWorkspace']
   teamWorkspace: WorkspaceContentProps['teamWorkspace']
+  permissionsWorkspace: WorkspaceContentProps['permissionsWorkspace']
   settingsWorkspace: WorkspaceContentProps['settingsWorkspace']
-}
-
-function buildProofWorkspace(
-  proofWorkspace: UseAppWorkspacePropsArgs['proofWorkspace'],
-): WorkspaceContentProps['proofWorkspace'] {
-  return {
-    proofPanelProps: proofWorkspace.proofPanelProps,
-  }
+  proofWorkspace: WorkspaceContentProps['proofWorkspace']
 }
 
 function buildProjectsWorkspace(
@@ -34,8 +27,15 @@ function buildTeamWorkspace(
 ): WorkspaceContentProps['teamWorkspace'] {
   return {
     teamPanelProps: teamWorkspace.teamPanelProps,
-    permissionsPanelProps: teamWorkspace.permissionsPanelProps,
     inviteMemberModalProps: teamWorkspace.inviteMemberModalProps,
+  }
+}
+
+function buildPermissionsWorkspace(
+  permissionsWorkspace: UseAppWorkspacePropsArgs['permissionsWorkspace'],
+): WorkspaceContentProps['permissionsWorkspace'] {
+  return {
+    permissionsPanelProps: permissionsWorkspace.permissionsPanelProps,
   }
 }
 
@@ -47,12 +47,21 @@ function buildSettingsWorkspace(
   }
 }
 
+function buildProofWorkspace(
+  proofWorkspace: UseAppWorkspacePropsArgs['proofWorkspace'],
+): WorkspaceContentProps['proofWorkspace'] {
+  return {
+    proofPanelProps: proofWorkspace.proofPanelProps,
+  }
+}
+
 export function useAppWorkspaceProps(args: UseAppWorkspacePropsArgs): WorkspaceContentProps {
   return {
     activeTab: args.activeTab,
-    proofWorkspace: buildProofWorkspace(args.proofWorkspace),
     projectsWorkspace: buildProjectsWorkspace(args.projectsWorkspace),
     teamWorkspace: buildTeamWorkspace(args.teamWorkspace),
+    permissionsWorkspace: buildPermissionsWorkspace(args.permissionsWorkspace),
     settingsWorkspace: buildSettingsWorkspace(args.settingsWorkspace),
+    proofWorkspace: buildProofWorkspace(args.proofWorkspace),
   }
 }

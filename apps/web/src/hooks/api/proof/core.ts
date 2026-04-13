@@ -1,54 +1,66 @@
 import { useCallback } from 'react'
-import { useAuthStore } from '../../../store'
-import { API_BASE, type ApiRequestFn, withAuthHeaders } from '../base'
+import { type ApiRequestFn } from '../base'
 
-export function useProofCore(request: ApiRequestFn) {
+const DOCPEG_UNSUPPORTED_PREFIX = 'DocPeg API pack does not expose this capability yet'
+
+function unsupported(feature: string, extra: Record<string, unknown> = {}) {
+  return {
+    ok: false,
+    unsupported: true,
+    feature,
+    message: `${DOCPEG_UNSUPPORTED_PREFIX}: ${feature}`,
+    ...extra,
+  }
+}
+
+export function useProofCore(_request: ApiRequestFn) {
   const listProofs = useCallback(async (project_id: string) => {
-    return request(`/v1/proof/?project_id=${project_id}`)
-  }, [request])
+    return unsupported('listProofs', { project_id })
+  }, [])
 
   const verify = useCallback(async (proof_id: string) => {
-    return request(`/v1/proof/verify/${proof_id}`)
-  }, [request])
+    const id = String(proof_id || '').trim()
+    if (!id) return null
+    return {
+      valid: false,
+      chain_length: 0,
+      unsupported: true,
+      message: `${DOCPEG_UNSUPPORTED_PREFIX}: verify`,
+    }
+  }, [])
 
   const publicVerifyDetail = useCallback(async (proof_id: string, lineage_depth = 'item') => {
-    const id = encodeURIComponent(String(proof_id || '').trim())
+    const id = String(proof_id || '').trim()
     if (!id) return null
-    const qs = new URLSearchParams({ lineage_depth }).toString()
-    return request(`/api/v1/verify/${id}?${qs}`, { skipAuthRedirect: true })
-  }, [request])
+    return {
+      ok: false,
+      unsupported: true,
+      proof_id: id,
+      lineage_depth,
+      source: 'docpeg-api-pack',
+    }
+  }, [])
 
-  const downloadEvidenceCenterZip = useCallback(async (query: {
+  const downloadEvidenceCenterZip = useCallback(async (_query: {
     project_uri: string
     subitem_code: string
     proof_id?: string
     verify_base_url?: string
   }) => {
-    const qs = new URLSearchParams({
-      project_uri: query.project_uri,
-      subitem_code: query.subitem_code,
-      ...(query.proof_id ? { proof_id: query.proof_id } : {}),
-      ...(query.verify_base_url ? { verify_base_url: query.verify_base_url } : {}),
-    }).toString()
-    const res = await fetch(`${API_BASE}/v1/proof/boq/evidence-center/download?${qs}`, {
-      method: 'GET',
-      headers: withAuthHeaders(useAuthStore.getState().token),
-    })
-    if (!res.ok) return null
-    const blob = await res.blob()
-    const filename =
-      (res.headers.get('Content-Disposition') || '').match(/filename=\"?([^\";]+)\"?/)?.[1] ||
-      'EvidenceCenter.zip'
-    return { blob, filename }
+    return {
+      blob: undefined,
+      filename: undefined,
+      ...unsupported('downloadEvidenceCenterZip'),
+    }
   }, [])
 
-  const stats = useCallback(async (project_id: string) => {
-    return request(`/v1/proof/stats/${project_id}`)
-  }, [request])
+  const stats = useCallback(async (_project_id: string) => {
+    return unsupported('stats')
+  }, [])
 
-  const nodeTree = useCallback(async (root_uri: string) => {
-    return request(`/v1/proof/node-tree?root_uri=${encodeURIComponent(root_uri)}`, { timeoutMs: 120000 })
-  }, [request])
+  const nodeTree = useCallback(async (_root_uri: string) => {
+    return unsupported('nodeTree')
+  }, [])
 
   return {
     listProofs,

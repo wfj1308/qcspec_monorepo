@@ -1,4 +1,4 @@
-import TripRiskGauge from './TripRiskGauge'
+﻿import TripRiskGauge from './TripRiskGauge'
 
 type GateStats = {
   qcStatus: string
@@ -44,15 +44,15 @@ export default function WorkbenchQualityPanels({
           {!projectIsContractSpu && gateStats.labTotal > 0 && (
             <div className="mt-1 text-xs text-slate-300">
               实验室证明: {gateStats.labPass}/{gateStats.labTotal}
-              {gateStats.labLatestPass && <span className="ml-2">最新 PASS: {gateStats.labLatestPass}</span>}
+              {gateStats.labLatestPass && <span className="ml-2">最新通过: {gateStats.labLatestPass}</span>}
               {gateStats.labLatestHash && <div className="mt-1 text-[11px] text-emerald-300">主权已锁定</div>}
             </div>
           )}
-          {!projectIsContractSpu && !gateStats.labTotal && <div className="mt-1 text-xs text-amber-200">未检测到实验室 Proof Hash，请先录入 LabPeg</div>}
+          {!projectIsContractSpu && !gateStats.labTotal && <div className="mt-1 text-xs text-amber-200">未检测到实验室 存证哈希，请先录入 LabPeg</div>}
           <div className={`mt-2 text-xs font-bold ${gateStats.dualQualified ? 'text-emerald-300' : 'text-amber-300'}`}>双合格门控: {gateStats.dualQualified ? '通过' : '未通过'}</div>
           {!gateStats.dualQualified && activeIsLeaf && (
             <button type="button" onClick={onRecordRejectTrip} disabled={rejecting || !activeIsLeaf} className={`mt-2 w-full rounded-lg border px-3 py-2 text-xs font-bold disabled:opacity-60 ${btnRedCls}`}>
-              {rejecting ? '记录中...' : '记录不合格（Reject Trip）'}
+              {rejecting ? '记录中...' : '记录不合格（驳回工序）'}
             </button>
           )}
         </div>
@@ -63,14 +63,15 @@ export default function WorkbenchQualityPanels({
           <div className="text-sm text-emerald-300">合格: {gateStats.pass}</div>
           <div className="text-sm text-red-300">不合格: {gateStats.fail}</div>
           <div className="text-sm text-amber-200">待检: {gateStats.pending}</div>
-          {!gateStats.qcCompliant && <div className="mt-2 text-xs text-amber-200">TripRole 判定未完成（is_compliant=false）</div>}
+          {!gateStats.qcCompliant && <div className="mt-2 text-xs text-amber-200">工序判定未完成（is_compliant=false）</div>}
           {projectIsContractSpu && <div className="mt-2 text-xs text-slate-400">合同凭证类不启用 NormPeg 评分</div>}
         </div>
       </div>
 
       <div className="mb-3">
-        <TripRiskGauge score={effectiveRiskScore} title="Risk Score 仪表盘" />
+        <TripRiskGauge score={effectiveRiskScore} title="风险分数仪表盘" />
       </div>
     </>
   )
 }
+

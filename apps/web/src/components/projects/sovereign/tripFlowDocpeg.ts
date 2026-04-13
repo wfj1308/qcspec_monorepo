@@ -1,4 +1,4 @@
-import type { Dispatch, SetStateAction } from 'react'
+﻿import type { Dispatch, SetStateAction } from 'react'
 
 import { buildMeasurementPayload } from './spuUtils'
 import { toApiUri } from './treeUtils'
@@ -97,7 +97,7 @@ export async function runTripGenerateDoc({
     onMockDocReady?.()
     const risk = Number((asDict(payload.risk_audit).risk_score || 0))
     if (risk < 60) showToast(`报告已生成，但风险偏高（${risk.toFixed(2)}）`)
-    else showToast('桥施表已生成，Total Proof Hash 已锁定')
+    else showToast('桥施表已生成，总存证哈希 已锁定')
   } finally {
     setMockGenerating(false)
   }
@@ -105,3 +105,4 @@ export async function runTripGenerateDoc({
 
 // Backward-compatible alias during refactor rollout.
 export const runTripSubmitMock = runTripGenerateDoc
+

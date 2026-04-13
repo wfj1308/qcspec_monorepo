@@ -126,24 +126,24 @@ function WorkspaceBody({ project }: { project: ProjectLike }) {
       items.push({
         view: 'trip',
         label: workbenchRole === 'contractor' ? '任务录入' : '执行中心',
-        title: 'Trip Console',
-        detail: 'SPU submit, field photo, and SOP guidance.',
+        title: '工序执行台',
+        detail: '提交工序、上传现场证据、按规范引导操作。',
       })
     }
     if (allowedViews.includes('audit')) {
       items.push({
         view: 'audit',
         label: workbenchRole === 'supervisor' ? '审核工作台' : '证据与审计',
-        title: 'Evidence & Audit',
-        detail: 'Proof chain, dual gate, and conflict review.',
+        title: '证据与审计',
+        detail: '存证链路、双闸门校验、冲突复核。',
       })
     }
     if (allowedViews.includes('genesis')) {
       items.push({
         view: 'genesis',
         label: '资产对账',
-        title: 'Project Genesis',
-        detail: '0# ledger, NormRef binding, and delta controls.',
+        title: '项目基线',
+        detail: '0#台账、NormRef绑定、差量管控。',
       })
     }
     return items

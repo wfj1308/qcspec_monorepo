@@ -38,7 +38,7 @@ function withAuditGatekeeper<P extends { forceDisabled?: boolean }>(Component: R
         {blocked && (
           <div className="absolute inset-0 grid place-items-center rounded-2xl border border-rose-500/60 bg-slate-950/78 p-4 text-center">
             <div>
-              <div className="text-xs font-extrabold uppercase tracking-[0.18em] text-rose-300">Audit Gatekeeper</div>
+              <div className="text-xs font-extrabold uppercase tracking-[0.18em] text-rose-300">审核守门</div>
               <div className="mt-2 text-sm font-semibold text-slate-100">提交通道已被物理拦截</div>
               <div className="mt-1 text-xs leading-5 text-slate-300">{reason}</div>
             </div>
@@ -66,11 +66,11 @@ function SubmissionZone({
       <div className="mt-3 rounded-lg border border-slate-700/70 bg-slate-950/40 px-3 py-2 text-xs">
         <div className="mb-1 text-slate-400">审批状态</div>
         <div className="flex items-center gap-2">
-          <span className={`rounded-full border px-2 py-0.5 ${tripStage === 'Unspent' ? 'border-slate-500/70 bg-slate-900/60 text-slate-300' : 'border-slate-700/60 bg-slate-900/20 text-slate-500'}`}>Unspent</span>
+          <span className={`rounded-full border px-2 py-0.5 ${tripStage === 'Unspent' ? 'border-slate-500/70 bg-slate-900/60 text-slate-300' : 'border-slate-700/60 bg-slate-900/20 text-slate-500'}`}>未提交</span>
           <span className="text-slate-600">→</span>
-          <span className={`rounded-full border px-2 py-0.5 ${tripStage === 'Reviewing' ? 'border-sky-500/70 bg-sky-950/30 text-sky-200' : tripStage === 'Approved' ? 'border-sky-700/50 bg-sky-950/10 text-sky-500' : 'border-slate-700/60 bg-slate-900/20 text-slate-500'}`}>Reviewing</span>
+          <span className={`rounded-full border px-2 py-0.5 ${tripStage === 'Reviewing' ? 'border-sky-500/70 bg-sky-950/30 text-sky-200' : tripStage === 'Approved' ? 'border-sky-700/50 bg-sky-950/10 text-sky-500' : 'border-slate-700/60 bg-slate-900/20 text-slate-500'}`}>审核中</span>
           <span className="text-slate-600">→</span>
-          <span className={`rounded-full border px-2 py-0.5 ${tripStage === 'Approved' ? 'border-emerald-500/70 bg-emerald-950/30 text-emerald-200' : 'border-slate-700/60 bg-slate-900/20 text-slate-500'}`}>Approved</span>
+          <span className={`rounded-full border px-2 py-0.5 ${tripStage === 'Approved' ? 'border-emerald-500/70 bg-emerald-950/30 text-emerald-200' : 'border-slate-700/60 bg-slate-900/20 text-slate-500'}`}>已通过</span>
         </div>
       </div>
       <button
@@ -87,10 +87,10 @@ function SubmissionZone({
         disabled={mockGenerating || forceDisabled || !isSpecBound}
         className={`mt-2 w-full px-3 py-2 font-bold disabled:opacity-60 ${btnBlueCls}`}
       >
-        {mockGenerating ? 'DocPeg 生成中...' : '确认并生成 Document.create_trip'}
+        {mockGenerating ? 'DocPeg 生成中...' : '确认并生成工序文档'}
       </button>
       <div className="mt-2 text-[11px] text-slate-500">
-        提交后会进入 TripRole 审核链路；签认完成后自动冻结 SMU，并在右侧生成正式 DocPeg 预览与二维码。
+        提交后会进入工序审核链路；签认完成后自动冻结 SMU，并在右侧生成正式 DocPeg 预览与二维码。
       </div>
     </>
   )
@@ -159,13 +159,13 @@ export default function AuditGatekeeper({
         : !project.active?.isLeaf
           ? '仅叶子节点允许提交。'
           : !asset.inputProofId
-            ? '缺少输入 Proof，无法进入 TripRole 提交流程。'
+            ? '缺少输入存证，无法进入工序提交流程。'
             : !isSpecBound
               ? '未绑定 NormRef / Gate，提交已被物理阻断。'
               : !gateStats.dualQualified
                 ? audit.gateReason || '双门控未通过。'
                 : audit.exceedBalance
-                  ? 'Genesis UTXO 余额不足，请先发起变更补差 Trip。'
+                  ? '基线 UTXO 余额不足，请先发起变更补差工序。'
                   : !audit.snappegReady
                     ? 'SnapPeg 证据链未就绪，请先补齐现场证据。'
                     : audit.geoTemporalBlocked
@@ -185,7 +185,7 @@ export default function AuditGatekeeper({
 
       <div className="mb-2 flex items-center justify-between">
         <div>
-          <div className="text-xs font-extrabold uppercase tracking-[0.18em] text-slate-400">Audit Gatekeeper</div>
+          <div className="text-xs font-extrabold uppercase tracking-[0.18em] text-slate-400">审核守门</div>
           <div className="mt-1 text-sm font-semibold text-slate-100">双门控、争议挂起与最终提交</div>
         </div>
         <span className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold ${blockedReason ? 'border-rose-500/70 bg-rose-950/30 text-rose-200' : 'border-emerald-500/70 bg-emerald-950/30 text-emerald-200'}`}>

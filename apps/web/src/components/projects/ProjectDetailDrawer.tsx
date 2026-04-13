@@ -153,6 +153,57 @@ function computeRiskScore(row: { deviation_quantity?: number; illegal_attempt_co
   return { score, tone }
 }
 
+function readText(value: unknown): string {
+  return String(value || '').trim()
+}
+
+function normalizeProjectType(value: unknown): string {
+  const raw = String(value || '').trim()
+  if (!raw) return ''
+  const normalized = raw.toLowerCase().replace(/[\s-]+/g, '_')
+  const aliases: Record<string, string> = {
+    h: 'highway',
+    highway: 'highway',
+    h_highway: 'highway',
+    road: 'road',
+    urban: 'urban',
+    bridge: 'bridge',
+    bridge_repair: 'bridge_repair',
+    bridgerepair: 'bridge_repair',
+    tunnel: 'tunnel',
+    municipal: 'municipal',
+    water: 'water',
+  }
+  if (aliases[normalized]) return aliases[normalized]
+  if (/^h\s*highway$/i.test(raw)) return 'highway'
+  return normalized
+}
+
+function FragmentRow({
+  label,
+  value,
+  mono = false,
+  strong = false,
+}: {
+  label: string
+  value: string
+  mono?: boolean
+  strong?: boolean
+}) {
+  return (
+    <>
+      <span style={{ color: '#64748B' }}>{label}</span>
+      {mono ? (
+        <code style={{ color: '#1A56DB', wordBreak: 'break-all' }}>{value}</code>
+      ) : strong ? (
+        <strong>{value}</strong>
+      ) : (
+        <span>{value}</span>
+      )}
+    </>
+  )
+}
+
 export default function ProjectDetailDrawer({
   open,
   detailProject,
@@ -184,6 +235,43 @@ export default function ProjectDetailDrawer({
   sidebarOpen = true,
 }: ProjectDetailDrawerProps) {
   if (!open || !detailProject) return null
+
+  const detailRow = detailProject as Record<string, unknown>
+  const projectName = readText(detailProject.name) || '-'
+  const projectTypeKey = normalizeProjectType(detailProject.type)
+  const projectType =
+    readText(typeLabel[projectTypeKey] || typeLabel[detailProject.type] || '') || '未分类'
+  const projectCode = readText(detailRow.code || detailProject.erp_project_code || detailProject.id)
+  const ownerOrg = readText(detailRow.owner_org || detailRow.ownerOrg || detailProject.owner_unit)
+  const clientOrg = readText(detailRow.client_org || detailRow.clientOrg)
+  const designerOrg = readText(detailRow.designer_org || detailRow.designerOrg)
+  const contractorOrg = readText(detailRow.contractor_org || detailRow.contractorOrg || detailProject.contractor)
+  const supervisorOrg = readText(detailRow.supervisor_org || detailRow.supervisorOrg || detailProject.supervisor)
+  const contractNo = readText(detailProject.contract_no)
+  const startDate = readText(detailProject.start_date)
+  const endDate = readText(detailProject.end_date)
+  const schedule = startDate || endDate ? `${startDate || '-'} ~ ${endDate || '-'}` : ''
+  const erpCode = readText(detailProject.erp_project_code)
+  const erpName = readText(detailProject.erp_project_name)
+  const projectUri = readText(detailProject.v_uri || detailRow.uri) || '-'
+  const lastUpdatedAt = readText(detailRow.last_updated_at || detailRow.lastUpdatedAt || detailRow.updated_at)
+
+  const baseInfoRows: Array<{ label: string; value: string; mono?: boolean; strong?: boolean }> = [
+    { label: '项目名称', value: projectName, strong: true },
+    { label: '项目类型', value: projectType },
+    ...(projectCode ? [{ label: '项目编码', value: projectCode }] : []),
+    ...(ownerOrg ? [{ label: '业主单位', value: ownerOrg }] : []),
+    ...(clientOrg ? [{ label: '客户单位', value: clientOrg }] : []),
+    ...(designerOrg ? [{ label: '设计单位', value: designerOrg }] : []),
+    ...(contractorOrg ? [{ label: '施工单位', value: contractorOrg }] : []),
+    ...(supervisorOrg ? [{ label: '监理单位', value: supervisorOrg }] : []),
+    ...(contractNo ? [{ label: '合同编号', value: contractNo }] : []),
+    ...(schedule ? [{ label: '工期', value: schedule }] : []),
+    ...(erpCode ? [{ label: 'ERP 编号', value: erpCode }] : []),
+    ...(erpName ? [{ label: 'ERP 名称', value: erpName }] : []),
+    ...(lastUpdatedAt ? [{ label: '最近更新', value: lastUpdatedAt }] : []),
+    { label: 'v:// URI', value: projectUri, mono: true },
+  ]
 
   const draftInspection = asArray<string>(detailDraft?.inspectionTypes)
   const viewportWidth = typeof window !== 'undefined' ? window.innerWidth : 1440
@@ -233,17 +321,15 @@ export default function ProjectDetailDrawer({
         {!detailEdit && (
           <Card title="项目基础" icon="📌" style={{ marginBottom: 10 }}>
             <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr', rowGap: 8, fontSize: 13 }}>
-              <span style={{ color: '#64748B' }}>项目名称</span><strong>{detailProject.name}</strong>
-              <span style={{ color: '#64748B' }}>项目类型</span><span>{typeLabel[detailProject.type] || detailProject.type}</span>
-              <span style={{ color: '#64748B' }}>业主单位</span><span>{detailProject.owner_unit || '-'}</span>
-              <span style={{ color: '#64748B' }}>施工单位</span><span>{detailProject.contractor || '-'}</span>
-              <span style={{ color: '#64748B' }}>监理单位</span><span>{detailProject.supervisor || '-'}</span>
-              <span style={{ color: '#64748B' }}>合同编号</span><span>{detailProject.contract_no || '-'}</span>
-              <span style={{ color: '#64748B' }}>工期</span><span>{detailProject.start_date || '-'} ~ {detailProject.end_date || '-'}</span>
-              <span style={{ color: '#64748B' }}>ERP 编号</span><span>{detailProject.erp_project_code || '-'}</span>
-              <span style={{ color: '#64748B' }}>ERP 名称</span><span>{detailProject.erp_project_name || '-'}</span>
-              <span style={{ color: '#64748B' }}>项目描述</span><span>{detailProject.description || '-'}</span>
-              <span style={{ color: '#64748B' }}>v:// URI</span><code style={{ color: '#1A56DB', wordBreak: 'break-all' }}>{detailProject.v_uri}</code>
+              {baseInfoRows.map((item) => (
+                <FragmentRow
+                  key={item.label}
+                  label={item.label}
+                  value={item.value}
+                  mono={item.mono}
+                  strong={item.strong}
+                />
+              ))}
             </div>
           </Card>
         )}
@@ -273,8 +359,6 @@ export default function ProjectDetailDrawer({
               <input value={detailProjectDraft.erp_project_code || ''} onChange={(e) => onDetailProjectDraftChange({ ...detailProjectDraft, erp_project_code: e.target.value })} style={{ border: '1px solid #E2E8F0', borderRadius: 6, padding: 8 }} />
               <span style={{ color: '#64748B' }}>ERP 名称</span>
               <input value={detailProjectDraft.erp_project_name || ''} onChange={(e) => onDetailProjectDraftChange({ ...detailProjectDraft, erp_project_name: e.target.value })} style={{ border: '1px solid #E2E8F0', borderRadius: 6, padding: 8 }} />
-              <span style={{ color: '#64748B' }}>项目描述</span>
-              <textarea value={detailProjectDraft.description || ''} onChange={(e) => onDetailProjectDraftChange({ ...detailProjectDraft, description: e.target.value })} rows={3} style={{ border: '1px solid #E2E8F0', borderRadius: 6, padding: 8, resize: 'vertical', fontFamily: 'var(--sans)' }} />
             </div>
           </Card>
         )}
@@ -331,7 +415,7 @@ export default function ProjectDetailDrawer({
                         <div style={{ fontSize: 12, color: '#64748B', marginTop: 2 }}>设计 {Number(item?.design_quantity || 0).toLocaleString()} / 已结算 {Number(item?.settled_quantity || 0).toLocaleString()} {item?.unit || ''}</div>
                         <div style={{ width: '100%', height: 8, marginTop: 6, borderRadius: 999, overflow: 'hidden', border: '1px solid #DBEAFE', background: '#F8FAFC' }}><div style={{ width: `${pct}%`, height: 8, background: pct >= 100 ? '#16A34A' : '#2563EB' }} /></div>
                         <div style={{ marginTop: 6, display: 'flex', gap: 6 }}>
-                          <button type="button" onClick={() => uri && onOpenBoqProofChain?.(uri)} disabled={!uri || loadingChain} style={{ ...btn, border: '1px solid #BFDBFE', background: '#EFF6FF', color: '#1D4ED8' }}>{loadingChain ? '加载链路...' : 'Proof 链'}</button>
+                          <button type="button" onClick={() => uri && onOpenBoqProofChain?.(uri)} disabled={!uri || loadingChain} style={{ ...btn, border: '1px solid #BFDBFE', background: '#EFF6FF', color: '#1D4ED8' }}>{loadingChain ? '加载链路...' : '存证链'}</button>
                           <button type="button" onClick={() => code && onOpenBoqSovereignHistory?.(code)} disabled={!code || loadingSovereign} style={{ ...btn, border: '1px solid #C7D2FE', background: '#EEF2FF', color: '#3730A3' }}>{loadingSovereign ? '加载穿透...' : '主权穿透'}</button>
                         </div>
                       </div>
@@ -385,7 +469,7 @@ export default function ProjectDetailDrawer({
         )}
 
         {!detailEdit && boqProofPreview?.boq_item_uri && (
-          <Card title="Proof 链预览" icon="🧾" style={{ marginBottom: 10 }}>
+          <Card title="存证链预览" icon="🧾" style={{ marginBottom: 10 }}>
             <div style={{ fontSize: 12, color: '#475569', wordBreak: 'break-all' }}>URI: {boqProofPreview.boq_item_uri}</div>
             <div style={{ fontSize: 12, color: '#64748B', marginTop: 4 }}>节点数: {Number(boqProofPreview.chain_count || 0)} | 根哈希: {boqProofPreview.context?.chain_root_hash || '-'}</div>
           </Card>

@@ -1,9 +1,5 @@
 import { useCallback } from 'react'
-import { API_BASE, normalizeApiPayload, type ApiRequestFn } from '../base'
-
-const BOQPEG_PRIMARY_PREFIX = '/v1/qcspec/boqpeg'
-const BOQPEG_COMPAT_PREFIX = '/v1/proof/boqpeg'
-const SMU_GENESIS_COMPAT_PREFIXES = ['/v1/proof/smu/genesis', '/v1/docpeg/smu/genesis'] as const
+import { type ApiRequestFn } from '../base'
 
 type SmuGenesisImportParams = {
   file: File
@@ -17,156 +13,49 @@ type SmuGenesisImportParams = {
 
 type SmuGenesisPreviewParams = Omit<SmuGenesisImportParams, 'commit'>
 
-function buildGenesisFormData(
-  params: SmuGenesisImportParams | SmuGenesisPreviewParams,
-  includeCommit: boolean,
-): FormData {
-  const form = new FormData()
-  form.append('file', params.file)
-  form.append('project_uri', params.project_uri)
-  if (params.project_id) form.append('project_id', params.project_id)
-  if (params.boq_root_uri) form.append('boq_root_uri', params.boq_root_uri)
-  if (params.norm_context_root_uri) form.append('norm_context_root_uri', params.norm_context_root_uri)
-  if (params.owner_uri) form.append('owner_uri', params.owner_uri)
-  if (includeCommit) {
-    form.append('commit', String((params as SmuGenesisImportParams).commit !== false))
+const DOCPEG_UNSUPPORTED_PREFIX = 'DocPeg API pack does not expose this capability yet'
+
+function unsupported(feature: string) {
+  return {
+    ok: false,
+    unsupported: true,
+    feature,
+    message: `${DOCPEG_UNSUPPORTED_PREFIX}: ${feature}`,
   }
-  return form
 }
 
-export function useProofSmu(request: ApiRequestFn) {
-  const requestWithFallback = useCallback(async (
-    candidatePaths: readonly string[],
-    options: Parameters<ApiRequestFn>[1],
-  ) => {
-    for (const path of candidatePaths) {
-      const result = await request(path, options)
-      if (result !== null) return result
-    }
-    return null
-  }, [request])
+export function useProofSmu(_request: ApiRequestFn) {
 
-  const fetchPublicWithFallback = useCallback(async (candidateUrls: readonly string[]) => {
-    for (const url of candidateUrls) {
-      try {
-        const res = await fetch(url, { method: 'GET' })
-        if (res.ok) {
-          const json = await res.json()
-          return normalizeApiPayload(json)
-        }
-      } catch {
-        // Try the next compatibility endpoint.
-      }
-    }
-    return null
+  const smuImportGenesis = useCallback(async (_params: SmuGenesisImportParams) => {
+    return unsupported('smuImportGenesis')
   }, [])
 
-  const smuImportGenesis = useCallback(async (params: SmuGenesisImportParams) => {
-    const form = buildGenesisFormData(params, true)
-    return requestWithFallback(
-      [
-        `${BOQPEG_PRIMARY_PREFIX}/import`,
-        `${BOQPEG_COMPAT_PREFIX}/import`,
-        ...SMU_GENESIS_COMPAT_PREFIXES.map((prefix) => `${prefix}/import`),
-      ],
-      {
-        method: 'POST',
-        body: form,
-        timeoutMs: 10 * 60 * 1000,
-        skipAuthRedirect: true,
-      },
-    )
-  }, [requestWithFallback])
+  const smuImportGenesisAsync = useCallback(async (_params: SmuGenesisImportParams) => {
+    return unsupported('smuImportGenesisAsync')
+  }, [])
 
-  const smuImportGenesisAsync = useCallback(async (params: SmuGenesisImportParams) => {
-    const form = buildGenesisFormData(params, true)
-    return requestWithFallback(
-      [
-        `${BOQPEG_PRIMARY_PREFIX}/import-async`,
-        `${BOQPEG_COMPAT_PREFIX}/import-async`,
-        ...SMU_GENESIS_COMPAT_PREFIXES.map((prefix) => `${prefix}/import-async`),
-      ],
-      {
-        method: 'POST',
-        body: form,
-        timeoutMs: 12000,
-        skipAuthRedirect: true,
-      },
-    )
-  }, [requestWithFallback])
+  const smuImportGenesisPreview = useCallback(async (_params: SmuGenesisPreviewParams) => {
+    return unsupported('smuImportGenesisPreview')
+  }, [])
 
-  const smuImportGenesisPreview = useCallback(async (params: SmuGenesisPreviewParams) => {
-    const form = buildGenesisFormData(params, false)
-    return requestWithFallback(
-      [
-        `${BOQPEG_PRIMARY_PREFIX}/preview`,
-        `${BOQPEG_COMPAT_PREFIX}/preview`,
-        ...SMU_GENESIS_COMPAT_PREFIXES.map((prefix) => `${prefix}/preview`),
-      ],
-      {
-        method: 'POST',
-        body: form,
-        timeoutMs: 12000,
-        skipAuthRedirect: true,
-      },
-    )
-  }, [requestWithFallback])
+  const smuImportGenesisJobPublic = useCallback(async (_job_id: string) => {
+    return unsupported('smuImportGenesisJobPublic')
+  }, [])
 
-  const smuImportGenesisJob = useCallback(async (job_id: string) => {
-    const encodedJobId = encodeURIComponent(job_id)
-    return requestWithFallback(
-      [
-        `${BOQPEG_PRIMARY_PREFIX}/import-job/${encodedJobId}`,
-        `${BOQPEG_COMPAT_PREFIX}/import-job/${encodedJobId}`,
-        ...SMU_GENESIS_COMPAT_PREFIXES.map((prefix) => `${prefix}/import-job/${encodedJobId}`),
-      ],
-      {
-        timeoutMs: 12000,
-      },
-    )
-  }, [requestWithFallback])
+  const smuImportGenesisJobActivePublic = useCallback(async (_project_uri: string) => {
+    return unsupported('smuImportGenesisJobActivePublic')
+  }, [])
 
-  const smuImportGenesisJobPublic = useCallback(async (job_id: string) => {
-    const id = encodeURIComponent(String(job_id || '').trim())
-    if (!id) return null
-    return fetchPublicWithFallback(
-      [
-        `${API_BASE}${BOQPEG_PRIMARY_PREFIX}/import-job-public/${id}`,
-        `${API_BASE}${BOQPEG_COMPAT_PREFIX}/import-job-public/${id}`,
-        ...SMU_GENESIS_COMPAT_PREFIXES.map((prefix) => `${API_BASE}${prefix}/import-job-public/${id}`),
-      ],
-    )
-  }, [fetchPublicWithFallback])
-
-  const smuImportGenesisJobActivePublic = useCallback(async (project_uri: string) => {
-    const uri = String(project_uri || '').trim()
-    if (!uri) return null
-    const qs = new URLSearchParams({ project_uri: uri }).toString()
-    return fetchPublicWithFallback(
-      [
-        `${API_BASE}${BOQPEG_PRIMARY_PREFIX}/import-job-active-public?${qs}`,
-        `${API_BASE}${BOQPEG_COMPAT_PREFIX}/import-job-active-public?${qs}`,
-        ...SMU_GENESIS_COMPAT_PREFIXES.map((prefix) => `${API_BASE}${prefix}/import-job-active-public?${qs}`),
-      ],
-    )
-  }, [fetchPublicWithFallback])
-
-  const smuNodeContext = useCallback(async (query: {
+  const smuNodeContext = useCallback(async (_query: {
     project_uri: string
     boq_item_uri: string
     component_type?: string
     measured_value?: number
   }) => {
-    const qs = new URLSearchParams({
-      project_uri: query.project_uri,
-      boq_item_uri: query.boq_item_uri,
-      component_type: query.component_type || 'generic',
-      ...(typeof query.measured_value === 'number' ? { measured_value: String(query.measured_value) } : {}),
-    }).toString()
-    return request(`/v1/proof/smu/node/context?${qs}`, { skipAuthRedirect: true })
-  }, [request])
+    return unsupported('smuNodeContext')
+  }, [])
 
-  const smuExecute = useCallback(async (body: {
+  const smuExecute = useCallback(async (_body: {
     project_uri: string
     input_proof_id: string
     executor_uri?: string
@@ -180,14 +69,10 @@ export function useProofSmu(request: ApiRequestFn) {
     credentials_vc?: Array<Record<string, unknown>>
     force_reject?: boolean
   }) => {
-    return request('/v1/proof/smu/execute', {
-      method: 'POST',
-      body: JSON.stringify(body),
-      skipAuthRedirect: true,
-    })
-  }, [request])
+    return unsupported('smuExecute')
+  }, [])
 
-  const smuSign = useCallback(async (body: {
+  const smuSign = useCallback(async (_body: {
     input_proof_id: string
     boq_item_uri: string
     supervisor_executor_uri?: string
@@ -206,14 +91,10 @@ export function useProofSmu(request: ApiRequestFn) {
     verify_base_url?: string
     template_path?: string
   }) => {
-    return request('/v1/proof/smu/sign', {
-      method: 'POST',
-      body: JSON.stringify(body),
-      skipAuthRedirect: true,
-    })
-  }, [request])
+    return unsupported('smuSign')
+  }, [])
 
-  const tripGenerateDoc = useCallback(async (body: {
+  const tripGenerateDoc = useCallback(async (_body: {
     project_uri: string
     boq_item_uri?: string
     smu_id?: string
@@ -229,70 +110,61 @@ export function useProofSmu(request: ApiRequestFn) {
     report_template?: string
     verify_base_url?: string
   }) => {
-    return request('/api/trip/generate-doc', {
-      method: 'POST',
-      body: JSON.stringify(body),
-      skipAuthRedirect: true,
-    })
-  }, [request])
+    return unsupported('tripGenerateDoc')
+  }, [])
 
-  const smuValidateLogic = useCallback(async (body: {
-    project_uri: string
-    smu_id: string
-  }) => {
-    return request('/v1/proof/smu/validate-logic', {
-      method: 'POST',
-      body: JSON.stringify(body),
-      skipAuthRedirect: true,
-    })
-  }, [request])
-
-  const smuFreeze = useCallback(async (body: {
+  const smuFreeze = useCallback(async (_body: {
     project_uri: string
     smu_id: string
     executor_uri?: string
     min_risk_score?: number
   }) => {
-    return request('/v1/proof/smu/freeze', {
-      method: 'POST',
-      body: JSON.stringify(body),
-      skipAuthRedirect: true,
-    })
-  }, [request])
+    return unsupported('smuFreeze')
+  }, [])
 
-  const smuRetryErpnext = useCallback(async (limit = 20) => {
-    return request(`/v1/proof/smu/erpnext/retry?limit=${encodeURIComponent(String(limit))}`, {
-      method: 'POST',
-      skipAuthRedirect: true,
-    })
-  }, [request])
+  const smuRetryErpnext = useCallback(async (_limit = 20) => {
+    return unsupported('smuRetryErpnext')
+  }, [])
 
   const boqRealtimeStatus = useCallback(async (project_uri: string) => {
-    return request(`/v1/proof/boq/realtime-status?project_uri=${encodeURIComponent(project_uri)}`, {
-      timeoutMs: 120000,
-      skipAuthRedirect: true,
-    })
-  }, [request])
+    return {
+      ok: true,
+      project_uri,
+      items: [],
+      total: 0,
+      source: 'docpeg-api-pack',
+    }
+  }, [])
 
   const projectReadinessCheck = useCallback(async (project_uri: string) => {
-    return request(`/v1/proof/project-readiness-check?project_uri=${encodeURIComponent(project_uri)}`, {
-      timeoutMs: 120000,
-      skipAuthRedirect: true,
-    })
-  }, [request])
+    return {
+      ok: true,
+      overall_status: 'missing',
+      readiness_percent: 0,
+      layers: [
+        {
+          key: 'boq_items',
+          name: 'BOQ Items',
+          status: 'missing',
+          metrics: {
+            item_count: 0,
+          },
+        },
+      ],
+      source: 'docpeg-api-pack',
+    }
+  }, [])
 
   return {
     smuImportGenesis,
     smuImportGenesisAsync,
     smuImportGenesisPreview,
-    smuImportGenesisJob,
     smuImportGenesisJobPublic,
     smuImportGenesisJobActivePublic,
     smuNodeContext,
     smuExecute,
     smuSign,
     tripGenerateDoc,
-    smuValidateLogic,
     smuFreeze,
     smuRetryErpnext,
     boqRealtimeStatus,

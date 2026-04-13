@@ -1,4 +1,4 @@
-import type { MutableRefObject } from 'react'
+﻿import type { MutableRefObject } from 'react'
 import BridgeSignPegPanel from '../../signpeg/BridgeSignPegPanel'
 
 type SignRole = 'contractor' | 'supervisor' | 'owner'
@@ -119,22 +119,22 @@ export default function SovereignAuditDocPreview({
           <div className="mt-1 text-[11px]">
             偏差 {consensusDeviationText} ({consensusDeviationPercentText}) · 阈值 {consensusAllowedAbsText}/{consensusAllowedPctText}
           </div>
-          <div className="mt-1 text-[11px]">Dispute UTXO: {disputeProof || (consensusConflict ? '待生成' : '-')}</div>
-          <div className="mt-1 text-[11px]">结算权限已锁定，需通过 Dispute UTXOResolution Trip 解除。</div>
+          <div className="mt-1 text-[11px]">争议 UTXO: {disputeProof || (consensusConflict ? '待生成' : '-')}</div>
+          <div className="mt-1 text-[11px]">结算权限已锁定，需通过争议解除工序恢复。</div>
         </div>
       )}
 
       {finalProofReady && (
         <div className="mb-3 rounded-xl border border-emerald-500/70 bg-emerald-950/30 p-3 shadow-[0_0_24px_rgba(16,185,129,0.2)]">
-          <div className="text-xs font-extrabold text-emerald-200">Final Proof · 主权二维码</div>
+          <div className="text-xs font-extrabold text-emerald-200">最终存证 · 主权二维码</div>
           <div className="mt-2 grid items-center gap-3 max-[600px]:grid-cols-1 grid-cols-[140px_1fr]">
             <div className="grid h-[140px] w-[140px] place-items-center border border-emerald-500/60 bg-white">
-              <img src={qrSrc} alt="Final Proof 二维码" className="h-[128px] w-[128px]" />
+              <img src={qrSrc} alt="最终存证二维码" className="h-[128px] w-[128px]" />
             </div>
             <div className="text-xs leading-5 text-emerald-100">
-              <div>扫码溯源验证 Final Proof</div>
+              <div>扫码溯源验证最终存证</div>
               <div className="mt-1 break-all text-emerald-200">{verifyUri || '未生成验真 URI'}</div>
-              {finalProofId && <div className="mt-1 break-all text-emerald-300">Proof ID: {finalProofId}</div>}
+              {finalProofId && <div className="mt-1 break-all text-emerald-300">存证ID: {finalProofId}</div>}
             </div>
           </div>
         </div>
@@ -200,7 +200,7 @@ export default function SovereignAuditDocPreview({
               <div className="mt-1 text-sm font-semibold text-slate-100">{finalProofId ? `${finalProofId.slice(0, 10)}...` : '-'}</div>
             </div>
             <div className="rounded-xl border border-slate-700/80 bg-slate-900/70 px-3 py-2">
-              <div className="text-[10px] uppercase tracking-[0.16em] text-slate-500">SnapPeg</div>
+              <div className="text-[10px] uppercase tracking-[0.16em] text-slate-500">现场证据</div>
               <div className="mt-1 text-sm font-semibold text-slate-100">{evidenceCount}</div>
             </div>
             <div className="rounded-xl border border-slate-700/80 bg-slate-900/70 px-3 py-2">
@@ -229,7 +229,7 @@ export default function SovereignAuditDocPreview({
             </button>
             <button
               type="button"
-              onClick={() => onCopyText('Proof ID', finalProofId || '')}
+              onClick={() => onCopyText('存证ID', finalProofId || '')}
               disabled={!finalProofId}
               className="rounded-lg border border-slate-700 bg-slate-900/80 px-3 py-1.5 text-[11px] text-slate-200 disabled:opacity-50"
             >
@@ -394,11 +394,11 @@ export default function SovereignAuditDocPreview({
                 </button>
                 <button
                   type="button"
-                  onClick={() => onCopyText('Total Proof Hash', totalHash || '')}
+                  onClick={() => onCopyText('总存证哈希', totalHash || '')}
                   disabled={!totalHash}
                   className="rounded border border-slate-700 bg-slate-900 px-2 py-1 text-[11px] text-slate-200 disabled:opacity-50"
                 >
-                  复制 Hash
+                  复制哈希
                 </button>
               </div>
             </div>
@@ -417,7 +417,7 @@ export default function SovereignAuditDocPreview({
               </div>
               <div className="break-all text-[11px] text-slate-400">
                 <div>验真 URI: {verifyUri || '-'}</div>
-                <div>Total Proof Hash: {totalHash || '-'}</div>
+                <div>总存证哈希: {totalHash || '-'}</div>
                 <div>样品编号: {sampleId || '-'}</div>
                 <div>路径: {activeUri || '-'}</div>
               </div>
@@ -433,3 +433,4 @@ export default function SovereignAuditDocPreview({
     </>
   )
 }
+

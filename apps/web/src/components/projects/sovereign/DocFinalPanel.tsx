@@ -1,4 +1,4 @@
-type Props = {
+﻿type Props = {
   archiveLocked: boolean
   docFinalPassphrase: string
   docFinalIncludeUnsettled: boolean
@@ -102,7 +102,7 @@ export default function DocFinalPanel({
             <div className="rounded-lg border border-emerald-700/50 bg-emerald-950/20 px-3 py-2 text-[11px] text-emerald-200">
               <div>模式: {String(docFinalRes.mode || '-')}</div>
               <div>Proof: {String(docFinalRes.proofId || '-')}</div>
-              <div>Root Hash: {String(docFinalRes.rootHash || '-')}</div>
+              <div>根哈希: {String(docFinalRes.rootHash || '-')}</div>
               <div>GitPeg: {String(docFinalRes.finalGitpegAnchor || docFinalRes.gitpegAnchor || '-')}</div>
               <div>文件: {String(docFinalRes.filename || '-')}</div>
             </div>
@@ -116,3 +116,4 @@ export default function DocFinalPanel({
     </div>
   )
 }
+

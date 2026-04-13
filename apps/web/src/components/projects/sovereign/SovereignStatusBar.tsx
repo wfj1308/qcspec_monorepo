@@ -2,10 +2,18 @@ import { useSovereignProjectContext } from './SovereignProjectContext'
 import { useSovereignView } from './SovereignViewProvider'
 import { useUTXOStatus } from './useUTXOStatus'
 
+const UTXO_STATUS_LABEL: Record<string, string> = {
+  Genesis: '创世',
+  In_Trip: '工序中',
+  Pending_Supervisor: '待监理',
+  Settled: '已结算',
+}
+
 export default function SovereignStatusBar() {
   const { snapshot } = useSovereignProjectContext()
   const { identity, roleLabel } = useSovereignView()
   const utxoStatus = useUTXOStatus(snapshot)
+  const utxoStatusLabel = UTXO_STATUS_LABEL[utxoStatus] || utxoStatus
 
   return (
     <div className="sticky top-0 z-10 mb-3 rounded-2xl border border-slate-200 bg-white/92 px-4 py-3 shadow-sm backdrop-blur">
@@ -17,15 +25,15 @@ export default function SovereignStatusBar() {
       )}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Sovereign Status</div>
+          <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">主权状态</div>
           <div className="mt-1 text-sm font-semibold text-slate-900">{snapshot.activePath || '-'}</div>
           <div className="mt-1 break-all text-xs text-slate-500">{identity.did || 'did:qcspec:anonymous'}</div>
         </div>
         <div className="flex flex-wrap items-center gap-2 text-[11px]">
           <span className="rounded-full border border-slate-300 bg-slate-100 px-2.5 py-1 text-slate-700">{roleLabel}</span>
-          <span className="rounded-full border border-slate-300 bg-slate-100 px-2.5 py-1 text-slate-600">DTORole {identity.dtoRole}</span>
-          <span className="rounded-full border border-slate-300 bg-slate-100 px-2.5 py-1 text-slate-600">UTXO {utxoStatus}</span>
-          <span className="rounded-full border border-slate-300 bg-slate-100 px-2.5 py-1 text-slate-600">Node {snapshot.activeCode || '-'}</span>
+          <span className="rounded-full border border-slate-300 bg-slate-100 px-2.5 py-1 text-slate-600">DTO角色 {identity.dtoRole}</span>
+          <span className="rounded-full border border-slate-300 bg-slate-100 px-2.5 py-1 text-slate-600">UTXO {utxoStatusLabel}</span>
+          <span className="rounded-full border border-slate-300 bg-slate-100 px-2.5 py-1 text-slate-600">节点 {snapshot.activeCode || '-'}</span>
           <span className={`rounded-full border px-2.5 py-1 ${snapshot.isOnline ? 'border-emerald-300 bg-emerald-50 text-emerald-700' : 'border-amber-300 bg-amber-50 text-amber-800'}`}>
             {snapshot.isOnline ? '在线' : `离线 ${snapshot.offlineQueueSize}`}
           </span>
@@ -33,7 +41,7 @@ export default function SovereignStatusBar() {
             {snapshot.disputeOpen ? `争议 ${snapshot.disputeProof || '-'}` : '争议清零'}
           </span>
           {snapshot.archiveLocked && (
-            <span className="rounded-full border border-sky-300 bg-sky-50 px-2.5 py-1 text-sky-700">Archive Locked</span>
+            <span className="rounded-full border border-sky-300 bg-sky-50 px-2.5 py-1 text-sky-700">归档已锁定</span>
           )}
         </div>
       </div>

@@ -10,7 +10,7 @@ export default function FinalPiecePanel({
   return (
     <div className="mt-3 rounded-xl border border-dashed border-slate-700 p-3">
       <div className="mb-1 flex items-center justify-between">
-        <div className="text-xs font-extrabold">The Final Piece · 完工态提示</div>
+        <div className="text-xs font-extrabold">最终拼图 · 完工态提示</div>
         <button
           type="button"
           onClick={onCopyFinalPiece}

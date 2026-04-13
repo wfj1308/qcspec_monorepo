@@ -55,7 +55,7 @@ export default function GeoFencePanel({
         <div>当前距离: {Number.isFinite(geoDistance) ? `${Math.round(geoDistance)}m` : '-'}</div>
         <div>时间窗口: {renderTimeWindow(temporalWindow)}</div>
         <div className={geoTemporalBlocked ? 'text-rose-300' : 'text-emerald-300'}>
-          {geoTemporalBlocked ? 'Geo-Leap Error：已锁定录入按钮' : '定位与时间均合规'}
+          {geoTemporalBlocked ? '时空围栏错误：已锁定录入按钮' : '定位与时间均合规'}
         </div>
       </div>
     </div>

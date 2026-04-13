@@ -602,6 +602,20 @@ function ProcessPanel({ projectId, onGoQuality }: { projectId: string; onGoQuali
     listTripRoleTrips,
     previewTrip,
     submitTrip,
+    executeExecpeg,
+    getExecpegStatus,
+    getExecpegCallbacks,
+    patchExecpegManualInput,
+    registerExecpegTemplate,
+    listExecpegHighwaySpus,
+    getExecpegHighwaySpu,
+    getProof,
+    addProofAttachment,
+    listProjectEntities,
+    createProjectEntity,
+    patchProjectEntity,
+    createProjectDocument,
+    createProjectDocumentVersion,
     checkDtoPermission,
     loading,
     error,
@@ -619,6 +633,20 @@ function ProcessPanel({ projectId, onGoQuality }: { projectId: string; onGoQuali
   const [permissionHint, setPermissionHint] = useState('')
   const [previewHint, setPreviewHint] = useState('')
   const [submitHint, setSubmitHint] = useState('')
+  const [lastExecId, setLastExecId] = useState('')
+  const [execHint, setExecHint] = useState('')
+  const [callbackHint, setCallbackHint] = useState('')
+  const [manualInputHint, setManualInputHint] = useState('')
+  const [templateHint, setTemplateHint] = useState('')
+  const [spuHint, setSpuHint] = useState('')
+  const [entityHint, setEntityHint] = useState('')
+  const [documentHint, setDocumentHint] = useState('')
+  const [proofAttachmentHint, setProofAttachmentHint] = useState('')
+  const [lastSpuRef, setLastSpuRef] = useState('')
+  const [lastProofRef, setLastProofRef] = useState('')
+  const [lastEntityId, setLastEntityId] = useState('')
+  const [lastDocumentId, setLastDocumentId] = useState('')
+  const [entityRows, setEntityRows] = useState<unknown[]>([])
 
   const resolveContext = useCallback(async () => {
     const context = readDocpegInspectionContext(projectId)
@@ -660,6 +688,13 @@ function ProcessPanel({ projectId, onGoQuality }: { projectId: string; onGoQuali
         form_code: ctx.formCode || undefined,
       },
     }
+  }, [])
+
+  const inferExecTripRole = useCallback((action: string): string => {
+    const text = String(action || '').trim().toLowerCase()
+    if (text.includes('participant') || text.includes('register')) return 'register_project_participants@v1.0'
+    if (text.includes('spu') || text.includes('highway')) return 'highway_spu_creation@v1.0'
+    return 'create_section@v1.0'
   }, [])
 
   const refresh = useCallback(async () => {
@@ -777,6 +812,279 @@ function ProcessPanel({ projectId, onGoQuality }: { projectId: string; onGoQuali
     await refresh()
   }, [buildTripPayload, refresh, resolveContext, submitTrip])
 
+  const runExecExecute = useCallback(async () => {
+    const ctx = await resolveContext()
+    const tripRoleId = inferExecTripRole(ctx.action)
+    const projectRef = `v://cn.project/${ctx.docpegProjectId}`
+    const componentRef = ctx.componentUri || `v://cn.project/${ctx.docpegProjectId}/component/${ctx.pileId || 'default'}`
+
+    const res = await executeExecpeg({
+      tripRoleId,
+      projectRef,
+      componentRef,
+      context: {
+        autoData: {},
+        manualInput: {
+          source: 'qcspec_web_process_panel',
+          chain_id: ctx.chainId || undefined,
+          pile_id: ctx.pileId || undefined,
+          form_code: ctx.formCode || undefined,
+          action: ctx.action,
+        },
+      },
+    })
+    if (!res) {
+      setExecHint('ExecPeg 执行失败')
+      return
+    }
+    const execId = pickStringDeep(res, ['execId', 'exec_id'])
+    const status = pickStringDeep(res, ['status', 'state']) || '-'
+    const proof = pickStringDeep(res, ['proofId', 'proof_id'])
+    setLastExecId(execId)
+    setExecHint(`status=${status} | exec=${execId || '-'} | proof=${proof || '-'}`)
+  }, [executeExecpeg, inferExecTripRole, resolveContext])
+
+  const runExecStatus = useCallback(async () => {
+    if (!lastExecId) {
+      setExecHint('请先执行 ExecPeg，拿到 execId')
+      return
+    }
+    const res = await getExecpegStatus(lastExecId)
+    if (!res) {
+      setExecHint('状态查询失败')
+      return
+    }
+    const root = asRecord(res)
+    const execution = asRecord(root.execution || root.exec)
+    const status = pickStringDeep(execution, ['status', 'state']) || pickStringDeep(res, ['status', 'state']) || '-'
+    const proof = (
+      pickStringDeep(execution, ['proofId', 'proof_id']) ||
+      pickStringDeep(asRecord(execution.proof), ['proofId', 'proof_id']) ||
+      pickStringDeep(res, ['proofId', 'proof_id'])
+    )
+    setExecHint(`status=${status} | exec=${lastExecId} | proof=${proof || '-'}`)
+  }, [getExecpegStatus, lastExecId])
+
+  const runExecCallbacks = useCallback(async () => {
+    if (!lastExecId) {
+      setCallbackHint('请先执行 ExecPeg，拿到 execId')
+      return
+    }
+    const res = await getExecpegCallbacks(lastExecId, { limit: 20, offset: 0 })
+    const total = Number(pickNumberDeep(res, ['total']) || 0)
+    const first = pickArrayDeep(res, ['items', 'list', 'data', 'result'])[0]
+    const firstStatus = pickStringDeep(first, ['status']) || '-'
+    const firstCode = String(pickNumberDeep(first, ['responseStatus', 'httpStatus']) ?? '-')
+    setCallbackHint(`callbacks=${total} | latest=${firstStatus} | http=${firstCode}`)
+  }, [getExecpegCallbacks, lastExecId])
+
+  const runExecManualInput = useCallback(async () => {
+    if (!lastExecId) {
+      setManualInputHint('请先执行 ExecPeg，拿到 execId')
+      return
+    }
+    const res = await patchExecpegManualInput({
+      execId: lastExecId,
+      manualInput: {
+        remarks: 'qcspec web process panel manual patch',
+      },
+    })
+    if (!res) {
+      setManualInputHint('手工补录失败')
+      return
+    }
+    const updated = pickStringDeep(res, ['updatedAt', 'updated_at']) || '-'
+    setManualInputHint(`exec=${lastExecId} | updated=${updated}`)
+  }, [lastExecId, patchExecpegManualInput])
+
+  const runRegisterTemplate = useCallback(async () => {
+    const ctx = await resolveContext()
+    const tripRoleId = inferExecTripRole(ctx.action)
+    const res = await registerExecpegTemplate({
+      tripRoleId,
+      displayName: 'QCSpec 工序联调模板',
+      schema: {},
+      gate: {},
+      actions: [],
+    })
+    if (!res) {
+      setTemplateHint('模板注册失败')
+      return
+    }
+    const outId = pickStringDeep(res, ['tripRoleId', 'trip_role_id']) || tripRoleId
+    const version = pickStringDeep(res, ['version']) || '-'
+    setTemplateHint(`tripRole=${outId} | version=${version}`)
+  }, [inferExecTripRole, registerExecpegTemplate, resolveContext])
+
+  const runListSpus = useCallback(async () => {
+    const res = await listExecpegHighwaySpus({ q: resolvedProjectId, limit: 20, offset: 0 })
+    const items = pickArrayDeep(res, ['items', 'list', 'data', 'result'])
+    const first = items[0]
+    const spuRef = pickStringDeep(first, ['spu_ref', 'spuRef'])
+    const total = Number(pickNumberDeep(res, ['total']) || items.length)
+    if (spuRef) setLastSpuRef(spuRef)
+    setSpuHint(`SPU total=${total} | first=${spuRef || '-'}`)
+  }, [listExecpegHighwaySpus, resolvedProjectId])
+
+  const runGetSpu = useCallback(async () => {
+    if (!lastSpuRef) {
+      setSpuHint('请先查询 SPU 列表')
+      return
+    }
+    const res = await getExecpegHighwaySpu(lastSpuRef)
+    if (!res) {
+      setSpuHint(`SPU 详情失败：${lastSpuRef}`)
+      return
+    }
+    const root = asRecord(res)
+    const spu = asRecord(root.spu)
+    const name = pickStringDeep(spu, ['highway_name']) || pickStringDeep(res, ['highway_name']) || '-'
+    const code = pickStringDeep(spu, ['highway_code']) || pickStringDeep(res, ['highway_code']) || '-'
+    setSpuHint(`SPU detail: ${code} / ${name} / ${lastSpuRef}`)
+  }, [getExecpegHighwaySpu, lastSpuRef])
+
+  const runListEntities = useCallback(async () => {
+    const ctx = await resolveContext()
+    const res = await listProjectEntities(ctx.docpegProjectId, {
+      search: ctx.pileId || undefined,
+    })
+    const items = pickArrayDeep(res, ['items', 'list', 'data', 'result'])
+    setEntityRows(items)
+    const first = items[0]
+    const entityId = pickStringDeep(first, ['id', 'entity_id'])
+    if (entityId) setLastEntityId(entityId)
+    setEntityHint(`entities=${items.length} | first=${entityId || '-'}`)
+  }, [listProjectEntities, resolveContext])
+
+  const runCreateEntity = useCallback(async () => {
+    const ctx = await resolveContext()
+    const codeSeed = (ctx.pileId || 'AUTO').replace(/[^a-zA-Z0-9-]/g, '').slice(0, 20) || 'AUTO'
+    const payload = {
+      entity_code: `QCS-${codeSeed}-${Date.now().toString().slice(-4)}`,
+      entity_name: `联调实体-${codeSeed}`,
+      entity_type: 'subitem',
+      parent_uri: undefined,
+      location_chain: ctx.pileId || undefined,
+      chain_id: ctx.chainId || undefined,
+    }
+    const res = await createProjectEntity(ctx.docpegProjectId, payload)
+    if (!res) {
+      setEntityHint('创建实体失败')
+      return
+    }
+    const entity = asRecord(asRecord(res).entity)
+    const entityId = pickStringDeep(entity, ['id', 'entity_id']) || pickStringDeep(res, ['id', 'entity_id'])
+    const entityCode = pickStringDeep(entity, ['entity_code', 'code']) || payload.entity_code
+    if (entityId) setLastEntityId(entityId)
+    setEntityHint(`create entity: id=${entityId || '-'} | code=${entityCode}`)
+    await runListEntities()
+  }, [createProjectEntity, resolveContext, runListEntities])
+
+  const runPatchEntity = useCallback(async () => {
+    const ctx = await resolveContext()
+    const entityId = lastEntityId || pickStringDeep(entityRows[0], ['id', 'entity_id'])
+    if (!entityId) {
+      setEntityHint('请先查询或创建实体')
+      return
+    }
+    const res = await patchProjectEntity(ctx.docpegProjectId, entityId, {
+      entity_name: `联调实体-更新-${Date.now().toString().slice(-4)}`,
+      chain_id: ctx.chainId || undefined,
+    })
+    if (!res) {
+      setEntityHint(`更新实体失败：${entityId}`)
+      return
+    }
+    const updated = pickStringDeep(asRecord(asRecord(res).entity), ['updated_at']) || pickStringDeep(res, ['updated_at']) || '-'
+    setEntityHint(`patch entity: id=${entityId} | updated=${updated}`)
+    await runListEntities()
+  }, [entityRows, lastEntityId, patchProjectEntity, resolveContext, runListEntities])
+
+  const runGetProof = useCallback(async () => {
+    const proofId =
+      lastProofRef ||
+      pickStringDeep(trips[0], ['proof_id', 'trip_proof_id'])
+    if (!proofId) {
+      setProofAttachmentHint('暂无可查询的 proof_id，请先提交 Trip')
+      return
+    }
+    const res = await getProof(proofId)
+    if (!res) {
+      setProofAttachmentHint(`proof 查询失败：${proofId}`)
+      return
+    }
+    const root = asRecord(res)
+    const proof = asRecord(root.proof)
+    const hash = pickStringDeep(proof, ['hash']) || pickStringDeep(res, ['hash']) || '-'
+    const signatures = Array.isArray(proof.signatures)
+      ? proof.signatures.length
+      : Number(pickNumberDeep(res, ['signatures']) || 0)
+    setLastProofRef(proofId)
+    setProofAttachmentHint(`proof=${proofId} | hash=${hash} | signatures=${signatures}`)
+  }, [getProof, lastProofRef, trips])
+
+  const runAttachProof = useCallback(async () => {
+    const proofId =
+      lastProofRef ||
+      pickStringDeep(trips[0], ['proof_id', 'trip_proof_id'])
+    if (!proofId) {
+      setProofAttachmentHint('暂无可绑定的 proof_id，请先提交 Trip')
+      return
+    }
+    const res = await addProofAttachment(proofId, {
+      file_ids: ['FILE-DEMO-001'],
+    })
+    if (!res) {
+      setProofAttachmentHint(`proof 附件绑定失败：${proofId}`)
+      return
+    }
+    const attached = pickArrayDeep(res, ['attached', 'items'])
+    setLastProofRef(proofId)
+    setProofAttachmentHint(`attach proof: ${proofId} | attached=${attached.length}`)
+  }, [addProofAttachment, lastProofRef, trips])
+
+  const runCreateDocument = useCallback(async () => {
+    const ctx = await resolveContext()
+    const res = await createProjectDocument(ctx.docpegProjectId, {
+      name: `项目合同（联调）-${Date.now().toString().slice(-4)}`,
+      category: 'contract',
+      doc_type: 'project_contract',
+      meta: {
+        source: 'qcspec_web_process_panel',
+      },
+    })
+    if (!res) {
+      setDocumentHint('创建文档失败')
+      return
+    }
+    const doc = asRecord(asRecord(res).document)
+    const documentId = pickStringDeep(doc, ['id', 'document_id']) || pickStringDeep(res, ['id', 'document_id'])
+    const status = pickStringDeep(doc, ['status']) || '-'
+    if (documentId) setLastDocumentId(documentId)
+    setDocumentHint(`create document: id=${documentId || '-'} | status=${status}`)
+  }, [createProjectDocument, resolveContext])
+
+  const runCreateDocumentVersion = useCallback(async () => {
+    const ctx = await resolveContext()
+    if (!lastDocumentId) {
+      setDocumentHint('请先创建 document')
+      return
+    }
+    const res = await createProjectDocumentVersion(ctx.docpegProjectId, lastDocumentId, {
+      version_no: 'v1.0',
+      note: 'qcspec web debug version',
+      file_ids: ['FILE-DEMO-001'],
+    })
+    if (!res) {
+      setDocumentHint(`创建版本失败：${lastDocumentId}`)
+      return
+    }
+    const ver = asRecord(asRecord(res).version)
+    const versionId = pickStringDeep(ver, ['id']) || '-'
+    const versionNo = pickStringDeep(ver, ['version_no']) || '-'
+    setDocumentHint(`create version: document=${lastDocumentId} | id=${versionId} | no=${versionNo}`)
+  }, [createProjectDocumentVersion, lastDocumentId, resolveContext])
+
   const runAdvance = useCallback(async () => {
     await runPermissionCheck()
     await runTripPreview()
@@ -839,15 +1147,65 @@ function ProcessPanel({ projectId, onGoQuality }: { projectId: string; onGoQuali
           <Button size="sm" variant="secondary" onClick={() => { void runTripSubmit() }} disabled={loading}>
             Trip 提交
           </Button>
+          <Button size="sm" variant="secondary" onClick={() => { void runExecExecute() }} disabled={loading}>
+            Exec 执行
+          </Button>
+          <Button size="sm" variant="secondary" onClick={() => { void runExecStatus() }} disabled={loading || !lastExecId}>
+            Exec 状态
+          </Button>
+          <Button size="sm" variant="secondary" onClick={() => { void runExecCallbacks() }} disabled={loading || !lastExecId}>
+            回调日志
+          </Button>
+          <Button size="sm" variant="secondary" onClick={() => { void runExecManualInput() }} disabled={loading || !lastExecId}>
+            手工补录
+          </Button>
+          <Button size="sm" variant="secondary" onClick={() => { void runRegisterTemplate() }} disabled={loading}>
+            注册模板
+          </Button>
+          <Button size="sm" variant="secondary" onClick={() => { void runListSpus() }} disabled={loading}>
+            SPU 列表
+          </Button>
+          <Button size="sm" variant="secondary" onClick={() => { void runGetSpu() }} disabled={loading || !lastSpuRef}>
+            SPU 详情
+          </Button>
+          <Button size="sm" variant="secondary" onClick={() => { void runListEntities() }} disabled={loading}>
+            实体列表
+          </Button>
+          <Button size="sm" variant="secondary" onClick={() => { void runCreateEntity() }} disabled={loading}>
+            创建实体
+          </Button>
+          <Button size="sm" variant="secondary" onClick={() => { void runPatchEntity() }} disabled={loading}>
+            更新实体
+          </Button>
+          <Button size="sm" variant="secondary" onClick={() => { void runGetProof() }} disabled={loading}>
+            Proof 查询
+          </Button>
+          <Button size="sm" variant="secondary" onClick={() => { void runAttachProof() }} disabled={loading}>
+            Proof 附件
+          </Button>
+          <Button size="sm" variant="secondary" onClick={() => { void runCreateDocument() }} disabled={loading}>
+            创建文档
+          </Button>
+          <Button size="sm" variant="secondary" onClick={() => { void runCreateDocumentVersion() }} disabled={loading || !lastDocumentId}>
+            创建版本
+          </Button>
           <Button size="sm" onClick={() => { void runAdvance() }} disabled={loading}>
             一键推进
           </Button>
         </div>
-        {(permissionHint || previewHint || submitHint) && (
+        {(permissionHint || previewHint || submitHint || execHint || callbackHint || manualInputHint || templateHint || spuHint || entityHint || documentHint || proofAttachmentHint) && (
           <div style={{ marginTop: 8, fontSize: 12, color: '#0F766E', lineHeight: 1.6 }}>
             {permissionHint && <div>判权：{permissionHint}</div>}
             {previewHint && <div>预演：{previewHint}</div>}
             {submitHint && <div>提交：{submitHint}</div>}
+            {execHint && <div>执行体：{execHint}</div>}
+            {callbackHint && <div>回调：{callbackHint}</div>}
+            {manualInputHint && <div>补录：{manualInputHint}</div>}
+            {templateHint && <div>模板：{templateHint}</div>}
+            {spuHint && <div>SPU：{spuHint}</div>}
+            {entityHint && <div>实体：{entityHint}</div>}
+            {documentHint && <div>文档：{documentHint}</div>}
+            {proofAttachmentHint && <div>Proof：{proofAttachmentHint}</div>}
           </div>
         )}
       </div>
@@ -1052,6 +1410,8 @@ function SettlementPanel({
     getSignStatus,
     previewTripRole,
     submitTripRole,
+    consumeBoqItem,
+    settleBoqItem,
     loading,
     error,
   } = useQCSpecDocPegApi()
@@ -1063,6 +1423,7 @@ function SettlementPanel({
   const [signBlocked, setSignBlocked] = useState('-')
   const [previewHint, setPreviewHint] = useState('')
   const [submitHint, setSubmitHint] = useState('')
+  const [boqTxHint, setBoqTxHint] = useState('')
 
   const buildSettlementPayload = useCallback(() => {
     const context = readDocpegInspectionContext(projectId)
@@ -1177,6 +1538,58 @@ function SettlementPanel({
     void refresh()
   }
 
+  const submitBoqConsume = async () => {
+    const context = readDocpegInspectionContext(projectId)
+    const docpegProjectId = context.docpegProjectId.trim() || projectId
+    const firstItem = boqItems.find((item) => Boolean(pickStringDeep(item, ['boq_item_ref', 'item_ref', 'code'])))
+    const boqRef = pickStringDeep(firstItem, ['boq_item_ref', 'item_ref', 'code'])
+    if (!boqRef) {
+      setBoqTxHint('consume: 未找到可用 boq_item_ref')
+      return
+    }
+    const qtyRemaining = pickNumberDeep(firstItem, ['qty_remaining', 'remaining_qty', 'remaining'])
+    const qty = qtyRemaining && qtyRemaining > 0 ? Math.min(qtyRemaining, 1) : 1
+    const res = await consumeBoqItem(docpegProjectId, {
+      boq_item_ref: boqRef,
+      trip_id: `TRIP-QCSPEC-${Date.now()}`,
+      qty,
+    })
+    if (!res) {
+      setBoqTxHint(`consume: 调用失败 (${boqRef})`)
+      return
+    }
+    const actual = pickNumberDeep(res, ['qty_actual'])
+    const remain = pickNumberDeep(res, ['qty_remaining'])
+    setBoqTxHint(`consume: ref=${boqRef} | actual=${actual ?? '-'} | remain=${remain ?? '-'}`)
+    void refresh()
+  }
+
+  const submitBoqSettle = async () => {
+    const context = readDocpegInspectionContext(projectId)
+    const docpegProjectId = context.docpegProjectId.trim() || projectId
+    const firstItem = boqItems.find((item) => Boolean(pickStringDeep(item, ['boq_item_ref', 'item_ref', 'code'])))
+    const boqRef = pickStringDeep(firstItem, ['boq_item_ref', 'item_ref', 'code'])
+    if (!boqRef) {
+      setBoqTxHint('settle: 未找到可用 boq_item_ref')
+      return
+    }
+    const proofId = latestProofId || (proofHint !== '-' ? proofHint : '')
+    const amount = pickNumberDeep(firstItem, ['qty_actual', 'qty_design', 'qty']) || 1
+    const res = await settleBoqItem(docpegProjectId, {
+      boq_item_ref: boqRef,
+      amount,
+      proof_id: proofId || undefined,
+    })
+    if (!res) {
+      setBoqTxHint(`settle: 调用失败 (${boqRef})`)
+      return
+    }
+    const settlementId = pickStringDeep(res, ['settlement_id', 'id']) || '-'
+    const status = pickStringDeep(res, ['status', 'state']) || '-'
+    setBoqTxHint(`settle: ref=${boqRef} | settlement=${settlementId} | status=${status}`)
+    void refresh()
+  }
+
   return (
     <Card title="结算准备（Settlement）" icon="💰">
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginBottom: 10 }}>
@@ -1232,13 +1645,20 @@ function SettlementPanel({
         <Button onClick={submitSettlement} disabled={loading || !settlementReady}>
           提交结算申请
         </Button>
+        <Button variant="secondary" onClick={submitBoqConsume} disabled={loading || boqItems.length === 0}>
+          BOQ Consume
+        </Button>
+        <Button variant="secondary" onClick={submitBoqSettle} disabled={loading || boqItems.length === 0}>
+          BOQ Settle
+        </Button>
         {error && <span style={{ fontSize: 12, color: '#DC2626' }}>{error}</span>}
       </div>
 
-      {(previewHint || submitHint) && (
+      {(previewHint || submitHint || boqTxHint) && (
         <div style={{ marginTop: 10, fontSize: 12, color: '#475569', lineHeight: 1.7 }}>
           {previewHint ? <div>Preview: {previewHint}</div> : null}
           {submitHint ? <div>Submit: {submitHint}</div> : null}
+          {boqTxHint ? <div>BOQ: {boqTxHint}</div> : null}
         </div>
       )}
     </Card>
@@ -1437,42 +1857,91 @@ function SimpleTable({ headers, rows }: { headers: string[]; rows: string[][] })
   )
 }
 
+const DEEP_PICK_NESTED_KEYS = ['data', 'result', 'payload'] as const
+
+function toRecord(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+  return value as Record<string, unknown>
+}
+
 function pickArrayDeep(value: unknown, keys: string[]): unknown[] {
-  const row = asRecord(value)
-  for (const key of keys) {
-    const val = row[key]
-    if (Array.isArray(val)) return val
+  const stack: unknown[] = [value]
+  const visited = new WeakSet<object>()
+
+  while (stack.length) {
+    const current = stack.pop()
+    const row = toRecord(current)
+    if (!row) continue
+
+    for (const key of keys) {
+      const val = row[key]
+      if (Array.isArray(val)) return val
+    }
+
+    const obj = current as object
+    if (visited.has(obj)) continue
+    visited.add(obj)
+
+    for (let i = DEEP_PICK_NESTED_KEYS.length - 1; i >= 0; i -= 1) {
+      const next = row[DEEP_PICK_NESTED_KEYS[i]]
+      if (next && typeof next === 'object') stack.push(next)
+    }
   }
-  for (const nested of ['data', 'result', 'payload']) {
-    const found = pickArrayDeep(row[nested], keys)
-    if (found.length) return found
-  }
+
   return []
 }
 
 function pickStringDeep(value: unknown, keys: string[]): string {
-  const row = asRecord(value)
-  for (const key of keys) {
-    const val = row[key]
-    if (typeof val === 'string' && val.trim()) return val.trim()
+  const stack: unknown[] = [value]
+  const visited = new WeakSet<object>()
+
+  while (stack.length) {
+    const current = stack.pop()
+    const row = toRecord(current)
+    if (!row) continue
+
+    for (const key of keys) {
+      const val = row[key]
+      if (typeof val === 'string' && val.trim()) return val.trim()
+    }
+
+    const obj = current as object
+    if (visited.has(obj)) continue
+    visited.add(obj)
+
+    for (let i = DEEP_PICK_NESTED_KEYS.length - 1; i >= 0; i -= 1) {
+      const next = row[DEEP_PICK_NESTED_KEYS[i]]
+      if (next && typeof next === 'object') stack.push(next)
+    }
   }
-  for (const nested of ['data', 'result', 'payload']) {
-    const found = pickStringDeep(row[nested], keys)
-    if (found) return found
-  }
+
   return ''
 }
 
 function pickBooleanDeep(value: unknown, keys: string[]): boolean | null {
-  const row = asRecord(value)
-  for (const key of keys) {
-    const val = row[key]
-    if (typeof val === 'boolean') return val
+  const stack: unknown[] = [value]
+  const visited = new WeakSet<object>()
+
+  while (stack.length) {
+    const current = stack.pop()
+    const row = toRecord(current)
+    if (!row) continue
+
+    for (const key of keys) {
+      const val = row[key]
+      if (typeof val === 'boolean') return val
+    }
+
+    const obj = current as object
+    if (visited.has(obj)) continue
+    visited.add(obj)
+
+    for (let i = DEEP_PICK_NESTED_KEYS.length - 1; i >= 0; i -= 1) {
+      const next = row[DEEP_PICK_NESTED_KEYS[i]]
+      if (next && typeof next === 'object') stack.push(next)
+    }
   }
-  for (const nested of ['data', 'result', 'payload']) {
-    const found = pickBooleanDeep(row[nested], keys)
-    if (found !== null) return found
-  }
+
   return null
 }
 
@@ -1488,19 +1957,33 @@ function formatShortDateTime(input?: string): string {
 }
 
 function pickNumberDeep(value: unknown, keys: string[]): number | null {
-  const row = asRecord(value)
-  for (const key of keys) {
-    const val = row[key]
-    if (typeof val === 'number' && Number.isFinite(val)) return val
-    if (typeof val === 'string') {
-      const n = Number(val)
-      if (Number.isFinite(n)) return n
+  const stack: unknown[] = [value]
+  const visited = new WeakSet<object>()
+
+  while (stack.length) {
+    const current = stack.pop()
+    const row = toRecord(current)
+    if (!row) continue
+
+    for (const key of keys) {
+      const val = row[key]
+      if (typeof val === 'number' && Number.isFinite(val)) return val
+      if (typeof val === 'string') {
+        const n = Number(val)
+        if (Number.isFinite(n)) return n
+      }
+    }
+
+    const obj = current as object
+    if (visited.has(obj)) continue
+    visited.add(obj)
+
+    for (let i = DEEP_PICK_NESTED_KEYS.length - 1; i >= 0; i -= 1) {
+      const next = row[DEEP_PICK_NESTED_KEYS[i]]
+      if (next && typeof next === 'object') stack.push(next)
     }
   }
-  for (const nested of ['data', 'result', 'payload']) {
-    const found = pickNumberDeep(row[nested], keys)
-    if (found !== null) return found
-  }
+
   return null
 }
 

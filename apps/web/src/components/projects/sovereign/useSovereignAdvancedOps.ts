@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+﻿import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { safeEvalFormula } from './analysisUtils'
 import { downloadJson, sha256Hex } from './fileUtils'
@@ -400,3 +400,4 @@ export function useSovereignAdvancedOps({
     verifyUnitMerkle,
   }
 }
+

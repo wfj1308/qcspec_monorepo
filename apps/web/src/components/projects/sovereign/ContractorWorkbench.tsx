@@ -18,7 +18,7 @@ export default function ContractorWorkbench({ project, workspaceView, onNavigate
   return (
     <div className="grid gap-3">
       <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
-        Contractor Workbench focuses on Trip submit, field proof capture, and norm alignment. Audit and settlement controls stay out of the first screen.
+        施工工作台聚焦工序提交、现场取证和规范校核。审计与结算操作放在后续环节处理。
       </div>
       <SovereignWorkbenchPanel
         project={project}

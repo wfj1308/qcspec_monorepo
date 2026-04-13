@@ -1,4 +1,4 @@
-type Props = {
+﻿type Props = {
   assetAppraising: boolean
   assetAppraisal: Record<string, unknown> | null
   btnGreenCls: string
@@ -27,7 +27,7 @@ export default function AssetAppraisalPanel({
           <div className="grid gap-1 text-[11px] text-slate-300">
             <div>评分: {String(assetAppraisal.score || '-')} | 等级: {String(assetAppraisal.grade || '-')}</div>
             <div>Proof: {String(assetAppraisal.proof_id || '-')}</div>
-            <div>Hash: {String(assetAppraisal.total_proof_hash || '-')}</div>
+            <div>哈希: {String(assetAppraisal.total_proof_hash || '-')}</div>
             <div>风险: dispute={String(assetAppraisal.dispute_open)} | consensus={String(assetAppraisal.consensus_conflict)} | risk_score={String(assetAppraisal.risk_score || 0)}</div>
             <div>证据 {String(assetAppraisal.evidence_count || 0)} | 文档 {String(assetAppraisal.document_count || 0)}</div>
             <div className="flex items-center gap-2">
@@ -40,3 +40,4 @@ export default function AssetAppraisalPanel({
     </div>
   )
 }
+

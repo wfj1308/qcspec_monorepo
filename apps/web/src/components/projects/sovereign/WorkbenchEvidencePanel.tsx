@@ -100,7 +100,7 @@ export default function WorkbenchEvidencePanel({
           <button type="button" key={item.hash} onClick={() => onEvidencePreview(item)} className={`relative overflow-hidden rounded-lg border bg-transparent p-0 ${geoFenceActive && geoDistance > 0 ? 'border-rose-500/80' : 'border-slate-700'}`}>
             <img src={item.url} alt={item.name} className="block h-[108px] w-full object-cover" />
             <div className="absolute inset-0 flex flex-col justify-end gap-0.5 bg-gradient-to-t from-slate-950/80 to-slate-950/20 p-2 text-[11px] leading-4 text-slate-200">
-              <div className={`inline-flex w-fit rounded-full border px-1.5 py-0 text-[10px] ${geoFenceActive && geoDistance > 0 ? 'border-rose-400/70 bg-rose-950/40 text-rose-200' : 'border-emerald-400/70 bg-emerald-950/40 text-emerald-200'}`}>{geoFenceActive && geoDistance > 0 ? 'SnapPeg 拦截' : 'SnapPeg Sealed'}</div>
+              <div className={`inline-flex w-fit rounded-full border px-1.5 py-0 text-[10px] ${geoFenceActive && geoDistance > 0 ? 'border-rose-400/70 bg-rose-950/40 text-rose-200' : 'border-emerald-400/70 bg-emerald-950/40 text-emerald-200'}`}>{geoFenceActive && geoDistance > 0 ? 'SnapPeg 拦截' : 'SnapPeg 已封存'}</div>
               <div>v:// 路径: {activeUri || '-'}</div>
               <div>GPS 坐标: {lat}, {lng}</div>
               <div>NTP 时间戳: {item.ntp}</div>

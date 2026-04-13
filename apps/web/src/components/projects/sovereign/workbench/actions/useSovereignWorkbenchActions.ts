@@ -1,4 +1,4 @@
-import type { MutableRefObject } from 'react'
+﻿import type { MutableRefObject } from 'react'
 import { useCallback } from 'react'
 
 import { shaJson } from '../../fileUtils'
@@ -82,20 +82,20 @@ export function useSovereignWorkbenchActions({
     if (!value) return
     try {
       await navigator.clipboard.writeText(value)
-      clipboard.setCopiedMsg(`${label} copied`)
+      clipboard.setCopiedMsg(`${label}已复制`)
       window.setTimeout(() => clipboard.setCopiedMsg(''), 1500)
     } catch {
-      clipboard.showToast('Copy failed')
+      clipboard.showToast('复制失败')
     }
   }, [clipboard])
 
   const sealOfflinePacket = useCallback(async () => {
     if (!offline.activeUri) {
-      clipboard.showToast('Select an item first')
+      clipboard.showToast('请先选择一个细目')
       return
     }
     if (!offline.apiProjectUri) {
-      clipboard.showToast('Project URI missing')
+      clipboard.showToast('项目 URI 缺失')
       return
     }
     const now = new Date().toISOString()
@@ -104,7 +104,7 @@ export function useSovereignWorkbenchActions({
     if (offline.offlineType === 'variation.apply') {
       const delta = Number(String(offline.deltaAmount || '').replace(/,/g, '').trim())
       if (!Number.isFinite(delta) || Math.abs(delta) < 1e-9) {
-        clipboard.showToast('Enter a valid variation amount')
+        clipboard.showToast('请输入有效的变更数量')
         return
       }
       packet = {
@@ -124,7 +124,7 @@ export function useSovereignWorkbenchActions({
       }
     } else {
       if (!offline.inputProofId) {
-        clipboard.showToast('Current item is missing a consumable UTXO')
+        clipboard.showToast('当前细目缺少可消费 UTXO')
         return
       }
       const measurement: Record<string, number | string> = {}
@@ -170,7 +170,7 @@ export function useSovereignWorkbenchActions({
       actorId: offline.offlineActorId,
       did: offline.executorDid,
     })
-    clipboard.showToast('Offline packet sealed and queued for replay')
+    clipboard.showToast('离线包已封存并加入重放队列')
   }, [clipboard, offline])
 
   const enqueueScanEntryPacket = useCallback((status: 'ok' | 'blocked', tokenHash: string, nowIso: string, tokenPresent: boolean) => {
@@ -243,3 +243,4 @@ export function useSovereignWorkbenchActions({
     enqueueTriprolePacket,
   }
 }
+

@@ -5,7 +5,7 @@ type Props = {
   title?: string
 }
 
-export default function TripRiskGauge({ score, title = 'Risk Audit' }: Props) {
+export default function TripRiskGauge({ score, title = '风险审计' }: Props) {
   const clamped = Number.isFinite(score) ? Math.max(0, Math.min(100, score)) : 0
   const tone = clamped >= 80 ? 'text-emerald-300 border-emerald-500/60' : clamped >= 60 ? 'text-amber-300 border-amber-500/60' : 'text-rose-300 border-rose-500/60'
   const ring = useMemo(
@@ -34,4 +34,3 @@ export default function TripRiskGauge({ score, title = 'Risk Audit' }: Props) {
     </div>
   )
 }
-

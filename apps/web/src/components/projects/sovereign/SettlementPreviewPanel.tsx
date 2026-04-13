@@ -42,7 +42,7 @@ export default function SettlementPreviewPanel({
     <div className="rounded-xl border border-slate-700/70 bg-slate-950/30 p-3">
       <div className="mb-2 text-xs font-semibold text-slate-300">结算预警栏</div>
       <div className={`mb-2 rounded-lg px-2.5 py-1 text-[11px] font-semibold ${exceedBalance ? 'border border-rose-500/70 bg-rose-950/30 text-rose-200' : 'border border-emerald-500/60 bg-emerald-950/20 text-emerald-200'}`}>
-        {exceedBalance ? '余额不足 | 需先执行变更补差 Trip' : '守恒通过 | 可继续提交'}
+        {exceedBalance ? '余额不足 | 需先执行变更补差工序' : '守恒通过 | 可继续提交'}
       </div>
       <div className="mb-2 grid grid-cols-3 gap-2 text-xs text-slate-300">
         <div>设计总量: {baselineTotal.toLocaleString()}</div>
@@ -58,7 +58,7 @@ export default function SettlementPreviewPanel({
           className={`${inputBaseCls} ${disabled ? 'cursor-not-allowed opacity-60' : ''}`}
         />
         <span className={`text-xs ${exceedBalance ? 'text-rose-300' : 'text-emerald-300'}`}>
-          {exceedBalance ? 'Genesis UTXO Deviation Warning' : '余额充足'}
+          {exceedBalance ? '基线 UTXO 偏差预警' : '余额充足'}
         </span>
       </div>
       {!isContractSpu && !claimQtyProvided && measuredQtyValue > 0 && (
@@ -67,7 +67,7 @@ export default function SettlementPreviewPanel({
       <div className="mt-2 h-2.5 w-full overflow-hidden rounded-full border border-slate-700/70 bg-slate-900">
         <div className={`h-2.5 ${exceedBalance ? 'bg-rose-500' : 'bg-emerald-500'}`} style={{ width: `${progress}%` }} />
       </div>
-      <div className="mt-1 text-[11px] text-slate-400">公式：申报量 + 已结算累计量 ≤ Genesis Approved 总量</div>
+      <div className="mt-1 text-[11px] text-slate-400">公式：申报量 + 已结算累计量 ≤ 基线批复总量</div>
       <div className="mt-1 text-[11px] text-slate-500">当前申报量 + 已结算累计量 = {(effectiveSpent + effectiveClaimQtyValue).toLocaleString()}</div>
       {exceedBalance && deltaSuggest > 0 && (
         <div className="mt-2 flex items-center gap-2 text-[11px] text-rose-300">

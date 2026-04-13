@@ -14,11 +14,11 @@ import SignPegButton from './SignPegButton'
 const ROLE_ORDER: SignPegRole[] = ['inspector', 'recorder', 'reviewer', 'constructor', 'supervisor']
 
 const ROLE_TOKEN_HINTS: Record<SignPegRole, string[]> = {
-  inspector: ['inspection', 'inspector', 'check', '检查'],
-  recorder: ['record', 'recorder', '记录'],
-  reviewer: ['review', 'reviewer', 'audit', '复核', '审核'],
-  constructor: ['construction', 'constructor', 'contractor', '施工'],
-  supervisor: ['bridge-inspection', 'supervisor', '监理'],
+  inspector: ['inspection', 'inspector', 'check'],
+  recorder: ['record', 'recorder'],
+  reviewer: ['review', 'reviewer', 'audit'],
+  constructor: ['construction', 'constructor', 'contractor'],
+  supervisor: ['bridge-inspection', 'supervisor'],
 }
 
 function normalizeBodyHash(value: string): string {
@@ -31,11 +31,11 @@ function normalizeBodyHash(value: string): string {
 function inferRoleText(raw: string): SignPegRole | '' {
   const text = String(raw || '').toLowerCase()
   if (!text) return ''
-  if (text.includes('supervisor') || text.includes('监理')) return 'supervisor'
-  if (text.includes('inspector') || text.includes('检查')) return 'inspector'
-  if (text.includes('recorder') || text.includes('记录')) return 'recorder'
-  if (text.includes('reviewer') || text.includes('review') || text.includes('auditor') || text.includes('复核') || text.includes('审核')) return 'reviewer'
-  if (text.includes('constructor') || text.includes('contractor') || text.includes('施工')) return 'constructor'
+  if (text.includes('supervisor')) return 'supervisor'
+  if (text.includes('inspector')) return 'inspector'
+  if (text.includes('recorder')) return 'recorder'
+  if (text.includes('reviewer') || text.includes('review') || text.includes('auditor')) return 'reviewer'
+  if (text.includes('constructor') || text.includes('contractor')) return 'constructor'
   return ''
 }
 
@@ -185,7 +185,7 @@ export default function BridgeSignPegPanel({
         field: 'hole_diameter',
         value: holeDiameter,
         status: 'warning',
-        message: language === 'en' ? 'Please enter a numeric value.' : '请输入数字。',
+        message: '请输入数值。',
         norm_ref: '',
         expected: '',
         actual: String(holeDiameter || ''),
@@ -195,14 +195,14 @@ export default function BridgeSignPegPanel({
       return
     }
     const out = await validateFieldRealtime({
-      form_code: '桥施7表',
+      form_code: 'bridge_pile_form',
       field_key: 'hole_diameter',
       value: numeric,
       context: {
         design_diameter: 1.5,
         tolerance_pct: 5,
         unit: 'm',
-        norm_ref: 'JTG F80/1-2017 第7.1条',
+        norm_ref: 'JTG F80/1-2017 7.1',
       },
       language,
     })
@@ -221,20 +221,20 @@ export default function BridgeSignPegPanel({
               checks: [
                 {
                   check_id: 'hole_diameter',
-                  label: language === 'en' ? 'Hole diameter' : '孔径检查',
+                  label: '孔径检查',
                   pass: fieldValidation?.status !== 'blocking',
                   severity: 'mandatory',
                   actual_value: Number.isFinite(n) ? n : null,
                   design_value: 1.5,
                   threshold: { operator: 'gte', value: 1.5, unit: 'm' },
-                  norm_ref: 'JTG F80/1-2017 第7.1条',
+                  norm_ref: 'JTG F80/1-2017 7.1',
                   deviation: fieldValidation?.deviation || '',
                 },
               ],
             }
 
       const out = await explainGate({
-        form_code: '桥施7表',
+        form_code: 'bridge_pile_form',
         gate_result: fallbackGateResult,
         norm_context: normContext || {
           protocol_uri: 'v://normref.com/doc-type/bridge/pile-hole-check@v1',
@@ -249,7 +249,7 @@ export default function BridgeSignPegPanel({
 
   return (
     <div className="mt-3 rounded-lg border border-slate-200 bg-white p-2">
-      <div className="mb-2 text-[11px] font-semibold text-slate-500">桥施7表 SignPeg 签字区</div>
+      <div className="mb-2 text-[11px] font-semibold text-slate-500">桥施表 SignPeg 签认区</div>
       <div className="grid gap-2">
         {ROLE_ORDER.map((role) => {
           const signedItem = signatures[role] || null
@@ -269,7 +269,7 @@ export default function BridgeSignPegPanel({
               onSign={sign}
               onAfterSigned={async () => {
                 await reloadStatus()
-                showToast(language === 'en' ? 'SignPeg signed successfully' : 'SignPeg 签名成功')
+                showToast('SignPeg 签认成功')
               }}
             />
           )
@@ -278,22 +278,18 @@ export default function BridgeSignPegPanel({
 
       {disabledByPayload && (
         <div className="mt-2 text-[10px] text-amber-600">
-          {language === 'en'
-            ? 'Missing sign prerequisites: doc_id / body_hash / executor_uri.'
-            : '签字条件不足：请确认 doc_id、body_hash、executor_uri。'}
+          签认条件不足：请确认 doc_id / body_hash / executor_uri。
         </div>
       )}
 
       <div className="mt-3 rounded-lg border border-slate-200 p-2">
-        <div className="text-[11px] font-semibold text-slate-600">
-          {language === 'en' ? 'Realtime Fill Hint (Gate Preview)' : '实时填表提示（Gate预警）'}
-        </div>
+        <div className="text-[11px] font-semibold text-slate-600">实时填报提示（Gate 预警）</div>
         <div className="mt-2 grid gap-2 min-[560px]:grid-cols-[1fr_auto]">
           <input
             value={holeDiameter}
             onChange={(event) => setHoleDiameter(event.target.value)}
             onBlur={() => void handleFieldBlur()}
-            placeholder={language === 'en' ? 'Hole diameter (m), e.g. 1.38' : '孔径（m），例如 1.38'}
+            placeholder="孔径（m），例如 1.38"
             className={`rounded-md border px-2 py-1.5 text-xs ${fieldHintClass(fieldValidation?.status || '')}`}
           />
           <button
@@ -302,20 +298,14 @@ export default function BridgeSignPegPanel({
             disabled={explainingGate}
             className="rounded-md border border-sky-500 bg-sky-50 px-3 py-1.5 text-xs font-semibold text-sky-700 disabled:opacity-70"
           >
-            {explainingGate
-              ? language === 'en'
-                ? 'Explaining...'
-                : '解释中...'
-              : language === 'en'
-                ? 'Explain Gate Result'
-                : '生成Gate解释'}
+            {explainingGate ? '解释中...' : '生成 Gate 解释'}
           </button>
         </div>
         {fieldValidation && (
           <div className={`mt-2 rounded-md border px-2 py-1.5 text-[11px] ${fieldHintClass(fieldValidation.status)}`}>
             <div className="font-semibold">{fieldValidation.status.toUpperCase()}</div>
             <div className="mt-1 whitespace-pre-wrap">{fieldValidation.message}</div>
-            {!!fieldValidation.norm_ref && <div className="mt-1">Norm: {fieldValidation.norm_ref}</div>}
+            {!!fieldValidation.norm_ref && <div className="mt-1">规范: {fieldValidation.norm_ref}</div>}
           </div>
         )}
       </div>
@@ -334,7 +324,7 @@ export default function BridgeSignPegPanel({
                   <div className="mt-1 text-[11px] text-slate-500">
                     期望: {item.expected || '-'} | 实际: {item.actual || '-'} | 偏差: {item.deviation || '-'}
                   </div>
-                  <div className="mt-1 text-[11px] text-slate-500">Norm: {item.norm_ref || '-'}</div>
+                  <div className="mt-1 text-[11px] text-slate-500">规范: {item.norm_ref || '-'}</div>
                 </div>
               ))}
             </div>

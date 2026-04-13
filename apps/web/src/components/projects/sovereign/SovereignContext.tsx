@@ -1,4 +1,4 @@
-import { createContext, useContext  } from 'react'
+﻿import { createContext, useContext  } from 'react'
 import type {
   ActiveGenesisSummary,
   EvidenceCenterPayload,
@@ -92,3 +92,4 @@ export function useProjectSovereign() {
   }
   return ctx
 }
+

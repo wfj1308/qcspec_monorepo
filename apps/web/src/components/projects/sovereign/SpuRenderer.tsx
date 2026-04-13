@@ -99,7 +99,7 @@ export default function SpuRenderer({
       <div className="border-b border-slate-700/80 bg-[linear-gradient(90deg,rgba(8,47,73,.38),rgba(15,23,42,.18),rgba(2,6,23,.02))] px-4 py-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <div className="text-[11px] uppercase tracking-[0.22em] text-sky-300/80">SPU Dynamic Form</div>
+            <div className="text-[11px] uppercase tracking-[0.22em] text-sky-300/80">SPU 动态表单</div>
             <div className="mt-1 text-sm font-semibold text-slate-100">
               {isContractSpu ? '合同凭证录入台' : '参数化质检录入台'}
             </div>

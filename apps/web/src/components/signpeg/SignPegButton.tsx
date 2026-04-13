@@ -9,11 +9,11 @@ type SignRoleConfig = {
 }
 
 const ROLE_CONFIG: Record<SignPegRole, SignRoleConfig> = {
-  inspector: { label: '检查', dtoRole: 'inspector', tripRole: 'inspector.submit', action: 'submit' },
-  recorder: { label: '记录', dtoRole: 'recorder', tripRole: 'recorder.sign', action: 'sign' },
-  reviewer: { label: '复核', dtoRole: 'reviewer', tripRole: 'reviewer.approve', action: 'approve' },
-  constructor: { label: '施工单位', dtoRole: 'constructor', tripRole: 'constructor.sign', action: 'sign' },
-  supervisor: { label: '监理工程师', dtoRole: 'supervisor', tripRole: 'supervisor.approve', action: 'approve' },
+  inspector: { label: '质检员', dtoRole: 'inspector', tripRole: 'inspector.submit', action: 'submit' },
+  recorder: { label: '记录员', dtoRole: 'recorder', tripRole: 'recorder.sign', action: 'sign' },
+  reviewer: { label: '复核员', dtoRole: 'reviewer', tripRole: 'reviewer.approve', action: 'approve' },
+  constructor: { label: '施工方', dtoRole: 'constructor', tripRole: 'constructor.sign', action: 'sign' },
+  supervisor: { label: '监理方', dtoRole: 'supervisor', tripRole: 'supervisor.approve', action: 'approve' },
 }
 
 function toDisplayTime(value: string): string {
@@ -79,11 +79,11 @@ export default function SignPegButton({
     if (isSigned) {
       const who = String(signedItem?.executor_name || '-')
       const at = toDisplayTime(String(signedItem?.signed_at || ''))
-      return `✓ ${who} · ${cfg.dtoRole} · ${at}`
+      return `已签：${who} | ${cfg.dtoRole} | ${at}`
     }
-    if (!isCurrentRole) return '非本角色'
-    if (!hasSkill) return '资质不符'
-    return '点击签名'
+    if (!isCurrentRole) return '非当前角色'
+    if (!hasSkill) return '资质不满足'
+    return '点击签认'
   }, [cfg.dtoRole, hasSkill, isCurrentRole, isSigned, signedItem?.executor_name, signedItem?.signed_at])
 
   const canOpenConfirm = !isDisabled
@@ -103,13 +103,13 @@ export default function SignPegButton({
         project_trip_root: projectTripRoot,
       })
       if (!res?.ok) {
-        setErrMsg('签名失败，请稍后重试')
+        setErrMsg('签认失败，请稍后重试。')
         return
       }
       setConfirmOpen(false)
       await onAfterSigned()
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : '签名失败'
+      const msg = err instanceof Error ? err.message : '签认失败'
       setErrMsg(msg)
     } finally {
       setSubmitting(false)
@@ -130,19 +130,19 @@ export default function SignPegButton({
         {btnText}
       </button>
       {signedItem?.trip_uri && (
-        <div className="mt-1 break-all text-[10px] text-emerald-700">Trip: {signedItem.trip_uri}</div>
+        <div className="mt-1 break-all text-[10px] text-emerald-700">执行链路: {signedItem.trip_uri}</div>
       )}
       {errMsg && <div className="mt-1 text-[10px] text-rose-600">{errMsg}</div>}
 
       {confirmOpen && (
         <div className="fixed inset-0 z-[1500] grid place-items-center bg-slate-950/55 px-4">
           <div className="w-[560px] max-w-[96vw] rounded-xl border border-slate-200 bg-white p-4 text-slate-900 shadow-xl">
-            <div className="mb-3 text-base font-bold">确认 SignPeg 签名</div>
+            <div className="mb-3 text-base font-bold">确认 SignPeg 签认</div>
             <div className="grid grid-cols-[84px_1fr] gap-2 text-sm">
-              <div className="text-slate-500">执行体</div><div className="break-all font-mono">{executorUri || '-'}</div>
+              <div className="text-slate-500">执行人</div><div className="break-all font-mono">{executorUri || '-'}</div>
               <div className="text-slate-500">角色</div><div>{cfg.dtoRole}</div>
               <div className="text-slate-500">文档</div><div>{docId || '-'}</div>
-              <div className="text-slate-500">数据指纹</div><div className="break-all font-mono">{bodyHash || '-'}</div>
+              <div className="text-slate-500">正文哈希</div><div className="break-all font-mono">{bodyHash || '-'}</div>
               <div className="text-slate-500">动作</div><div>{cfg.tripRole}</div>
               <div className="text-slate-500">时间</div><div>{new Date().toLocaleString()}</div>
             </div>
@@ -160,7 +160,7 @@ export default function SignPegButton({
                 onClick={() => void doSign()}
                 className="rounded-md border border-sky-600 bg-sky-600 px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-70"
               >
-                {submitting ? '签名中...' : '确认签名'}
+                {submitting ? '签认中...' : '确认签认'}
               </button>
             </div>
           </div>
@@ -169,4 +169,3 @@ export default function SignPegButton({
     </div>
   )
 }
-

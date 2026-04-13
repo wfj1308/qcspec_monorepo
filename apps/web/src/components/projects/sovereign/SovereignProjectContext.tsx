@@ -1,4 +1,4 @@
-import { createContext, useContext  } from 'react'
+﻿import { createContext, useContext  } from 'react'
 
 export type SovereignWorkspaceView = 'trip' | 'audit' | 'genesis'
 
@@ -49,3 +49,4 @@ export function useSovereignProjectContext() {
   }
   return ctx
 }
+

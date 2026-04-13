@@ -1,4 +1,4 @@
-type Props = {
+﻿type Props = {
   signOpen: boolean
   tripStage: 'Unspent' | 'Reviewing' | 'Approved'
   signStep: number
@@ -82,7 +82,7 @@ export default function SovereignTripFlowModals({
             <div className="mb-3 text-xs text-slate-400">DID 签名链路: 施工员 → 监理 → 业主</div>
             <div className="mb-3 rounded-xl border border-slate-700/80 bg-slate-900/60 px-3 py-3">
               <div className="flex items-center justify-between text-[10px] uppercase tracking-[0.14em] text-slate-500">
-                <span>TripRole Flow</span>
+                <span>工序流程</span>
                 <span>{tripStage}</span>
               </div>
               <div className="mt-3 flex items-center justify-between gap-2">
@@ -113,11 +113,11 @@ export default function SovereignTripFlowModals({
             </div>
             <div className="mb-3 rounded-lg border border-slate-700/70 bg-slate-900/40 px-3 py-2">
               <div className="flex items-center gap-2 text-[11px]">
-                <span className={`rounded-full border px-2 py-0.5 ${tripStage === 'Unspent' ? 'border-slate-500/70 text-slate-300' : 'border-slate-700/60 text-slate-500'}`}>Unspent</span>
+                <span className={`rounded-full border px-2 py-0.5 ${tripStage === 'Unspent' ? 'border-slate-500/70 text-slate-300' : 'border-slate-700/60 text-slate-500'}`}>未提交</span>
                 <span className="text-slate-600">→</span>
-                <span className={`rounded-full border px-2 py-0.5 ${tripStage === 'Reviewing' ? 'border-sky-500/70 text-sky-200' : tripStage === 'Approved' ? 'border-sky-700/60 text-sky-400' : 'border-slate-700/60 text-slate-500'}`}>Reviewing</span>
+                <span className={`rounded-full border px-2 py-0.5 ${tripStage === 'Reviewing' ? 'border-sky-500/70 text-sky-200' : tripStage === 'Approved' ? 'border-sky-700/60 text-sky-400' : 'border-slate-700/60 text-slate-500'}`}>审核中</span>
                 <span className="text-slate-600">→</span>
-                <span className={`rounded-full border px-2 py-0.5 ${tripStage === 'Approved' ? 'border-emerald-500/70 text-emerald-200' : 'border-slate-700/60 text-slate-500'}`}>Approved</span>
+                <span className={`rounded-full border px-2 py-0.5 ${tripStage === 'Approved' ? 'border-emerald-500/70 text-emerald-200' : 'border-slate-700/60 text-slate-500'}`}>已通过</span>
               </div>
             </div>
             {signing && (
@@ -149,7 +149,7 @@ export default function SovereignTripFlowModals({
               ))}
             </div>
             <div className="mb-3 rounded-lg border border-slate-700/80 bg-slate-900/40 px-3 py-2 text-[11px] text-slate-400">
-              审批完成后，节点状态会从 <span className="text-sky-300">Reviewing</span> 切换到 <span className="text-emerald-300">Approved</span>，并触发 SMU 冻结与 DocPeg 哈希锁定。
+              审批完成后，节点状态会从 <span className="text-sky-300">审核中</span> 切换到 <span className="text-emerald-300">已通过</span>，并触发 SMU 冻结与 DocPeg 哈希锁定。
             </div>
             <div className="mb-3 rounded-lg border border-slate-700/80 p-2 text-[11px] text-slate-300">
               <div className="mb-2 font-semibold text-slate-200">共识量值（可调以触发冲突）</div>
@@ -194,7 +194,7 @@ export default function SovereignTripFlowModals({
                   </div>
                   <div className="text-slate-400">允许偏差: {consensusAllowedAbsText} / {consensusAllowedPctText}</div>
                   <div className={consensusConflict ? 'text-rose-200' : 'text-emerald-300'}>
-                    {consensusConflict ? '检测到逻辑背离，将触发 Dispute UTXO 并挂起结算 Trip' : '共识一致，允许进入结算'}
+                    {consensusConflict ? '检测到逻辑背离，将触发争议 UTXO 并挂起结算工序' : '共识一致，允许进入结算'}
                   </div>
                 </div>
               </div>
@@ -223,9 +223,9 @@ export default function SovereignTripFlowModals({
             ) : (
               <>
                 <div className="mb-2 text-lg font-extrabold">资产已锁定</div>
-                <div className="mb-4 text-xs text-emerald-200/80">Final Proof 已生成</div>
+                <div className="mb-4 text-xs text-emerald-200/80">最终存证已生成</div>
                 <div className="break-all rounded-lg border border-emerald-700/70 bg-emerald-950/40 px-3 py-2 text-[11px]">
-                  {scanLockProofId || '未返回 Proof ID'}
+                  {scanLockProofId || '未返回 存证ID'}
                 </div>
                 <button
                   type="button"
@@ -244,7 +244,7 @@ export default function SovereignTripFlowModals({
         <div className="fixed inset-0 z-[1200] grid place-items-center bg-slate-950/70">
           <div className="w-[520px] max-w-[92vw] rounded-xl border border-rose-700 bg-slate-950 p-4 text-slate-100">
             <div className="mb-2 text-sm font-extrabold">量值超出批复边界</div>
-            <div className="mb-3 text-xs text-slate-300">当前申报量已超过批复量，请执行变更补差 Trip 后再提交。</div>
+            <div className="mb-3 text-xs text-slate-300">当前申报量已超过批复量，请执行变更补差工序后再提交。</div>
             <div className="mb-3 text-xs text-slate-400">申报量 + 已结算累计量 = {exceedTotalText}</div>
             <div className="flex justify-end gap-2">
               <button type="button" onClick={onOpenAdvancedExecution} className={`px-3 py-2 font-bold ${btnAmberCls}`}>
@@ -257,3 +257,4 @@ export default function SovereignTripFlowModals({
     </>
   )
 }
+

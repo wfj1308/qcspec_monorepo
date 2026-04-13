@@ -1,4 +1,4 @@
-export type NodeStatus = 'Genesis' | 'Spending' | 'Settled'
+﻿export type NodeStatus = 'Genesis' | 'Spending' | 'Settled'
 
 export type TreeNode = {
   code: string
@@ -135,3 +135,4 @@ export type NormResolutionState = {
   status: 'ready' | 'partial' | 'missing'
   message: string
 }
+

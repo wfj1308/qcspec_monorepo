@@ -1,4 +1,4 @@
-import type { Dispatch, SetStateAction } from 'react'
+﻿import type { Dispatch, SetStateAction } from 'react'
 
 import { buildMeasurementPayload } from './spuUtils'
 import type { Evidence, FormRow, TreeNode } from './types'
@@ -93,11 +93,11 @@ export async function runTripSubmit({
     return
   }
   if (!gateStats.labQualified) {
-    showToast('证据链不完整：缺少实验合格 Proof')
+    showToast('证据链不完整：缺少实验合格存证')
     return
   }
   if (!gateStats.qcCompliant) {
-    showToast('TripRole 现场判定未通过，已拦截提交')
+    showToast('工序现场判定未通过，已拦截提交')
     return
   }
   if (exceedBalance) {
@@ -137,7 +137,7 @@ export async function runTripSubmit({
     } catch (err) {
       const msg = String((err as Error)?.message || err || '')
       if (msg.includes('lab PASS')) {
-        showToast('证据链不完整：缺少实验合格 Proof')
+        showToast('证据链不完整：缺少实验合格存证')
       } else if (msg.includes('deviation_warning')) {
         showToast('申报量超出批复量，已自动跳转变更补差流程')
         setDeltaModalOpen(true)
@@ -162,3 +162,4 @@ export async function runTripSubmit({
     setExecuting(false)
   }
 }
+

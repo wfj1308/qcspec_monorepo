@@ -1,4 +1,4 @@
-import type { ProjectSovereignContextValue } from './SovereignContext'
+﻿import type { ProjectSovereignContextValue } from './SovereignContext'
 import type { SovereignWorkspaceSnapshot } from './SovereignProjectContext'
 
 type BuildWorkspaceSnapshotArgs = {
@@ -53,3 +53,4 @@ export function buildProjectSovereignValue({
     audit,
   }
 }
+

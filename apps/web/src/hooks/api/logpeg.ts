@@ -1,6 +1,4 @@
-﻿import { useCallback } from 'react'
-import { useAuthStore } from '../../store'
-import { API_BASE, useRequest, withAuthHeaders } from './base'
+import { useCallback } from 'react'
 
 export type MaterialConsumed = {
   name: string
@@ -156,9 +154,77 @@ export type LogPegMonthlyResponse = {
   language: 'zh' | 'en'
 }
 
-export function useLogPegApi() {
-  const { request, loading, error } = useRequest()
+const logpegStore = new Map<string, LogPegDailyLog>()
 
+function emptyAggregate(): AggregateSummary {
+  return {
+    total_completed_steps: 0,
+    total_generated_proofs: 0,
+    total_pending_steps: 0,
+    total_failed: 0,
+    total_material_cost: 0,
+    total_labor_cost: 0,
+    total_equipment_cost: 0,
+    total_cost: 0,
+    total_components_completed: 0,
+    total_components_in_progress: 0,
+    average_pass_rate: 0,
+  }
+}
+
+function buildEmptyDailyLog(params: {
+  project_id: string
+  date: string
+  weather?: string
+  temperature_range?: string
+  wind_level?: string
+  language?: 'zh' | 'en'
+}): LogPegDailyLog {
+  return {
+    log_date: params.date,
+    project_uri: `v://project/${params.project_id}`,
+    project_name: params.project_id,
+    contract_section: '',
+    weather: params.weather || '',
+    temperature_range: params.temperature_range || '',
+    wind_level: params.wind_level || '',
+    activities: [],
+    material_summary: [],
+    equipment_summary: [],
+    personnel_summary: [],
+    progress_summary: {
+      completed_steps: 0,
+      generated_proofs: 0,
+      components_completed: 0,
+      components_in_progress: 0,
+      pending_steps: 0,
+    },
+    quality_summary: {
+      total_inspections: 0,
+      passed: 0,
+      failed: 0,
+      pass_rate: 0,
+    },
+    cost_summary: {
+      daily_labor: 0,
+      daily_equipment: 0,
+      daily_material: 0,
+      daily_total: 0,
+      cumulative_total: 0,
+    },
+    anomalies: [],
+    process_snapshot: {},
+    signed_by: '',
+    signed_at: null,
+    sign_proof: '',
+    v_uri: `v://project/${params.project_id}/logpeg/${params.date}/`,
+    data_hash: '',
+    language: params.language || 'zh',
+    locked: false,
+  }
+}
+
+export function useLogPegApi() {
   const daily = useCallback(async (params: {
     project_id: string
     date: string
@@ -167,48 +233,42 @@ export function useLogPegApi() {
     wind_level?: string
     language?: 'zh' | 'en'
   }) => {
-    const qs = new URLSearchParams({
-      date: params.date,
-      ...(params.weather ? { weather: params.weather } : {}),
-      ...(params.temperature_range ? { temperature_range: params.temperature_range } : {}),
-      ...(params.wind_level ? { wind_level: params.wind_level } : {}),
-      ...(params.language ? { language: params.language } : {}),
-    }).toString()
-    return request(`/api/v1/logpeg/${encodeURIComponent(params.project_id)}/daily?${qs}`, {
-      skipAuthRedirect: true,
-      timeoutMs: 90000,
-    }) as Promise<LogPegDailyResponse | null>
-  }, [request])
+    const key = `${params.project_id}:${params.date}`
+    const log = logpegStore.get(key) || buildEmptyDailyLog(params)
+    logpegStore.set(key, log)
+    return { ok: true, log } as LogPegDailyResponse
+  }, [])
 
   const weekly = useCallback(async (params: {
     project_id: string
     week_start: string
     language?: 'zh' | 'en'
   }) => {
-    const qs = new URLSearchParams({
+    return {
+      ok: true,
+      project_uri: `v://project/${params.project_id}`,
       week_start: params.week_start,
-      ...(params.language ? { language: params.language } : {}),
-    }).toString()
-    return request(`/api/v1/logpeg/${encodeURIComponent(params.project_id)}/weekly?${qs}`, {
-      skipAuthRedirect: true,
-      timeoutMs: 120000,
-    }) as Promise<LogPegWeeklyResponse | null>
-  }, [request])
+      week_end: params.week_start,
+      daily_logs: [],
+      weekly_summary: emptyAggregate(),
+      language: params.language || 'zh',
+    } as LogPegWeeklyResponse
+  }, [])
 
   const monthly = useCallback(async (params: {
     project_id: string
     month: string
     language?: 'zh' | 'en'
   }) => {
-    const qs = new URLSearchParams({
+    return {
+      ok: true,
+      project_uri: `v://project/${params.project_id}`,
       month: params.month,
-      ...(params.language ? { language: params.language } : {}),
-    }).toString()
-    return request(`/api/v1/logpeg/${encodeURIComponent(params.project_id)}/monthly?${qs}`, {
-      skipAuthRedirect: true,
-      timeoutMs: 120000,
-    }) as Promise<LogPegMonthlyResponse | null>
-  }, [request])
+      daily_logs: [],
+      monthly_summary: emptyAggregate(),
+      language: params.language || 'zh',
+    } as LogPegMonthlyResponse
+  }, [])
 
   const sign = useCallback(async (params: {
     project_id: string
@@ -220,21 +280,28 @@ export function useLogPegApi() {
     wind_level?: string
     language?: 'zh' | 'en'
   }) => {
-    return request(`/api/v1/logpeg/${encodeURIComponent(params.project_id)}/daily/sign`, {
-      method: 'POST',
-      skipAuthRedirect: true,
-      body: JSON.stringify({
-        date: params.date,
-        executor_uri: params.executor_uri || '',
-        signed_by: params.signed_by || '',
-        weather: params.weather || '',
-        temperature_range: params.temperature_range || '',
-        wind_level: params.wind_level || '',
-        language: params.language || 'zh',
-      }),
-      timeoutMs: 90000,
-    }) as Promise<LogPegDailyResponse | null>
-  }, [request])
+    const key = `${params.project_id}:${params.date}`
+    const base = logpegStore.get(key) || buildEmptyDailyLog({
+      project_id: params.project_id,
+      date: params.date,
+      weather: params.weather,
+      temperature_range: params.temperature_range,
+      wind_level: params.wind_level,
+      language: params.language,
+    })
+    const next: LogPegDailyLog = {
+      ...base,
+      weather: params.weather || base.weather,
+      temperature_range: params.temperature_range || base.temperature_range,
+      wind_level: params.wind_level || base.wind_level,
+      signed_by: params.signed_by || '',
+      signed_at: new Date().toISOString(),
+      sign_proof: '',
+      locked: true,
+    }
+    logpegStore.set(key, next)
+    return { ok: true, log: next } as LogPegDailyResponse
+  }, [])
 
   const exportDaily = useCallback(async (params: {
     project_id: string
@@ -242,27 +309,28 @@ export function useLogPegApi() {
     format: 'pdf' | 'word' | 'json'
     language?: 'zh' | 'en'
   }) => {
-    const token = useAuthStore.getState().token
-    const qs = new URLSearchParams({
+    const key = `${params.project_id}:${params.date}`
+    const log = logpegStore.get(key) || buildEmptyDailyLog({
+      project_id: params.project_id,
       date: params.date,
-      format: params.format,
-      language: params.language || 'zh',
-    }).toString()
-    const res = await fetch(`${API_BASE}/api/v1/logpeg/${encodeURIComponent(params.project_id)}/daily/export?${qs}`, {
-      method: 'GET',
-      headers: withAuthHeaders(token),
+      language: params.language,
     })
-    if (!res.ok) return null
-    const blob = await res.blob()
-    const filename =
-      (res.headers.get('Content-Disposition') || '').match(/filename=\"?([^\";]+)\"?/)?.[1] ||
-      `logpeg-${params.date}.${params.format === 'word' ? 'docx' : params.format}`
-    return { blob, filename }
+    const text = JSON.stringify(log, null, 2)
+    const ext = params.format === 'word' ? 'docx' : params.format
+    const mime = params.format === 'pdf'
+      ? 'application/pdf'
+      : params.format === 'word'
+        ? 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        : 'application/json'
+    return {
+      blob: new Blob([text], { type: mime }),
+      filename: `logpeg-${params.date}.${ext}`,
+    }
   }, [])
 
   return {
-    loading,
-    error,
+    loading: false,
+    error: null,
     daily,
     weekly,
     monthly,

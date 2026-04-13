@@ -8,6 +8,12 @@ const statusColor = {
   Settled: '#16A34A',
 } as const
 
+const STATUS_LABEL: Record<string, string> = {
+  Genesis: '创世',
+  Spending: '进行中',
+  Settled: '已结算',
+}
+
 function spuTreeGeneLabel(spu: string) {
   const value = String(spu || '').toUpperCase()
   if (value.includes('REINFORCEMENT')) return 'SPU 钢筋'
@@ -109,10 +115,10 @@ export default function GenesisTree({
       : `${toneBorder} hover:bg-slate-900/90 hover:border-slate-400/40`
     const progressRatio = baseQty > 0 ? agg.settled / baseQty : 0
     const statusBadge = node.status === 'Settled'
-      ? { label: 'Settled', cls: 'border-emerald-500/70 text-emerald-200 bg-emerald-950/30' }
+      ? { label: STATUS_LABEL.Settled, cls: 'border-emerald-500/70 text-emerald-200 bg-emerald-950/30' }
       : node.status === 'Spending'
-        ? { label: 'Spending', cls: 'border-sky-500/70 text-sky-200 bg-sky-950/30' }
-        : { label: 'Genesis', cls: 'border-slate-500/70 text-slate-300 bg-slate-900/60' }
+        ? { label: STATUS_LABEL.Spending, cls: 'border-sky-500/70 text-sky-200 bg-sky-950/30' }
+        : { label: STATUS_LABEL.Genesis, cls: 'border-slate-500/70 text-slate-300 bg-slate-900/60' }
 
     return (
       <Fragment key={code}>
@@ -184,7 +190,7 @@ export default function GenesisTree({
   return (
     <div className={`${panelCls} wb-panel flex flex-col`}>
       <div className="mb-2 flex items-center justify-between">
-        <div className="text-sm font-extrabold">步骤 1：Genesis 主权树</div>
+        <div className="text-sm font-extrabold">步骤 1：创世主权树</div>
         <span className="rounded-full border border-slate-700 bg-slate-800/90 px-2 py-0.5 text-[10px] text-slate-400">资产初始化</span>
       </div>
       <div className="grid grid-cols-[auto_auto_1fr] items-center gap-2">
@@ -220,12 +226,12 @@ export default function GenesisTree({
       <div className="mt-3 rounded-2xl border border-slate-700/80 bg-[linear-gradient(135deg,rgba(8,47,73,.32),rgba(2,6,23,.86))] p-3 shadow-[0_16px_32px_rgba(2,6,23,.28)]">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <div className="text-[11px] uppercase tracking-[0.18em] text-sky-300/80">Genesis Summary</div>
+            <div className="text-[11px] uppercase tracking-[0.18em] text-sky-300/80">创世摘要</div>
             <div className="mt-1 text-sm font-bold text-slate-100">{project.active?.name || '等待选择主权节点'}</div>
             <div className="mt-1 break-all text-[11px] text-slate-400">{project.activePath || project.displayProjectUri || 'v://project/boq/400'}</div>
           </div>
           <span className={`rounded-full border px-2 py-0.5 text-[10px] ${project.active ? (project.active.status === 'Settled' ? 'border-emerald-500/70 bg-emerald-950/30 text-emerald-200' : project.active.status === 'Spending' ? 'border-sky-500/70 bg-sky-950/30 text-sky-200' : 'border-slate-500/70 bg-slate-900/70 text-slate-300') : 'border-slate-600/70 bg-slate-900/70 text-slate-400'}`}>
-            {project.active ? project.active.status : 'Genesis'}
+            {project.active ? (STATUS_LABEL[project.active.status] || project.active.status) : STATUS_LABEL.Genesis}
           </span>
         </div>
         <div className="mt-3 grid gap-2 min-[460px]:grid-cols-2">
@@ -242,7 +248,7 @@ export default function GenesisTree({
             <div className="mt-2 h-2.5 w-full overflow-hidden rounded-full border border-slate-700 bg-slate-900">
               <div className="h-2.5 bg-gradient-to-r from-sky-500 via-emerald-500 to-emerald-300" style={{ width: `${Math.max(0, Math.min(100, asset.activeGenesisSummary.reportedPct))}%` }} />
             </div>
-            <div className="mt-1 text-[11px] text-slate-500">Genesis 锚定进度 {asset.activeGenesisSummary.progressPct.toFixed(2)}%</div>
+            <div className="mt-1 text-[11px] text-slate-500">创世锚定进度 {asset.activeGenesisSummary.progressPct.toFixed(2)}%</div>
           </div>
         </div>
       </div>
@@ -283,7 +289,7 @@ export default function GenesisTree({
           <div className="grid min-h-[220px] place-items-center rounded-2xl border border-dashed border-slate-700/80 bg-slate-950/35 p-5 text-center">
             <div>
               <div className="text-sm font-semibold text-slate-200">上传 CSV 以生成 v:// 主权树</div>
-              <div className="mt-1 text-xs text-slate-500">识别“子目号”后会自动递归生成左侧 Sovereign Tree，并绑定 SPU 基因。</div>
+              <div className="mt-1 text-xs text-slate-500">识别“子目号”后会自动递归生成左侧主权树，并绑定 SPU 基因。</div>
             </div>
           </div>
         )}

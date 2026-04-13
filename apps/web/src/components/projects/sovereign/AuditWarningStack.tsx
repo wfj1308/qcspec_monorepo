@@ -36,7 +36,7 @@ export default function AuditWarningStack({
       )}
       {disputeOpen && (
         <div className="mt-3 rounded-lg border border-rose-700/70 bg-rose-950/30 px-2 py-1.5 text-xs text-rose-200">
-          争议挂起中：{disputeProof || 'Dispute UTXO'} 已锁定该 v:// 地址，等待 {disputeArbiterRole || '业主/第三方检测'} 签入最终判定。
+          争议挂起中：{disputeProof || '争议UTXO'} 已锁定该 v:// 地址，等待 {disputeArbiterRole || '业主/第三方检测'} 签入最终判定。
         </div>
       )}
       {archiveLocked && (
@@ -46,12 +46,12 @@ export default function AuditWarningStack({
       )}
       {roleAllowed && !labQualified && (
         <div className="mt-3 rounded-lg border border-amber-700/70 bg-amber-950/30 px-2 py-1.5 text-xs text-amber-200">
-          证据链不完整：缺少实验合格 Proof。
+          证据链不完整：缺少实验合格存证。
         </div>
       )}
       {roleAllowed && labQualified && !qcCompliant && (
         <div className="mt-3 rounded-lg border border-amber-700/70 bg-amber-950/30 px-2 py-1.5 text-xs text-amber-200">
-          证据链不完整：TripRole 现场判定未通过。
+          证据链不完整：工序现场判定未通过。
         </div>
       )}
       {roleAllowed && !snappegReady && (

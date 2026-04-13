@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+﻿import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import { downloadBlob } from './fileUtils'
 
@@ -93,7 +93,7 @@ export function useAuditFinalizeActions({
 
   const resolveDispute = useCallback(async () => {
     if (!disputeProofId) {
-      showToast('请输入争议 Proof ID')
+      showToast('请输入争议 存证ID')
       return
     }
     if (disputeResolving) return
@@ -171,7 +171,7 @@ export function useAuditFinalizeActions({
       setDocFinalRes({
         mode: 'export',
         filename: res.filename,
-        rootHash: res.rootHash,
+        root哈希: res.rootHash,
         proofId: res.proofId,
         gitpegAnchor: res.gitpegAnchor,
         exportedAt: new Date().toISOString(),
@@ -226,7 +226,7 @@ export function useAuditFinalizeActions({
       setDocFinalRes({
         mode: 'finalize',
         filename: res.filename,
-        rootHash: res.rootHash,
+        root哈希: res.rootHash,
         proofId: res.proofId,
         gitpegAnchor: res.gitpegAnchor,
         finalGitpegAnchor: res.finalGitpegAnchor,
@@ -324,3 +324,4 @@ export function useAuditFinalizeActions({
     buildAssetAppraisal,
   }
 }
+

@@ -1,4 +1,4 @@
-
+﻿
 import { ROLE_PLAYBOOK } from './workbenchConfig'
 
 type ReadinessLayer = {
@@ -69,7 +69,7 @@ export default function SovereignGenesisOverview({
       <div className="mb-4 rounded-xl border border-slate-700/80 bg-slate-950/55 p-3 shadow-[0_18px_36px_rgba(2,6,23,.2)]">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
-            <div className="text-xs uppercase tracking-[0.18em] text-slate-400">Project Readiness / 项目完备度</div>
+            <div className="text-xs uppercase tracking-[0.18em] text-slate-400">项目完备度</div>
             <div className="mt-1 text-sm font-bold text-slate-100">七步闭环落地体检</div>
           </div>
           <div className="flex items-center gap-2">
@@ -124,7 +124,7 @@ export default function SovereignGenesisOverview({
           <div className="mt-3 grid gap-2 min-[1200px]:grid-cols-2">
             {ROLE_PLAYBOOK.map((item) => (
               <div key={item.role} className="rounded-lg border border-slate-700 bg-slate-900/70 p-3">
-                <div className="text-sm font-bold text-slate-100">{item.title} <span className="text-xs text-slate-500">({item.role})</span></div>
+                <div className="text-sm font-bold text-slate-100">{item.title}</div>
                 <div className="mt-1 text-xs text-slate-400">目标: {item.goal}</div>
                 <div className="mt-2 text-xs font-semibold text-slate-300">操作行为</div>
                 <div className="text-xs text-slate-400">{item.actions.join('；')}</div>
@@ -140,31 +140,31 @@ export default function SovereignGenesisOverview({
 
       <div className={`${panelCls} wb-panel`}>
         <div className="mb-2 flex items-center justify-between">
-          <div className="text-sm font-extrabold">Project Genesis</div>
-          <span className="rounded-full border border-slate-700 bg-slate-800/90 px-2 py-0.5 text-[10px] text-slate-400">Config view</span>
+          <div className="text-sm font-extrabold">项目基线</div>
+          <span className="rounded-full border border-slate-700 bg-slate-800/90 px-2 py-0.5 text-[10px] text-slate-400">配置视图</span>
         </div>
         <div className="grid gap-3 min-[980px]:grid-cols-2">
           <div className="rounded-xl border border-slate-700/70 bg-slate-950/30 p-3">
-            <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Norm Binding</div>
-            <div className="mt-2 text-sm text-slate-100">Spec: {specBinding || 'Unbound'}</div>
-            <div className="mt-1 text-sm text-slate-300">Gate: {gateBinding || 'Unbound'}</div>
-            <div className="mt-1 text-xs text-slate-500">Refs: {normRefs.join(' / ') || '-'}</div>
+            <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">规范绑定</div>
+            <div className="mt-2 text-sm text-slate-100">规范: {specBinding || '未绑定'}</div>
+            <div className="mt-1 text-sm text-slate-300">门控: {gateBinding || '未绑定'}</div>
+            <div className="mt-1 text-xs text-slate-500">引用: {normRefs.join(' / ') || '-'}</div>
             <div className={`mt-2 text-xs ${isSpecBound ? 'text-emerald-300' : 'text-amber-300'}`}>
-              {isSpecBound ? 'NormResolver ready for routing.' : 'NormResolver still needs binding.'}
+              {isSpecBound ? 'NormResolver 已就绪，可参与路由。' : 'NormResolver 尚未完成绑定。'}
             </div>
           </div>
           <div className="rounded-xl border border-slate-700/70 bg-slate-950/30 p-3">
-            <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Project Control</div>
-            <div className="mt-2 text-sm text-slate-100">Lifecycle: {lifecycle}</div>
-            <div className="mt-1 text-sm text-slate-300">Active node: {activeCode || '-'}</div>
-            <div className="mt-1 text-sm text-slate-300">Available qty: {availableTotal.toLocaleString()}</div>
-            <div className="mt-1 text-xs text-slate-500 break-all">Path: {activePath || displayProjectUri || '-'}</div>
+            <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">项目控制</div>
+            <div className="mt-2 text-sm text-slate-100">生命周期: {lifecycle}</div>
+            <div className="mt-1 text-sm text-slate-300">当前节点: {activeCode || '-'}</div>
+            <div className="mt-1 text-sm text-slate-300">可用数量: {availableTotal.toLocaleString()}</div>
+            <div className="mt-1 text-xs text-slate-500 break-all">路径: {activePath || displayProjectUri || '-'}</div>
             <div className="mt-3 flex flex-wrap gap-2">
               {onNavigateTrip && (
-                <button type="button" onClick={onNavigateTrip} className={`px-3 py-2 text-sm ${btnBlueCls}`}>Open trip console</button>
+                <button type="button" onClick={onNavigateTrip} className={`px-3 py-2 text-sm ${btnBlueCls}`}>打开工序控制台</button>
               )}
               {onNavigateAudit && (
-                <button type="button" onClick={onNavigateAudit} className={`px-3 py-2 text-sm ${btnAmberCls}`}>Open audit</button>
+                <button type="button" onClick={onNavigateAudit} className={`px-3 py-2 text-sm ${btnAmberCls}`}>打开审计台</button>
               )}
             </div>
           </div>
@@ -173,3 +173,4 @@ export default function SovereignGenesisOverview({
     </>
   )
 }
+

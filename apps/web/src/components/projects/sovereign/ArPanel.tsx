@@ -1,4 +1,4 @@
-type Props = {
+﻿type Props = {
   arRadius: string
   arLimit: string
   arLoading: boolean
@@ -70,7 +70,7 @@ export default function ArPanel({
         <div className="rounded-lg border border-slate-800 bg-slate-900/60 px-3 py-2 text-[11px] text-slate-300">
           <div>当前构件: {activeUri || '-'}</div>
           <div>最新 Proof: {latestProofId || '-'}</div>
-          <div>总 Proof Hash: {totalHashShort || '-'}</div>
+          <div>总 存证哈希: {totalHashShort || '-'}</div>
           {nearestAnchorText && <div>最近锚点: {nearestAnchorText}</div>}
         </div>
         {arItems.length > 0 && (
@@ -96,7 +96,7 @@ export default function ArPanel({
                   {String(item.item_no || item.item_name || item.boq_item_uri || 'UTXO')}
                 </div>
                 <div className="text-slate-500 truncate">Proof: {String(item.proof_id || '-')}</div>
-                <div className="text-slate-500 truncate">Hash: {String(item.proof_hash || '-')}</div>
+                <div className="text-slate-500 truncate">哈希: {String(item.proof_hash || '-')}</div>
                 <div className="text-slate-500 truncate">Trip: {String(item.trip_action || item.proof_type || '-')}</div>
                 <div className="text-slate-500 truncate">距离: {String(item.distance_m || '-')}m · {String(item.created_at || '-')}</div>
               </button>
@@ -107,3 +107,4 @@ export default function ArPanel({
     </div>
   )
 }
+

@@ -1,20 +1,14 @@
 import type { ComponentProps } from 'react'
 
-import Dashboard from '../pages/Dashboard'
-import InspectionPage from '../pages/InspectionPage'
-import ReportsPage from '../pages/ReportsPage'
-import SiteRecordsPage from '../pages/SiteRecordsPage'
-import ProofPanel from '../components/proof/ProofPanel'
 import ProjectsPanel from '../components/projects/ProjectsPanel'
+import ProjectDetailDrawer from '../components/projects/ProjectDetailDrawer'
 import TeamPanel from '../components/team/TeamPanel'
+import InviteMemberModal from '../components/team/InviteMemberModal'
 import PermissionsPanel from '../components/permissions/PermissionsPanel'
 import SettingsPanel from '../components/settings/SettingsPanel'
-import InviteMemberModal from '../components/team/InviteMemberModal'
-import ProjectDetailDrawer from '../components/projects/ProjectDetailDrawer'
-
-export type ProofWorkspaceProps = {
-  proofPanelProps: ComponentProps<typeof ProofPanel>
-}
+import ProofPanel from '../components/proof/ProofPanel'
+import InspectionPage from '../pages/InspectionPage'
+import ReportsPage from '../pages/ReportsPage'
 
 export type ProjectsWorkspaceProps = {
   projectsPanelProps: ComponentProps<typeof ProjectsPanel>
@@ -23,43 +17,52 @@ export type ProjectsWorkspaceProps = {
 
 export type TeamWorkspaceProps = {
   teamPanelProps: ComponentProps<typeof TeamPanel>
-  permissionsPanelProps: ComponentProps<typeof PermissionsPanel>
   inviteMemberModalProps: ComponentProps<typeof InviteMemberModal>
+}
+
+export type PermissionsWorkspaceProps = {
+  permissionsPanelProps: ComponentProps<typeof PermissionsPanel>
 }
 
 export type SettingsWorkspaceProps = {
   settingsPanelProps: ComponentProps<typeof SettingsPanel>
 }
 
+export type ProofWorkspaceProps = {
+  proofPanelProps: ComponentProps<typeof ProofPanel>
+}
+
 type Props = {
   activeTab: string
-  proofWorkspace: ProofWorkspaceProps
   projectsWorkspace: ProjectsWorkspaceProps
   teamWorkspace: TeamWorkspaceProps
+  permissionsWorkspace: PermissionsWorkspaceProps
   settingsWorkspace: SettingsWorkspaceProps
+  proofWorkspace: ProofWorkspaceProps
 }
 
 export default function AppWorkspaceContent({
   activeTab,
-  proofWorkspace,
   projectsWorkspace,
   teamWorkspace,
+  permissionsWorkspace,
   settingsWorkspace,
+  proofWorkspace,
 }: Props) {
   return (
     <>
-      {activeTab === 'dashboard' && <Dashboard />}
+      {activeTab === 'projects' && <ProjectsPanel {...projectsWorkspace.projectsPanelProps} />}
       {activeTab === 'inspection' && <InspectionPage />}
-      {activeTab === 'records' && <SiteRecordsPage />}
       {activeTab === 'reports' && <ReportsPage />}
       {activeTab === 'proof' && <ProofPanel {...proofWorkspace.proofPanelProps} />}
-
-      {activeTab === 'projects' && <ProjectsPanel {...projectsWorkspace.projectsPanelProps} />}
-      {activeTab === 'team' && <TeamPanel {...teamWorkspace.teamPanelProps} />}
-      {activeTab === 'permissions' && <PermissionsPanel {...teamWorkspace.permissionsPanelProps} />}
+      {activeTab === 'team' && (
+        <>
+          <TeamPanel {...teamWorkspace.teamPanelProps} />
+          <InviteMemberModal {...teamWorkspace.inviteMemberModalProps} />
+        </>
+      )}
+      {activeTab === 'permissions' && <PermissionsPanel {...permissionsWorkspace.permissionsPanelProps} />}
       {activeTab === 'settings' && <SettingsPanel {...settingsWorkspace.settingsPanelProps} />}
-
-      <InviteMemberModal {...teamWorkspace.inviteMemberModalProps} />
       <ProjectDetailDrawer {...projectsWorkspace.projectDetailDrawerProps} />
     </>
   )

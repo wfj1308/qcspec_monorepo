@@ -159,11 +159,18 @@ export const mobileApi = {
     })
   },
   resolveNormref(uri: string) {
-    return request<{
+    return Promise.resolve({
+      ok: false,
+      unsupported: true,
+      uri,
+      source: 'docpeg-only',
+      protocol: {},
+      gates: [],
+    } as {
       protocol?: Record<string, unknown>
       gates?: Array<Record<string, unknown>>
       [key: string]: unknown
-    }>(`/v1/normref/resolve?uri=${encodeURIComponent(uri)}`, { method: 'GET' })
+    })
   },
   verifyNormref(payload: {
     protocolUri: string
@@ -171,21 +178,22 @@ export const mobileApi = {
     designData?: Record<string, unknown>
     context?: Record<string, unknown>
   }) {
-    return request<{
+    return Promise.resolve({
+      ok: false,
+      unsupported: true,
+      result: 'WARNING',
+      failed_gates: [] as string[],
+      explain: 'DocPeg API pack does not expose normref verify endpoint yet',
+      proof_hash: '',
+      sealed_at: new Date().toISOString(),
+      protocol_uri: payload.protocolUri,
+    } as {
       result: 'PASS' | 'FAIL' | 'WARNING'
       failed_gates?: string[]
       explain?: string
       proof_hash?: string
       sealed_at?: string
       [key: string]: unknown
-    }>('/v1/normref/verify', {
-      method: 'POST',
-      body: JSON.stringify({
-        protocol_uri: payload.protocolUri,
-        actual_data: payload.actualData || {},
-        design_data: payload.designData || {},
-        context: payload.context || {},
-      }),
     })
   },
 }

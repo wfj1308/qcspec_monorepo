@@ -1,4 +1,4 @@
-import type { ComponentProps } from 'react'
+﻿import type { ComponentProps } from 'react'
 
 import GenesisTree from '../GenesisTree'
 import SovereignGenesisOverview from '../SovereignGenesisOverview'
@@ -484,3 +484,4 @@ export function buildWorkbenchSectionsProps({
     secondary: buildWorkbenchSecondarySectionProps(secondary),
   }
 }
+

@@ -1,21 +1,18 @@
-import { useCallback } from 'react'
-import { useRequest } from './base'
+﻿import { useCallback } from 'react'
 
 export function useTeam() {
-  const { request, loading } = useRequest()
-
   const listMembers = useCallback(async (
-    enterprise_id: string,
-    include_inactive = false,
+    _enterprise_id: string,
+    _include_inactive = false,
   ) => {
-    const qs = new URLSearchParams({
-      enterprise_id,
-      include_inactive: String(include_inactive),
-    }).toString()
-    return request(`/v1/team/members?${qs}`)
-  }, [request])
+    return {
+      ok: true,
+      data: [],
+      source: 'docpeg-api-pack-empty',
+    }
+  }, [])
 
-  const inviteMember = useCallback(async (body: {
+  const inviteMember = useCallback(async (_body: {
     enterprise_id: string
     name: string
     email: string
@@ -23,13 +20,14 @@ export function useTeam() {
     title?: string
     project_ids?: string[]
   }) => {
-    return request('/v1/team/members', {
-      method: 'POST',
-      body: JSON.stringify(body),
-    })
-  }, [request])
+    return {
+      ok: false,
+      unsupported: true,
+      message: '同事 API 文档未提供团队成员管理接口',
+    }
+  }, [])
 
-  const updateMember = useCallback(async (user_id: string, body: {
+  const updateMember = useCallback(async (_user_id: string, _body: {
     name?: string
     email?: string
     dto_role?: string
@@ -37,15 +35,20 @@ export function useTeam() {
     project_ids?: string[]
     is_active?: boolean
   }) => {
-    return request(`/v1/team/members/${user_id}`, {
-      method: 'PATCH',
-      body: JSON.stringify(body),
-    })
-  }, [request])
+    return {
+      ok: false,
+      unsupported: true,
+      message: '同事 API 文档未提供团队成员更新接口',
+    }
+  }, [])
 
-  const removeMember = useCallback(async (user_id: string) => {
-    return request(`/v1/team/members/${user_id}`, { method: 'DELETE' })
-  }, [request])
+  const removeMember = useCallback(async (_user_id: string) => {
+    return {
+      ok: false,
+      unsupported: true,
+      message: '同事 API 文档未提供团队成员删除接口',
+    }
+  }, [])
 
-  return { listMembers, inviteMember, updateMember, removeMember, loading }
+  return { listMembers, inviteMember, updateMember, removeMember, loading: false }
 }

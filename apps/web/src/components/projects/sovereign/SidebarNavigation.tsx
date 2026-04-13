@@ -16,7 +16,7 @@ type Props = {
 export default function SidebarNavigation({ items, activeView, onNavigate }: Props) {
   return (
     <aside className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
-      <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Sovereign Menu</div>
+      <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">主权菜单</div>
       <div className="mt-3 grid gap-2">
         {items.map((item) => {
           const active = item.view === activeView

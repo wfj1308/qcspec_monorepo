@@ -1,4 +1,4 @@
-type Props = {
+﻿type Props = {
   minValueText: string
   maxValueText: string
   deviationText: string
@@ -51,7 +51,7 @@ export default function ConsensusDisputePanel({
     <>
       <div className="border border-dashed border-slate-700 rounded-xl p-3 mt-3">
         <div className="text-xs font-extrabold mb-1">共识冲突检查器</div>
-        <div className="text-[11px] text-slate-400 mb-2">对比多方签名元数据中的实测值，偏差超出 NormPeg 阈值将自动挂起结算 Trip。</div>
+        <div className="text-[11px] text-slate-400 mb-2">对比多方签名元数据中的实测值，偏差超出 NormPeg 阈值将自动挂起结算工序。</div>
         <div className="grid gap-2">
           <div className="rounded-lg border border-slate-800 bg-slate-900/60 px-3 py-2 text-[11px] text-slate-300">
             <div>最小值: {minValueText}</div>
@@ -60,7 +60,7 @@ export default function ConsensusDisputePanel({
             <div>阈值: {consensusAllowedAbsText} / {consensusAllowedPctText}</div>
           </div>
           <div className={`rounded-lg border px-3 py-2 text-[11px] ${consensusConflict ? 'border-rose-600/60 bg-rose-950/40 text-rose-100' : 'border-emerald-600/50 bg-emerald-950/30 text-emerald-200'}`}>
-            {consensusConflict ? '共识冲突警告：将生成 Dispute UTXO 并锁定结算权限' : '共识一致：允许进入结算流程'}
+            {consensusConflict ? '共识冲突警告：将生成争议 UTXO 并锁定结算权限' : '共识一致：允许进入结算流程'}
           </div>
           <div className="grid grid-cols-[1fr_auto] gap-2">
             <button
@@ -79,19 +79,19 @@ export default function ConsensusDisputePanel({
             </button>
           </div>
           <div className="text-[11px] text-slate-400">
-            Dispute UTXO: {disputeProof || (consensusConflict ? '待生成' : '未触发')}
+            争议 UTXO: {disputeProof || (consensusConflict ? '待生成' : '未触发')}
           </div>
         </div>
       </div>
       <div className="border border-dashed border-slate-700 rounded-xl p-3 mt-3">
         <div className="text-xs font-extrabold mb-1">共识争议仲裁</div>
         <div className="text-[11px] text-slate-400 mb-2">争议状态: {disputeOpen ? '待仲裁' : '暂无未决争议'}</div>
-        <div className="text-[11px] text-slate-500 mb-2">Dispute UTXOResolution Trip：三方达成新哈希共识后解除锁定</div>
+        <div className="text-[11px] text-slate-500 mb-2">争议 UTXO 解除流程：三方达成新哈希共识后解除锁定</div>
         <div className="grid gap-2">
           <input
             value={disputeProofId}
             onChange={(event) => onDisputeProofIdChange(event.target.value)}
-            placeholder="争议 Proof ID"
+            placeholder="争议 存证ID"
             className={inputBaseCls}
           />
           <textarea
@@ -121,7 +121,7 @@ export default function ConsensusDisputePanel({
           </div>
           {!!disputeResolveRes && (
             <div className="text-[11px] text-emerald-300">
-              仲裁 Proof: {String((disputeResolveRes as Record<string, unknown>).output_proof_id || (disputeResolveRes as Record<string, unknown>).proof_id || '')}
+              仲裁存证: {String((disputeResolveRes as Record<string, unknown>).output_proof_id || (disputeResolveRes as Record<string, unknown>).proof_id || '')}
             </div>
           )}
         </div>
@@ -129,3 +129,4 @@ export default function ConsensusDisputePanel({
     </>
   )
 }
+

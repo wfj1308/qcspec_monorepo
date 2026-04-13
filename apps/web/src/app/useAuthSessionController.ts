@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+锘縤mport { useEffect, useState } from 'react'
 import type { Enterprise, Project, User } from '@qcspec/types'
 
 type SessionMeResponse = {
@@ -30,6 +30,7 @@ interface UseAuthSessionControllerArgs {
   token?: string | null
   user?: User | null
   enterprise?: Enterprise | null
+  skipAuthBootstrap?: boolean
   meApi: (options?: { signal?: AbortSignal; timeoutMs?: number }) => Promise<unknown>
   getEnterpriseApi: (
     enterpriseId: string,
@@ -44,6 +45,7 @@ export function useAuthSessionController({
   token,
   user,
   enterprise,
+  skipAuthBootstrap = false,
   meApi,
   getEnterpriseApi,
   setUser,
@@ -51,8 +53,8 @@ export function useAuthSessionController({
   setCurrentProject,
 }: UseAuthSessionControllerArgs) {
   const hasPersistedSession = Boolean(token && user?.id && enterprise?.id)
-  const [appReady, setAppReady] = useState(hasPersistedSession)
-  const [sessionChecking, setSessionChecking] = useState(Boolean(token))
+  const [appReady, setAppReady] = useState(skipAuthBootstrap ? true : hasPersistedSession)
+  const [sessionChecking, setSessionChecking] = useState(skipAuthBootstrap ? false : Boolean(token))
   const [loginForm, setLoginForm] = useState<LoginFormState>({ account: '', pass: '' })
   const [loggingIn, setLoggingIn] = useState(false)
 
@@ -62,6 +64,12 @@ export function useAuthSessionController({
     const bootstrapTimeoutMs = Number(import.meta.env.VITE_BOOTSTRAP_TIMEOUT_MS || 8000)
 
     const restoreSession = async () => {
+      if (skipAuthBootstrap) {
+        setAppReady(true)
+        setSessionChecking(false)
+        return
+      }
+
       if (!token) {
         setAppReady(false)
         setSessionChecking(false)
@@ -104,14 +112,14 @@ export function useAuthSessionController({
           id: meRes.id,
           enterprise_id: meRes.enterprise_id,
           v_uri: meRes.v_uri || '',
-          name: meRes.name || '用户',
+          name: meRes.name || '鐢ㄦ埛',
           email: meRes.email || undefined,
           dto_role: (meRes.dto_role || 'PUBLIC') as 'PUBLIC' | 'MARKET' | 'AI' | 'SUPERVISOR' | 'OWNER' | 'REGULATOR',
           title: meRes.title || undefined,
         },
         {
           id: enterpriseRes.id,
-          name: enterpriseRes.name || '企业',
+          name: enterpriseRes.name || '浼佷笟',
           v_uri: enterpriseRes.v_uri || 'v://cn/enterprise/',
           short_name: enterpriseRes.short_name,
           plan: enterpriseRes.plan || 'enterprise',
@@ -129,7 +137,7 @@ export function useAuthSessionController({
       cancelled = true
       abortController.abort()
     }
-  }, [token, user?.id, enterprise?.id, appReady, meApi, getEnterpriseApi, setCurrentProject, setProjects, setUser])
+  }, [skipAuthBootstrap, token, user?.id, enterprise?.id, appReady, meApi, getEnterpriseApi, setCurrentProject, setProjects, setUser])
 
   return {
     appReady,

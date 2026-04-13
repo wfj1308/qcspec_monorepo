@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+﻿import { useMemo } from 'react'
 
 import { sanitizeGenericLabel } from '../../treeUtils'
 import type { TreeNode } from '../../types'
@@ -93,11 +93,11 @@ export function useSovereignWorkbenchViewState({
     const latestTimeline = evidenceTimeline.length ? evidenceTimeline[evidenceTimeline.length - 1] : null
     const latestDoc = filteredDocs.length ? filteredDocs[filteredDocs.length - 1] : null
     return [
-      { id: 'graph-ledger', label: '0# Ledger Genesis', subtitle: String(active?.uri || '-'), tone: 'neutral' as const },
-      { id: 'graph-qc', label: 'QCSpec proof', subtitle: String((latestTimeline || {}).proof_id || inputProofId || '-'), tone: gateStats.qcCompliant ? ('ok' as const) : ('warn' as const) },
-      { id: 'graph-lab', label: 'LabPeg proof', subtitle: gateStats.labLatestPass || 'pending', tone: gateStats.labQualified ? ('ok' as const) : ('warn' as const) },
-      { id: 'graph-doc', label: 'DocPeg / PDF', subtitle: String((latestDoc || {}).file_name || verifyUri || '-'), tone: verifyUri || latestDoc ? ('ok' as const) : ('neutral' as const) },
-      { id: 'graph-hash', label: 'Final total_proof_hash', subtitle: String(totalHash || '-'), tone: totalHash ? ('ok' as const) : ('neutral' as const) },
+      { id: 'graph-ledger', label: '0# 账本基线', subtitle: String(active?.uri || '-'), tone: 'neutral' as const },
+      { id: 'graph-qc', label: 'QCSpec 存证', subtitle: String((latestTimeline || {}).proof_id || inputProofId || '-'), tone: gateStats.qcCompliant ? ('ok' as const) : ('warn' as const) },
+      { id: 'graph-lab', label: 'LabPeg 存证', subtitle: gateStats.labLatestPass || '待生成', tone: gateStats.labQualified ? ('ok' as const) : ('warn' as const) },
+      { id: 'graph-doc', label: 'DocPeg / PDF文档', subtitle: String((latestDoc || {}).file_name || verifyUri || '-'), tone: verifyUri || latestDoc ? ('ok' as const) : ('neutral' as const) },
+      { id: 'graph-hash', label: '最终总存证哈希', subtitle: String(totalHash || '-'), tone: totalHash ? ('ok' as const) : ('neutral' as const) },
     ]
   }, [active?.uri, evidenceTimeline, filteredDocs, gateStats.labLatestPass, gateStats.labQualified, gateStats.qcCompliant, inputProofId, totalHash, verifyUri])
 
@@ -116,7 +116,7 @@ export function useSovereignWorkbenchViewState({
     if (cleanCode) return cleanName ? `${cleanCode} · ${cleanName}` : cleanCode
     if (cleanName) return cleanName
     if (cleanSpu) return cleanSpu
-    return 'No template bound'
+    return '未绑定模板'
   }, [ctx, templateBinding.template_code, templateBinding.template_name])
 
   const templatePath = String(templateBinding.template_path || '')
@@ -134,13 +134,13 @@ export function useSovereignWorkbenchViewState({
     const nodeName = String(active?.name || '')
     const nodeCode = String(active?.code || '')
     const lines = [
-      'QCSpec DocPeg Draft',
-      `Node: ${nodeCode}${nodeName ? ` ${nodeName}` : ''}`,
-      `Executor DID: ${executorDid}`,
-      `Supervisor DID: ${supervisorDid || '-'}`,
-      `Owner DID: ${ownerDid || '-'}`,
-      `Stamped at: ${draftStamp || new Date().toISOString()}`,
-      `Template: ${templatePath || templateFallback || '-'}`,
+      'QCSpec DocPeg 草稿',
+      `节点: ${nodeCode}${nodeName ? ` ${nodeName}` : ''}`,
+      `执行方DID: ${executorDid}`,
+      `监理DID: ${supervisorDid || '-'}`,
+      `业主DID: ${ownerDid || '-'}`,
+      `盖章时间: ${draftStamp || new Date().toISOString()}`,
+      `模板: ${templatePath || templateFallback || '-'}`,
     ]
     return buildDraftPdfBase64(lines)
   }, [active?.code, active?.name, buildDraftPdfBase64, draftReady, draftStamp, executorDid, ownerDid, supervisorDid, templateFallback, templatePath])
@@ -174,3 +174,4 @@ export function useSovereignWorkbenchViewState({
     activeSignMarker,
   }
 }
+

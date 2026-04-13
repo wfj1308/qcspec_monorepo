@@ -1,4 +1,4 @@
-import {
+﻿import {
   type buildOfflineFooterProps,
   type buildWorkbenchOverlayProps,
 } from './workbench/overlayPropsBuilders'
@@ -281,3 +281,4 @@ export function buildSovereignWorkbenchSecondary(
 ): WorkbenchSecondaryBuilderArgs {
   return args
 }
+

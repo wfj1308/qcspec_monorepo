@@ -1,4 +1,4 @@
-type Props = {
+﻿type Props = {
   scanConfirmUri: string
   scanProofId: string
   scanPayload: string
@@ -43,7 +43,7 @@ export default function ScanConfirmPanel({
       <div className="text-[11px] text-slate-400 mb-2">验收 URI: {scanConfirmUri || '未生成'}</div>
       <div className="grid gap-2">
         <div className="rounded-lg border border-slate-800 bg-slate-900/60 px-3 py-2 text-[11px]">
-          <div className="text-slate-400">当前构件 Proof ID</div>
+          <div className="text-slate-400">当前构件 存证ID</div>
           <div className="text-slate-200 break-all">{scanProofId || '未绑定'}</div>
         </div>
         <textarea
@@ -89,7 +89,7 @@ export default function ScanConfirmPanel({
             <input
               value={scanProofId}
               onChange={(event) => onScanProofIdChange(event.target.value)}
-              placeholder="手动指定 Proof ID（可选）"
+              placeholder="手动指定 存证ID（可选）"
               className={inputBaseCls}
             />
           </div>
@@ -103,3 +103,4 @@ export default function ScanConfirmPanel({
     </div>
   )
 }
+

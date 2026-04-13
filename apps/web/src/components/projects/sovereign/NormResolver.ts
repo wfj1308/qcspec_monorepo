@@ -100,12 +100,12 @@ export function resolveNormRefs(ctx: Record<string, unknown> | null, isContractS
         ? 'partial'
         : 'missing'
   const message = isContractSpu
-    ? '合同凭证模式不依赖 NormRef 门控。'
+    ? '合同凭证模式不依赖规范门控。'
     : status === 'ready'
-      ? `NormRef 已联通：${normRefs.length || 1} 条规则在线。`
+      ? `规范门控已联通：${normRefs.length || 1} 条规则在线。`
       : status === 'partial'
-        ? 'NormRef 部分联通，建议补齐 Spec / Gate 绑定。'
-        : 'NormRef 缺失，提交应被 Gatekeeper 拦截。'
+        ? '规范门控部分联通，建议补齐规范/闸门绑定。'
+        : '规范门控缺失，提交应被守门器拦截。'
 
   return {
     specBinding,
@@ -169,7 +169,7 @@ export function resolveGateState({ schema, form, ctx, isContractSpu }: ResolveGa
 }
 
 export function deriveGateReason(gateStats: GateStats) {
-  if (!gateStats.labQualified) return '缺少实验合格 Proof'
-  if (!gateStats.qcCompliant) return 'TripRole 现场判定未通过'
+  if (!gateStats.labQualified) return '缺少实验合格存证'
+  if (!gateStats.qcCompliant) return '工序现场判定未通过'
   return ''
 }

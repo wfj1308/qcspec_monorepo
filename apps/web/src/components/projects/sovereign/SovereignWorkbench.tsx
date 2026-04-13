@@ -1,4 +1,4 @@
-import { Suspense, lazy, useMemo  } from 'react'
+﻿import { Suspense, lazy, useMemo  } from 'react'
 
 import AuditGatekeeper from './AuditGatekeeper'
 import { useNormEngine } from './NormEngine'
@@ -375,3 +375,4 @@ export default function SovereignWorkbench({
     </div>
   )
 }
+

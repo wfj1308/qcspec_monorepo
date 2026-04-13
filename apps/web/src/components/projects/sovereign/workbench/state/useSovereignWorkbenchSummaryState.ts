@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+﻿import { useMemo } from 'react'
 
 import { buildProjectSovereignValue } from '../../contextBuilders'
 import type { ProjectSovereignContextValue } from '../../SovereignContext'
@@ -15,13 +15,13 @@ import type {
 } from '../../types'
 
 const READINESS_ACTION: Record<string, string> = {
-  live_boq: 'Import the 400-chapter ledger and finish Genesis anchoring',
-  specdict_qcgate: 'Bind gates to SpecDict and publish a version',
-  docpeg_documents: 'Complete signing and attach DocPeg documents',
-  field_execution_qcspec: 'Submit at least one field QC execution proof',
-  labpeg_dual_gate: 'Record LabPeg evidence and clear missing inspections',
-  finance_erp_railpact: 'Generate payment certificate and RailPact instruction',
-  audit_reconciliation: 'Run sovereign reconciliation and confirm zero illegal attempts',
+  live_boq: '导入 400 章台账并完成 Genesis 锚定',
+  specdict_qcgate: '将闸门规则绑定到 SpecDict 并发布版本',
+  docpeg_documents: '完成签认并挂接 DocPeg 文档',
+  field_execution_qcspec: '至少提交一次现场质检执行存证',
+  labpeg_dual_gate: '补齐 LabPeg 证据并清理缺检项',
+  finance_erp_railpact: '生成支付凭证并下发 RailPact 指令',
+  audit_reconciliation: '执行主权对账并确认非法尝试为零',
 }
 
 type Args = {
@@ -86,11 +86,11 @@ export function useSovereignWorkbenchSummaryState({
   ui,
 }: Args) {
   const traceOverlayNodes = useMemo<EvidenceGraphNode[]>(() => ([
-    { id: 'ledger', label: '0# Ledger Genesis', subtitle: project.active?.uri || '-', tone: 'neutral' },
-    { id: 'qcspec', label: 'QCSpec proof', subtitle: asset.sampleId || '-', tone: audit.gateStats.qcCompliant ? 'ok' : 'warn' },
-    { id: 'lab', label: 'LabPeg proof', subtitle: audit.gateStats.labLatestPass || 'pending', tone: audit.gateStats.labQualified ? 'ok' : 'warn' },
-    { id: 'docpeg', label: 'DocPeg report', subtitle: asset.verifyUri || '-', tone: asset.verifyUri ? 'ok' : 'neutral' },
-    { id: 'hash', label: 'Final total_proof_hash', subtitle: asset.totalHash || '-', tone: asset.totalHash ? 'ok' : 'neutral' },
+    { id: 'ledger', label: '0# 账本基线', subtitle: project.active?.uri || '-', tone: 'neutral' },
+    { id: 'qcspec', label: 'QCSpec 存证', subtitle: asset.sampleId || '-', tone: audit.gateStats.qcCompliant ? 'ok' : 'warn' },
+    { id: 'lab', label: 'LabPeg 存证', subtitle: audit.gateStats.labLatestPass || '待生成', tone: audit.gateStats.labQualified ? 'ok' : 'warn' },
+    { id: 'docpeg', label: 'DocPeg 报告', subtitle: asset.verifyUri || '-', tone: asset.verifyUri ? 'ok' : 'neutral' },
+    { id: 'hash', label: '最终总存证哈希', subtitle: asset.totalHash || '-', tone: asset.totalHash ? 'ok' : 'neutral' },
   ]), [
     asset.sampleId,
     asset.totalHash,
@@ -103,15 +103,15 @@ export function useSovereignWorkbenchSummaryState({
 
   const componentTypeOptions = useMemo<Array<{ value: string; label: string }>>(() => {
     const base = [
-      { value: 'main_beam', label: 'Main Beam' },
-      { value: 'pier', label: 'Pier' },
-      { value: 'guardrail', label: 'Guardrail' },
-      { value: 'slab', label: 'Slab' },
+      { value: 'main_beam', label: '主梁' },
+      { value: 'pier', label: '桥墩' },
+      { value: 'guardrail', label: '护栏' },
+      { value: 'slab', label: '板体' },
     ]
     if (!base.some((item) => item.value === ui.compType) && ui.compType) {
       base.unshift({
         value: ui.compType,
-        label: ui.compType === 'generic' ? 'Unmapped component' : `Other (${ui.compType})`,
+        label: ui.compType === 'generic' ? '未映射构件' : `其他（${ui.compType}）`,
       })
     }
     return base
@@ -215,3 +215,4 @@ export function useSovereignWorkbenchSummaryState({
     sovereignValue,
   }
 }
+

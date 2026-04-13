@@ -1,4 +1,4 @@
-import type { MutableRefObject } from 'react'
+﻿import type { MutableRefObject } from 'react'
 import { useEffect, useRef } from 'react'
 import { getDocument } from 'pdfjs-dist/legacy/build/pdf'
 
@@ -124,9 +124,9 @@ export function useGeoFenceToastEffect({
     const key = `${activeUri}|${Math.round(geoDistance || 0)}|${temporalBlocked ? 'time' : 'geo'}`
     if (geoFenceToastRef.current === key) return
     geoFenceToastRef.current = key
-    const distanceText = geoDistance != null ? `${Math.round(geoDistance)}m` : 'unknown'
+    const distanceText = geoDistance != null ? `${Math.round(geoDistance)}m` : '未知'
     const radiusText = geoRadiusM != null ? `${geoRadiusM}m` : '-'
-    showToast(`Geo-temporal block active: distance ${distanceText} / radius ${radiusText}`)
+    showToast(`时空门控已拦截：距离 ${distanceText} / 半径 ${radiusText}`)
   }, [activeUri, geoDistance, geoFenceActive, geoRadiusM, geoTemporalBlocked, showToast, temporalBlocked])
 }
 
@@ -210,7 +210,7 @@ export function useDocPegPreviewEffects({
       setPdfRenderLoading(false)
     }).catch(() => {
       if (cancelled) return
-      setPdfRenderError('PDF preview failed')
+      setPdfRenderError('PDF 预览失败')
       setPdfRenderLoading(false)
     })
     return () => {
@@ -233,3 +233,4 @@ export function useDocPegPreviewEffects({
     container.scrollTo({ top: nextTop, behavior: 'smooth' })
   }, [activeSignMarker, pdfCanvasRef, previewPdfB64, previewScrollRef])
 }
+

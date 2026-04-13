@@ -1,4 +1,4 @@
-import type { Evidence } from './types'
+﻿import type { Evidence } from './types'
 
 type Props = {
   evidenceOpen: boolean
@@ -76,8 +76,8 @@ export default function SovereignEvidenceModals({
             )}
             <div className="grid gap-1 break-all text-xs text-slate-400">
               <div>文件名: {String(evidenceCenterFocus.file_name || evidenceCenterFocus.id || '-')}</div>
-              <div>Hash: {String(evidenceCenterFocus.evidence_hash || '-')}</div>
-              <div>Proof ID: {String(evidenceCenterFocus.proof_id || '-')}</div>
+              <div>哈希: {String(evidenceCenterFocus.evidence_hash || '-')}</div>
+              <div>存证ID: {String(evidenceCenterFocus.proof_id || '-')}</div>
               <div>时间: {String(evidenceCenterFocus.time || '-')}</div>
               <div>来源: {String(evidenceCenterFocus.source || '-')}</div>
               <div>匹配: {String(evidenceCenterFocus.hash_match_text || (evidenceCenterFocus.hash_matched ? '已匹配' : '待核验'))}</div>
@@ -106,8 +106,8 @@ export default function SovereignEvidenceModals({
               {String(evidenceCenterDocFocus.doc_status || '') && <div>状态: {String(evidenceCenterDocFocus.doc_status || '-')}</div>}
               {String(evidenceCenterDocFocus.trip_action || '') && <div>Trip: {String(evidenceCenterDocFocus.trip_action || '-')}</div>}
               {String(evidenceCenterDocFocus.lifecycle_stage || '') && <div>阶段: {String(evidenceCenterDocFocus.lifecycle_stage || '-')}</div>}
-              <div>Proof ID: {String(evidenceCenterDocFocus.proof_id || '-')}</div>
-              <div>Proof Hash: {String(evidenceCenterDocFocus.proof_hash || '-')}</div>
+              <div>存证ID: {String(evidenceCenterDocFocus.proof_id || '-')}</div>
+              <div>存证哈希: {String(evidenceCenterDocFocus.proof_hash || '-')}</div>
               <div>创建时间: {String(evidenceCenterDocFocus.created_at || '-')}</div>
               <div>来源 UTXO: {String(evidenceCenterDocFocus.source_utxo_id || '-')}</div>
               <div>节点: {String(evidenceCenterDocFocus.node_uri || '-')}</div>
@@ -128,3 +128,4 @@ export default function SovereignEvidenceModals({
     </>
   )
 }
+

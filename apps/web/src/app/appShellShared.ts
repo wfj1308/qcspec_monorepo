@@ -1,29 +1,38 @@
-/** Shared types, constants, and pure helpers extracted from App.tsx */
-
+﻿/** Shared types, constants, and pure helpers extracted from App.tsx */
 
 export const NAV = [
-  { key: 'dashboard', icon: '📊', label: '质检驾驶舱' },
-  { key: 'projects', icon: '🏗️', label: '项目与构件' },
-  { key: 'inspection', icon: '📝', label: '质量验收' },
-  { key: 'records', icon: '🗂️', label: '现场记录' },
-  { key: 'proof', icon: '🔒', label: '质量追溯' },
-  { key: 'reports', icon: '📄', label: '报表中心' },
-  { key: 'team', icon: '👥', label: '组织成员' },
-  { key: 'permissions', icon: '🔐', label: '角色权限' },
-  { key: 'settings', icon: '⚙️', label: '系统设置' },
+  { key: 'projects', icon: 'P', label: '项目' },
+  { key: 'inspection', icon: 'I', label: '开始质检' },
+  { key: 'reports', icon: 'R', label: '生成报告' },
+  { key: 'proof', icon: 'V', label: 'Proof 存证' },
+  { key: 'team', icon: 'T', label: '团队管理' },
+  { key: 'permissions', icon: 'D', label: 'DTO 权限' },
+  { key: 'settings', icon: 'S', label: '系统设置' },
 ]
 
 export const NAV_SECTIONS: Array<{ label: string; keys: string[] }> = [
-  { label: '业务主链', keys: ['dashboard', 'projects', 'inspection', 'records', 'proof', 'reports'] },
+  { label: '主导航', keys: ['projects', 'inspection', 'reports', 'proof'] },
   { label: '管理中心', keys: ['team', 'permissions', 'settings'] },
 ]
 
 export type TeamRole = 'OWNER' | 'SUPERVISOR' | 'AI' | 'PUBLIC'
+export type PermissionRole = TeamRole | 'REGULATOR' | 'MARKET'
+export type PermissionKey = 'view' | 'input' | 'approve' | 'manage' | 'settle' | 'regulator'
+export type ZeroLedgerTab = 'personnel' | 'equipment' | 'subcontract' | 'materials'
+
 export const ROLE_NAV_KEYS: Record<TeamRole, string[]> = {
-  AI: ['dashboard', 'projects', 'inspection', 'records', 'proof'],
-  SUPERVISOR: ['dashboard', 'projects', 'inspection', 'records', 'proof', 'reports'],
-  OWNER: ['dashboard', 'projects', 'inspection', 'records', 'proof', 'reports', 'team', 'permissions', 'settings'],
-  PUBLIC: ['dashboard', 'projects', 'records', 'proof', 'reports'],
+  AI: ['projects', 'inspection', 'reports', 'proof'],
+  SUPERVISOR: ['projects', 'inspection', 'reports', 'proof', 'permissions'],
+  OWNER: ['projects', 'inspection', 'reports', 'proof', 'team', 'permissions', 'settings'],
+  PUBLIC: ['projects', 'reports', 'proof'],
+}
+
+export const normalizeTeamRole = (value: unknown, fallback: TeamRole = 'AI'): TeamRole => {
+  const role = String(value || '').toUpperCase()
+  if (role === 'OWNER' || role === 'SUPERVISOR' || role === 'AI' || role === 'PUBLIC') {
+    return role as TeamRole
+  }
+  return fallback
 }
 
 export const getAllowedNavKeysByRole = (role: unknown): string[] => {
@@ -34,7 +43,7 @@ export const getAllowedNavKeysByRole = (role: unknown): string[] => {
 export const resolveAllowedTab = (
   tab: string,
   allowedTabs: string[],
-  fallbackTab = 'dashboard'
+  fallbackTab = 'projects'
 ): string => {
   if (allowedTabs.includes(tab)) return tab
   if (allowedTabs.includes(fallbackTab)) return fallbackTab
@@ -44,9 +53,6 @@ export const resolveAllowedTab = (
 export type SegType = 'km' | 'contract' | 'structure'
 export type PermTemplate = 'standard' | 'strict' | 'open' | 'custom'
 export type InspectionTypeKey = 'flatness' | 'crack' | 'rut' | 'compaction' | 'settlement'
-export type PermissionRole = TeamRole | 'REGULATOR' | 'MARKET'
-export type PermissionKey = 'view' | 'input' | 'approve' | 'manage' | 'settle' | 'regulator'
-export type ZeroLedgerTab = 'personnel' | 'equipment' | 'subcontract' | 'materials'
 
 export interface ZeroPersonnelRow {
   id: string
@@ -107,20 +113,6 @@ export interface ProjectRegisterMeta {
   memberCount: number
 }
 
-export interface ProjectEditDraft {
-  name: string
-  type: string
-  owner_unit: string
-  contractor: string
-  supervisor: string
-  contract_no: string
-  start_date: string
-  end_date: string
-  erp_project_code: string
-  erp_project_name: string
-  description: string
-}
-
 export interface PermissionRow {
   role: PermissionRole
   view: boolean
@@ -178,6 +170,68 @@ export interface ErpWritebackDraftState {
   gitpegProofHashField: string
   gitpegIndustryProfileIdField: string
 }
+
+export interface ProjectEditDraft {
+  name: string
+  type: string
+  owner_unit: string
+  contractor: string
+  supervisor: string
+  contract_no: string
+  start_date: string
+  end_date: string
+  erp_project_code: string
+  erp_project_name: string
+}
+
+export const TYPE_LABEL: Record<string, string> = {
+  highway: '高速公路',
+  road: '普通公路',
+  urban: '城市道路',
+  bridge: '桥梁',
+  bridge_repair: '桥梁养护',
+  tunnel: '隧道',
+  municipal: '市政工程',
+  water: '水利工程',
+}
+
+export const TYPE_ICON: Record<string, string> = {
+  highway: '高',
+  road: '路',
+  urban: '城',
+  bridge: '桥',
+  bridge_repair: '养',
+  tunnel: '隧',
+  municipal: '市',
+  water: '水',
+}
+
+export const PROJECT_TYPE_OPTIONS: Array<{ value: string; label: string }> = [
+  { value: 'highway', label: '高速公路' },
+  { value: 'road', label: '普通公路' },
+  { value: 'urban', label: '城市道路' },
+  { value: 'bridge', label: '桥梁' },
+  { value: 'bridge_repair', label: '桥梁养护' },
+  { value: 'tunnel', label: '隧道' },
+  { value: 'municipal', label: '市政工程' },
+  { value: 'water', label: '水利工程' },
+]
+
+export const INSPECTION_TYPE_OPTIONS: Array<{ key: InspectionTypeKey; label: string }> = [
+  { key: 'flatness', label: '平整度' },
+  { key: 'crack', label: '裂缝宽度' },
+  { key: 'rut', label: '车辙深度' },
+  { key: 'compaction', label: '压实度' },
+  { key: 'settlement', label: '沉降' },
+]
+
+export const INSPECTION_TYPE_LABEL: Record<InspectionTypeKey, string> = INSPECTION_TYPE_OPTIONS.reduce(
+  (acc, item) => {
+    acc[item.key] = item.label
+    return acc
+  },
+  {} as Record<InspectionTypeKey, string>
+)
 
 export const ROLE_LABEL: Record<TeamRole, string> = {
   OWNER: 'OWNER',
@@ -311,56 +365,7 @@ export const detectPermissionTemplate = (rows: PermissionRow[]): PermTemplate =>
   return 'custom'
 }
 
-export const TYPE_LABEL: Record<string, string> = {
-  highway: '高速公路',
-  road: '普通公路',
-  urban: '城市道路',
-  bridge: '桥梁工程',
-  bridge_repair: '桥梁维修',
-  tunnel: '隧道工程',
-  municipal: '市政工程',
-  water: '水利工程',
-}
-
-export const TYPE_ICON: Record<string, string> = {
-  highway: '🛣️',
-  road: '🛤️',
-  urban: '🏙️',
-  bridge: '🌉',
-  bridge_repair: '🔧',
-  tunnel: '🚇',
-  municipal: '🏙️',
-  water: '💧',
-}
-
-export const PROJECT_TYPE_OPTIONS: Array<{ value: string; label: string }> = [
-  { value: 'highway', label: '高速公路' },
-  { value: 'road', label: '普通公路' },
-  { value: 'urban', label: '城市道路' },
-  { value: 'bridge', label: '桥梁工程' },
-  { value: 'bridge_repair', label: '桥梁维修' },
-  { value: 'tunnel', label: '隧道工程' },
-  { value: 'municipal', label: '市政工程' },
-  { value: 'water', label: '水利工程' },
-]
-
-export const INSPECTION_TYPE_OPTIONS: Array<{ key: InspectionTypeKey; label: string }> = [
-  { key: 'flatness', label: '路面平整度' },
-  { key: 'crack', label: '裂缝宽度' },
-  { key: 'rut', label: '车辙深度' },
-  { key: 'compaction', label: '压实度' },
-  { key: 'settlement', label: '路基沉降' },
-]
-
-export const INSPECTION_TYPE_LABEL: Record<InspectionTypeKey, string> = INSPECTION_TYPE_OPTIONS.reduce(
-  (acc, item) => {
-    acc[item.key] = item.label
-    return acc
-  },
-  {} as Record<InspectionTypeKey, string>
-)
-
-export const INSPECTION_TYPE_KEYS = new Set<InspectionTypeKey>(INSPECTION_TYPE_OPTIONS.map((item) => item.key))
+const INSPECTION_TYPE_KEYS = new Set<InspectionTypeKey>(INSPECTION_TYPE_OPTIONS.map((item) => item.key))
 
 export const normalizeSegType = (value: unknown): SegType => {
   const text = String(value || '').toLowerCase()
@@ -409,14 +414,6 @@ export const normalizeStructures = (values: unknown): Array<{ kind: string; name
       code: String(item.code || '').trim(),
     }))
     .filter((item) => item.kind || item.name || item.code)
-}
-
-export const normalizeTeamRole = (value: unknown, fallback: TeamRole = 'AI'): TeamRole => {
-  const role = String(value || '').toUpperCase()
-  if (role === 'OWNER' || role === 'SUPERVISOR' || role === 'AI' || role === 'PUBLIC') {
-    return role as TeamRole
-  }
-  return fallback
 }
 
 export const normalizeZeroPersonnelRows = (values: unknown): ZeroPersonnelRow[] => {
@@ -479,5 +476,3 @@ export const normalizeZeroSignStatus = (value: unknown): 'pending' | 'approved' 
   if (v === 'approved' || v === 'rejected') return v
   return 'pending'
 }
-
-

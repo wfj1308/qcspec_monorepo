@@ -1,26 +1,25 @@
 ﻿import { useEffect, useState } from 'react'
 import { useUIStore, useProjectStore, useAuthStore } from './store'
 import { Toast } from './components/ui'
-import { useAuthApi, useProof, useTeam, useSettings, useProjects } from './hooks/api'
+import { useAuthApi, useProof, useProjects } from './hooks/api'
+import { useSettings } from './hooks/api/settings'
+import { useTeam } from './hooks/api/team'
 import AppShellLayout from './components/layout/AppShellLayout'
 import AuthEntry from './components/auth/AuthEntry'
 import AppWorkspaceContent from './app/AppWorkspaceContent'
-import { useSettingsController } from './app/useSettingsController'
 import { useProjectDetailController } from './app/useProjectDetailController'
 import { doLoginFlow, doLogoutFlow } from './app/authFlows'
 import { useGitpegCallbackSync } from './app/useGitpegCallbackSync'
 import { useProjectMetaSync } from './app/useProjectMetaSync'
 import { useAuthSessionController } from './app/useAuthSessionController'
-import { useTeamSettingsBootstrap } from './app/useTeamSettingsBootstrap'
 import { useProofDashboardController } from './app/useProofDashboardController'
 import { useProjectCatalogController } from './app/useProjectCatalogController'
 import { useTeamAccessController } from './app/useTeamAccessController'
+import { useSettingsController } from './app/useSettingsController'
+import { useTeamSettingsBootstrap } from './app/useTeamSettingsBootstrap'
 import { useAppWorkspaceProps } from './app/useAppWorkspaceProps'
 import {
-  buildProofWorkspace,
   buildProjectsWorkspace,
-  buildTeamWorkspace,
-  buildSettingsWorkspace,
 } from './app/workspaceBuilders'
 
 
@@ -29,19 +28,27 @@ import {
   NAV_SECTIONS,
   InspectionTypeKey,
   ProjectRegisterMeta,
-  PERMISSION_ROLE_LABEL,
-  PERMISSION_COLUMNS,
   TYPE_LABEL,
   TYPE_ICON,
   PROJECT_TYPE_OPTIONS,
   INSPECTION_TYPE_OPTIONS,
   INSPECTION_TYPE_LABEL,
+  PERMISSION_COLUMNS,
+  PERMISSION_ROLE_LABEL,
   getAllowedNavKeysByRole,
   normalizeKmInterval,
   resolveAllowedTab,
 } from './app/appShellShared'
 
 const CLEAN_START_MIGRATION_KEY = 'qcspec.clean.start.20260410'
+const DOCPEG_ONLY_MODE = String(import.meta.env.VITE_DOCPEG_ONLY_MODE || 'true').trim() !== 'false'
+const DOCPEG_ONLY_ALLOWED_TABS = ['projects', 'inspection', 'reports', 'proof', 'team', 'permissions', 'settings'] as const
+const DOCPEG_DEFAULT_ENTERPRISE_ID = String(import.meta.env.VITE_DOCPEG_ENTERPRISE_ID || 'DOCPEG-ENTERPRISE').trim() || 'DOCPEG-ENTERPRISE'
+const DOCPEG_DEFAULT_ENTERPRISE_NAME = String(import.meta.env.VITE_DOCPEG_ENTERPRISE_NAME || 'DocPeg 联调环境').trim() || 'DocPeg 联调环境'
+const DOCPEG_DEFAULT_ENTERPRISE_V_URI = String(import.meta.env.VITE_DOCPEG_ENTERPRISE_V_URI || 'v://cn.docpeg/enterprise/default/').trim() || 'v://cn.docpeg/enterprise/default/'
+const DOCPEG_DEFAULT_USER_ID = String(import.meta.env.VITE_DOCPEG_USER_ID || 'docpeg-user').trim() || 'docpeg-user'
+const DOCPEG_DEFAULT_USER_NAME = String(import.meta.env.VITE_DOCPEG_USER_NAME || 'DocPeg 操作员').trim() || 'DocPeg 操作员'
+const DOCPEG_DEFAULT_DTO_ROLE = String(import.meta.env.VITE_DOCPEG_DTO_ROLE || 'OWNER').trim().toUpperCase() as 'PUBLIC' | 'MARKET' | 'AI' | 'SUPERVISOR' | 'OWNER' | 'REGULATOR'
 
 export default function App() {
   const { activeTab, setActiveTab, toastMsg, sidebarOpen, setSidebarOpen, showToast } = useUIStore()
@@ -49,6 +56,7 @@ export default function App() {
   const { setUser, logout, enterprise, user, token } = useAuthStore()
   const {
     list: listProjectsApi,
+    create: createProjectApi,
     getById: getProjectByIdApi,
     update: updateProjectApi,
     remove: removeProjectApi,
@@ -60,8 +68,19 @@ export default function App() {
     getEnterprise: getEnterpriseApi,
     logout: logoutApi,
   } = useAuthApi()
-  const { listMembers, inviteMember, updateMember: updateMemberApi, removeMember: removeMemberApi } = useTeam()
-  const { getSettings, saveSettings, testErpnext, testGitpegRegistrar, uploadTemplate } = useSettings()
+  const {
+    getSettings,
+    saveSettings,
+    testErpnext,
+    testGitpegRegistrar,
+    uploadTemplate,
+  } = useSettings()
+  const {
+    listMembers,
+    inviteMember,
+    updateMember,
+    removeMember,
+  } = useTeam()
 
   const {
     appReady,
@@ -80,16 +99,32 @@ export default function App() {
     setUser,
     setProjects,
     setCurrentProject,
+    skipAuthBootstrap: DOCPEG_ONLY_MODE,
   })
 
   useEffect(() => {
-    setEnterpriseInfo({
-      name: enterprise?.name || '',
-      vUri: enterprise?.v_uri || '',
-      creditCode: '',
-      adminEmail: user?.email || '',
-    })
-  }, [enterprise?.name, enterprise?.v_uri, user?.email])
+    if (!DOCPEG_ONLY_MODE) return
+    if (user?.id && enterprise?.id) return
+
+    setUser(
+      {
+        id: DOCPEG_DEFAULT_USER_ID,
+        enterprise_id: DOCPEG_DEFAULT_ENTERPRISE_ID,
+        v_uri: `${DOCPEG_DEFAULT_ENTERPRISE_V_URI}user/${DOCPEG_DEFAULT_USER_ID}/`,
+        name: DOCPEG_DEFAULT_USER_NAME,
+        dto_role: DOCPEG_DEFAULT_DTO_ROLE,
+      },
+      {
+        id: DOCPEG_DEFAULT_ENTERPRISE_ID,
+        name: DOCPEG_DEFAULT_ENTERPRISE_NAME,
+        v_uri: DOCPEG_DEFAULT_ENTERPRISE_V_URI,
+        plan: 'enterprise',
+        proof_quota: 0,
+        proof_used: 0,
+      },
+      token || '',
+    )
+  }, [enterprise?.id, setUser, token, user?.id])
 
   const [projectMeta, setProjectMeta] = useState<Record<string, ProjectRegisterMeta>>({})
   const [, setRegisterSuccess] = useState<{ id: string; name: string; uri: string } | null>(null)
@@ -104,50 +139,10 @@ export default function App() {
     docFinalContext: docFinalContextApi,
   } = useProof()
   const [gitpegCallbackHandled, setGitpegCallbackHandled] = useState(false)
-  const canUseEnterpriseApi = !!enterprise?.id
+  const effectiveEnterpriseId = enterprise?.id || DOCPEG_DEFAULT_ENTERPRISE_ID
+  const canUseDocpegProjectApi = DOCPEG_ONLY_MODE ? true : !!enterprise?.id
+  const canUseLegacyEnterpriseApi = DOCPEG_ONLY_MODE ? false : !!enterprise?.id
   const proj = currentProject || projects[0] || { id: '', name: '', v_uri: '' }
-
-  const teamAccessController = useTeamAccessController({
-    canUseEnterpriseApi,
-    enterpriseId: enterprise?.id || undefined,
-    projects,
-    currentProjectId: proj.id,
-    saveSettings,
-    inviteMember,
-    listMembers,
-    updateMemberApi,
-    removeMemberApi,
-    showToast,
-  })
-  const {
-    members,
-    setMembers,
-    setMemberRoleDrafts,
-    setPermissionMatrix,
-    setPermissionTemplate,
-  } = teamAccessController
-  const settingsController = useSettingsController({
-    canUseEnterpriseApi,
-    enterpriseId: enterprise?.id || undefined,
-    initialReportHeader: enterprise?.name || '',
-    initialEnterpriseInfo: {
-      name: enterprise?.name || '',
-      vUri: enterprise?.v_uri || '',
-      creditCode: '',
-      adminEmail: user?.email || '',
-    },
-    saveSettings,
-    uploadTemplate,
-    testGitpegRegistrar,
-    testErpnext,
-    showToast,
-  })
-  const {
-    setSettings,
-    setErpDraft,
-    setErpWritebackDraft,
-    setEnterpriseInfo,
-  } = settingsController
 
   const normalizeNodeSegment = (value: string, fallback = 'pending') =>
     String(value || '').trim().replace(/[\\/]/g, '-').replace(/\s+/g, '') || fallback
@@ -196,9 +191,9 @@ export default function App() {
     setCurrentProject,
     projectMeta,
     setProjectMeta,
-    canUseEnterpriseApi,
-    enterpriseId: enterprise?.id || undefined,
-    memberCount: members.length,
+    canUseEnterpriseApi: canUseLegacyEnterpriseApi,
+    enterpriseId: canUseLegacyEnterpriseApi ? effectiveEnterpriseId : undefined,
+    memberCount: 0,
     getProjectByIdApi,
     updateProjectApi,
     normalizeKmInterval,
@@ -215,30 +210,79 @@ export default function App() {
     detailProject: projectDetailController.detailProject,
     showToast,
     listProofs,
-    verifyProof,
-    proofStatsApi,
-    proofNodeTreeApi,
-    boqRealtimeStatusApi,
-    boqItemSovereignHistoryApi,
-    boqReconciliationApi,
-    docFinalContextApi,
+    verifyProof: DOCPEG_ONLY_MODE ? (async () => null) : verifyProof,
+    proofStatsApi: DOCPEG_ONLY_MODE ? (async () => null) : proofStatsApi,
+    proofNodeTreeApi: DOCPEG_ONLY_MODE ? (async () => null) : proofNodeTreeApi,
+    boqRealtimeStatusApi: DOCPEG_ONLY_MODE ? (async () => null) : boqRealtimeStatusApi,
+    boqItemSovereignHistoryApi: DOCPEG_ONLY_MODE ? (async () => null) : boqItemSovereignHistoryApi,
+    boqReconciliationApi: DOCPEG_ONLY_MODE ? (async () => null) : boqReconciliationApi,
+    docFinalContextApi: DOCPEG_ONLY_MODE ? (async () => null) : docFinalContextApi,
   })
   const projectCatalog = useProjectCatalogController({
     appReady,
-    canUseEnterpriseApi,
-    enterpriseId: enterprise?.id || undefined,
+    canUseEnterpriseApi: canUseDocpegProjectApi,
+    enterpriseId: effectiveEnterpriseId,
     projects,
     currentProject,
     listProjectsApi,
+    createProjectApi,
     removeProjectApi,
     setProjects,
     setCurrentProject,
     setProjectMeta,
     showToast,
   })
-  const permissionTreeRoot = enterprise?.v_uri || proj.v_uri || `${fallbackNodeRoot}/`
+  const settingsController = useSettingsController({
+    canUseEnterpriseApi: canUseLegacyEnterpriseApi,
+    enterpriseId: canUseLegacyEnterpriseApi ? effectiveEnterpriseId : undefined,
+    initialReportHeader: `${enterprise?.name || DOCPEG_DEFAULT_ENTERPRISE_NAME} 质检报告`,
+    initialEnterpriseInfo: {
+      name: enterprise?.name || DOCPEG_DEFAULT_ENTERPRISE_NAME,
+      vUri: enterprise?.v_uri || DOCPEG_DEFAULT_ENTERPRISE_V_URI,
+      creditCode: '',
+      adminEmail: user?.email || '',
+    },
+    saveSettings,
+    uploadTemplate,
+    testGitpegRegistrar,
+    testErpnext,
+    showToast,
+  })
+  const teamAccessController = useTeamAccessController({
+    canUseEnterpriseApi: canUseLegacyEnterpriseApi,
+    enterpriseId: canUseLegacyEnterpriseApi ? effectiveEnterpriseId : undefined,
+    projects,
+    currentProjectId: currentProject?.id || projects[0]?.id || '',
+    saveSettings,
+    inviteMember,
+    listMembers,
+    updateMemberApi: updateMember,
+    removeMemberApi: removeMember,
+    showToast,
+  })
 
-  const globalAllowedNavKeys = getAllowedNavKeysByRole(user?.dto_role)
+  useTeamSettingsBootstrap({
+    appReady,
+    activeTab,
+    canUseEnterpriseApi: canUseLegacyEnterpriseApi,
+    enterpriseId: canUseLegacyEnterpriseApi ? effectiveEnterpriseId : undefined,
+    listMembers,
+    getSettings,
+    setMembers: teamAccessController.setMembers,
+    setMemberRoleDrafts: teamAccessController.setMemberRoleDrafts,
+    setSettings: settingsController.setSettings,
+    setErpDraft: settingsController.setErpDraft,
+    setErpWritebackDraft: settingsController.setErpWritebackDraft,
+    setPermissionMatrix: teamAccessController.setPermissionMatrix,
+    setPermissionTemplate: teamAccessController.setPermissionTemplate,
+    setEnterpriseInfo: settingsController.setEnterpriseInfo,
+  })
+
+  const roleAllowedNavKeys = getAllowedNavKeysByRole(user?.dto_role)
+  const docpegAllowedNavKeys = DOCPEG_ONLY_ALLOWED_TABS.filter((key) => roleAllowedNavKeys.includes(key))
+  const globalAllowedNavKeys = DOCPEG_ONLY_MODE
+    ? (docpegAllowedNavKeys.length ? [...docpegAllowedNavKeys] : [...DOCPEG_ONLY_ALLOWED_TABS])
+    : roleAllowedNavKeys
   const roleAwareNavItems = NAV.filter((item) => globalAllowedNavKeys.includes(item.key))
   const roleAwareNavSections = NAV_SECTIONS
     .map((section) => ({ ...section, keys: section.keys.filter((key) => globalAllowedNavKeys.includes(key)) }))
@@ -267,8 +311,8 @@ export default function App() {
     gitpegCallbackHandled,
     setGitpegCallbackHandled,
     appReady,
-    canUseEnterpriseApi,
-    enterpriseId: enterprise?.id || undefined,
+    canUseEnterpriseApi: canUseLegacyEnterpriseApi,
+    enterpriseId: canUseLegacyEnterpriseApi ? effectiveEnterpriseId : undefined,
     completeGitpegApi,
     listProjectsApi,
     setProjects,
@@ -279,25 +323,8 @@ export default function App() {
 
   useProjectMetaSync({
     projects,
-    memberCount: members.length,
+    memberCount: 0,
     setProjectMeta,
-  })
-
-  useTeamSettingsBootstrap({
-    appReady,
-    activeTab,
-    canUseEnterpriseApi,
-    enterpriseId: enterprise?.id || undefined,
-    listMembers,
-    getSettings,
-    setMembers,
-    setMemberRoleDrafts,
-    setSettings,
-    setErpDraft,
-    setErpWritebackDraft,
-    setPermissionMatrix,
-    setPermissionTemplate,
-    setEnterpriseInfo,
   })
 
   const doLogin = async () => {
@@ -324,10 +351,6 @@ export default function App() {
     })
   }
 
-  const canQuickInspection = globalAllowedNavKeys.includes('inspection')
-  const canQuickProof = globalAllowedNavKeys.includes('proof')
-  const canQuickReports = globalAllowedNavKeys.includes('reports')
-
   useEffect(() => {
     if (typeof window === 'undefined') return
     if (localStorage.getItem(CLEAN_START_MIGRATION_KEY) === '1') return
@@ -342,18 +365,22 @@ export default function App() {
       // ignore storage failures
     }
 
-    logout()
     setProjects([])
     setCurrentProject(null)
+    if (DOCPEG_ONLY_MODE) {
+      showToast('已清理历史本地缓存，当前使用 DocPeg API 联调模式')
+      return
+    }
+
+    logout()
     setAppReady(false)
     showToast('已清理历史本地数据，请使用真实账号重新登录')
   }, [logout, setAppReady, setCurrentProject, setProjects, showToast])
 
-  const openInspectionWorkspace = (targetProject?: typeof projects[number]) => {
-    if (!canQuickInspection) {
-      showToast('当前角色无质检录入权限')
-      return
-    }
+  const openProjectWorkbench = (
+    targetProject?: typeof projects[number],
+    targetTab: 'projects' | 'inspection' | 'proof' = 'projects',
+  ) => {
     const selected = targetProject || currentProject || projects[0]
     if (!selected) {
       showToast('请先在上游系统完成项目创建并同步到 QCSpec')
@@ -361,31 +388,18 @@ export default function App() {
       return
     }
     setCurrentProject(selected)
-    navigateToAllowedTab('inspection')
+    navigateToAllowedTab(targetTab)
+    if (targetTab === 'projects') {
+      void projectDetailController.openProjectDetail(selected.id, false)
+    }
   }
 
-  const openProofWorkspace = (targetProject?: typeof projects[number]) => {
-    if (!canQuickProof) {
-      showToast('当前角色无 Proof 工作台权限')
-      return
-    }
-    const selected = targetProject || currentProject || projects[0]
-    if (!selected) {
-      showToast('请先在上游系统完成项目创建并同步到 QCSpec')
-      navigateToAllowedTab('projects')
-      return
-    }
-    setCurrentProject(selected)
-    navigateToAllowedTab('proof')
-  }
+  const permissionTreeRoot = `${String(
+    settingsController.enterpriseInfo.vUri || enterprise?.v_uri || DOCPEG_DEFAULT_ENTERPRISE_V_URI,
+  ).replace(/\/+$/, '')}/dtorole/`
 
   const workspaceContentProps = useAppWorkspaceProps({
     activeTab,
-    proofWorkspace: buildProofWorkspace({
-      proofDashboard,
-      onGoInspection: () => openInspectionWorkspace(),
-      onGoReports: canQuickReports ? () => navigateToAllowedTab('reports') : undefined,
-    }),
     projectsWorkspace: buildProjectsWorkspace({
       projectMeta,
       projectCatalog,
@@ -399,19 +413,80 @@ export default function App() {
       sidebarOpen,
       normalizeKmInterval,
       toggleInspectionType,
-      onEnterInspection: (project) => openInspectionWorkspace(project),
-      onEnterProof: (project) => openProofWorkspace(project),
+      onEnterInspection: (project) => openProjectWorkbench(project, 'inspection'),
+      onEnterProof: (project) => openProjectWorkbench(project, 'proof'),
     }),
-    teamWorkspace: buildTeamWorkspace({
-      projects,
-      permissionTreeRoot,
-      permissionColumns: PERMISSION_COLUMNS,
-      permissionRoleLabel: PERMISSION_ROLE_LABEL,
-      teamAccessController,
-    }),
-    settingsWorkspace: buildSettingsWorkspace({
-      settingsController,
-    }),
+    proofWorkspace: {
+      proofPanelProps: {
+        projectUri: proofDashboard.projectUri,
+        proofStats: proofDashboard.proofStats,
+        proofNodeRows: proofDashboard.proofNodeRows,
+        proofLoading: proofDashboard.proofLoading,
+        proofRows: proofDashboard.proofRows,
+        proofVerifying: proofDashboard.proofVerifying,
+        onVerifyProof: proofDashboard.handleVerifyProof,
+        onGoInspection: () => openProjectWorkbench(undefined, 'inspection'),
+        onGoReports: () => navigateToAllowedTab('reports'),
+      },
+    },
+    teamWorkspace: {
+      teamPanelProps: {
+        members: teamAccessController.members,
+        memberRoleDrafts: teamAccessController.memberRoleDrafts,
+        onOpenInvite: teamAccessController.openInvite,
+        onDraftRoleChange: teamAccessController.updateMemberRoleDraft,
+        onSaveMemberRole: teamAccessController.saveMemberRole,
+        onRemoveMember: teamAccessController.removeMember,
+      },
+      inviteMemberModalProps: {
+        open: teamAccessController.inviteOpen,
+        form: teamAccessController.inviteForm,
+        projects: projects.map((project) => ({ id: project.id, name: project.name })),
+        onChange: (next) => teamAccessController.setInviteForm(next),
+        onClose: teamAccessController.closeInvite,
+        onSubmit: teamAccessController.addMember,
+      },
+    },
+    permissionsWorkspace: {
+      permissionsPanelProps: {
+        permissionTemplate: teamAccessController.permissionTemplate,
+        permissionMatrix: teamAccessController.permissionMatrix,
+        permissionColumns: PERMISSION_COLUMNS,
+        permissionRoleLabel: PERMISSION_ROLE_LABEL,
+        permissionTreeRoot,
+        permissionTreeRows: teamAccessController.permissionTreeRows,
+        onApplyTemplate: teamAccessController.applyPermissionTemplate,
+        onUpdateCell: teamAccessController.updatePermissionCell,
+        onSaveMatrix: teamAccessController.persistPermissionMatrix,
+      },
+    },
+    settingsWorkspace: {
+      settingsPanelProps: {
+        enterpriseInfo: settingsController.enterpriseInfo,
+        setEnterpriseInfo: settingsController.setEnterpriseInfo,
+        persistEnterpriseInfo: settingsController.persistEnterpriseInfo,
+        settings: settingsController.settings,
+        setSettings: settingsController.setSettings,
+        persistSettings: settingsController.persistSettings,
+        setReportTemplateFile: settingsController.setReportTemplateFile,
+        persistReportTemplate: settingsController.persistReportTemplate,
+        verifyGitpegToken: settingsController.verifyGitpegToken,
+        gitpegVerifying: settingsController.gitpegVerifying,
+        gitpegVerifyMsg: settingsController.gitpegVerifyMsg,
+        setGitpegVerifyMsg: settingsController.setGitpegVerifyMsg,
+        setGitpegVerifying: settingsController.setGitpegVerifying,
+        erpDraft: settingsController.erpDraft,
+        setErpDraft: settingsController.setErpDraft,
+        testErpConnection: settingsController.testErpConnection,
+        erpTesting: settingsController.erpTesting,
+        erpTestMsg: settingsController.erpTestMsg,
+        erpWritebackDraft: settingsController.erpWritebackDraft,
+        setErpWritebackDraft: settingsController.setErpWritebackDraft,
+        testWebhook: settingsController.testWebhook,
+        webhookTesting: settingsController.webhookTesting,
+        webhookResult: settingsController.webhookResult,
+      },
+    },
   })
 
   if (sessionChecking || !appReady) {
@@ -443,10 +518,6 @@ export default function App() {
           const selected = projects.find((p) => p.id === projectId)
           if (selected) setCurrentProject(selected)
         }}
-        canQuickInspection={canQuickInspection}
-        canQuickProof={canQuickProof}
-        onQuickInspection={() => openInspectionWorkspace()}
-        onQuickProof={() => openProofWorkspace()}
         onLogout={doLogout}
       >
         <AppWorkspaceContent {...workspaceContentProps} />

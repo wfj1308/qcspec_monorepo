@@ -1,4 +1,4 @@
-import type { Dispatch, SetStateAction } from 'react'
+﻿import type { Dispatch, SetStateAction } from 'react'
 
 import { buildMeasurementPayload } from './spuUtils'
 import type { Evidence, FormRow, TreeNode } from './types'
@@ -89,3 +89,4 @@ export async function runTripReject({
     setRejecting(false)
   }
 }
+

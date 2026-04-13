@@ -467,6 +467,9 @@ export default function InspectionForm({ projectId, enterpriseId, onSuccess }: P
       spec_uri: typeConfig?.normRef || undefined,
       norm_uri: typeConfig?.normRef || undefined,
       component_type: isRebarType ? 'main_beam' : undefined,
+      exec_trip_role_id: docpegEnabled && /@v\d+(?:\.\d+)?$/i.test(docpegAction.trim()) ? docpegAction.trim() : undefined,
+      project_ref: currentProject?.v_uri || undefined,
+      component_ref: docpegComponentUri.trim() || undefined,
     }
     const res = await submit(body) as {
       inspection_id?: string

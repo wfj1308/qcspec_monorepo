@@ -1,4 +1,4 @@
-import { useCallback } from 'react'
+﻿import { useCallback } from 'react'
 
 import { downloadJson } from './fileUtils'
 
@@ -37,3 +37,4 @@ export function useSovereignP2PManifestExport({
     downloadJson(`gitpeg-sync-${Date.now()}.json`, payload)
   }, [apiProjectUri, offlinePackets, offlineSyncConflicts, p2pNodeId, p2pPeers, totalHash, unitRes])
 }
+

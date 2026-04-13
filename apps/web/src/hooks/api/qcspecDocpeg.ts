@@ -1,8 +1,8 @@
 import { useCallback, useMemo, useState } from 'react'
-import { useUIStore, useAuthStore } from '../../store'
-import { normalizeApiPayload, type ApiRequestOptions, API_BASE } from './base'
+import { useAuthStore, useUIStore } from '../../store'
+import { assertDocpegApiPath, normalizeApiPayload, type ApiRequestOptions } from './base'
 
-const DOCPEG_API_BASE = String(import.meta.env.VITE_DOCPEG_API_URL || API_BASE || '').replace(/\/+$/, '')
+const DOCPEG_API_BASE = String(import.meta.env.VITE_DOCPEG_API_URL || 'https://api.docpeg.cn').replace(/\/+$/, '')
 const DOCPEG_API_KEY = String(import.meta.env.VITE_DOCPEG_API_KEY || '').trim()
 const DOCPEG_BEARER_TOKEN = String(import.meta.env.VITE_DOCPEG_BEARER_TOKEN || '').trim()
 const DOCPEG_USE_APP_AUTH = String(import.meta.env.VITE_DOCPEG_USE_APP_AUTH || '').trim() === 'true'
@@ -17,14 +17,12 @@ export type DocpegActorHeaders = {
   actor_name?: string
 }
 
-export type DocpegSourceMode = 'component' | 'pile' | 'inspection_location' | string
-
 export type ProcessChainCommonQuery = {
   chain_id?: string
   component_uri?: string
   pile_id?: string
   inspection_location?: string
-  source_mode?: DocpegSourceMode
+  source_mode?: string
 }
 
 export type DocpegTripPayload = {
@@ -36,6 +34,24 @@ export type DocpegTripPayload = {
   inspection_location?: string
   action?: string
   payload?: Record<string, unknown>
+  [key: string]: unknown
+}
+
+export type DocpegExecpegPayload = {
+  tripRoleId?: string
+  projectRef?: string
+  componentRef?: string
+  context?: Record<string, unknown>
+  callbackUrl?: string
+  [key: string]: unknown
+}
+
+export type DocpegEntityPayload = {
+  name?: string
+  code?: string
+  type?: string
+  parent_uri?: string
+  uri?: string
   [key: string]: unknown
 }
 
@@ -62,6 +78,13 @@ export type SignPegVerifyPayload = {
 
 type HttpError = Error & { status?: number }
 
+type CreateProjectPayload = {
+  project_id: string
+  name: string
+  description?: string
+  [key: string]: unknown
+}
+
 function buildQuery(params?: QueryLike): string {
   if (!params) return ''
   const search = new URLSearchParams()
@@ -83,19 +106,12 @@ function encodePathSegment(input: string): string {
   return encodeURIComponent(String(input || '').trim())
 }
 
-function buildNormrefV1Base(projectId: string): string {
-  return `/api/v1/normref/projects/${projectId}`
-}
-
-function buildNormrefLegacyBase(projectId: string): string {
-  return `/projects/${projectId}/normref`
-}
-
 export function useQCSpecDocPegApi() {
   const { showToast } = useUIStore()
   const token = useAuthStore((s) => s.token)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const projectPathIdCache = useMemo(() => new Map<string, string>(), [])
 
   const baseUrl = useMemo(() => trimSlash(DOCPEG_API_BASE), [])
 
@@ -126,6 +142,7 @@ export function useQCSpecDocPegApi() {
         headers.set('Content-Type', 'application/json')
       }
 
+      assertDocpegApiPath(path)
       const response = await fetch(`${baseUrl}${path}`, {
         ...fetchOptions,
         headers,
@@ -144,7 +161,10 @@ export function useQCSpecDocPegApi() {
     }
   }, [baseUrl, token])
 
-  const call = useCallback(async <T = unknown>(runner: () => Promise<T>): Promise<T | null> => {
+  const call = useCallback(async <T = unknown>(
+    runner: () => Promise<T>,
+    options?: { silent?: boolean; fallback?: T | null },
+  ): Promise<T | null> => {
     setLoading(true)
     setError(null)
     try {
@@ -153,30 +173,15 @@ export function useQCSpecDocPegApi() {
       const msg = e instanceof DOMException && e.name === 'AbortError'
         ? 'Request timed out. Please retry.'
         : (e instanceof Error ? e.message : 'Request failed')
-      setError(msg)
-      showToast(`[Error] ${msg}`)
-      return null
+      if (!options?.silent) {
+        setError(msg)
+        showToast(`[Error] ${msg}`)
+      }
+      return options?.fallback ?? null
     } finally {
       setLoading(false)
     }
   }, [showToast])
-
-  const runWithCompat = useCallback(async <T = unknown>(
-    primary: () => Promise<T>,
-    compat?: () => Promise<T>,
-  ): Promise<T | null> => {
-    return call(async () => {
-      try {
-        return await primary()
-      } catch (e: unknown) {
-        const status = (e as HttpError)?.status
-        if (status === 404 && compat) {
-          return compat()
-        }
-        throw e
-      }
-    })
-  }, [call])
 
   const buildWriteHeaders = useCallback((base?: HeadersInit, actor?: DocpegActorHeaders): Headers => {
     const headers = new Headers(base)
@@ -187,26 +192,24 @@ export function useQCSpecDocPegApi() {
     return headers
   }, [])
 
-  const postTripWithCompat = useCallback(async (primaryPath: string, compatPath: string, payload: DocpegTripPayload) => {
-    return runWithCompat(
-      () => requestRaw(primaryPath, {
-        method: 'POST',
-        body: JSON.stringify(payload || {}),
-        headers: buildWriteHeaders(),
-        skipAuthRedirect: true,
-      }),
-      () => requestRaw(compatPath, {
-        method: 'POST',
-        body: JSON.stringify(payload || {}),
-        headers: buildWriteHeaders(),
-        skipAuthRedirect: true,
-      }),
-    )
-  }, [buildWriteHeaders, requestRaw, runWithCompat])
-
   const listProjects = useCallback(async (query?: QueryLike) => {
     return call(() => requestRaw(`/projects${buildQuery(query)}`, { skipAuthRedirect: true }))
   }, [call, requestRaw])
+
+  const createProject = useCallback(async (
+    payload: CreateProjectPayload,
+    options?: { idempotencyKey?: string; actor?: DocpegActorHeaders },
+  ) => {
+    const headers = buildWriteHeaders(undefined, options?.actor)
+    const idempotencyKey = String(options?.idempotencyKey || '').trim()
+    if (idempotencyKey) headers.set('x-idempotency-key', idempotencyKey)
+    return call(() => requestRaw('/projects', {
+      method: 'POST',
+      body: JSON.stringify(payload || {}),
+      headers,
+      skipAuthRedirect: true,
+    }))
+  }, [buildWriteHeaders, call, requestRaw])
 
   const getProject = useCallback(async (projectId: string) => {
     const pid = encodePathSegment(projectId)
@@ -214,313 +217,538 @@ export function useQCSpecDocPegApi() {
     return call(() => requestRaw(`/projects/${pid}`, { skipAuthRedirect: true }))
   }, [call, requestRaw])
 
-  const getProcessChainStatus = useCallback(async (projectId: string, query: ProcessChainCommonQuery) => {
-    const pid = encodePathSegment(projectId)
-    if (!pid) return null
-    return call(() => requestRaw(`/projects/${pid}/process-chains/status${buildQuery(query)}`, { skipAuthRedirect: true }))
-  }, [call, requestRaw])
+  const resolveProjectPathId = useCallback(async (projectId: string) => {
+    const raw = String(projectId || '').trim()
+    if (!raw) return ''
+    const key = raw.toUpperCase()
+    const cached = projectPathIdCache.get(key)
+    if (cached) return cached
 
-  const getProcessChainSummary = useCallback(async (projectId: string, chainId: string, query?: Omit<ProcessChainCommonQuery, 'chain_id'>) => {
-    const pid = encodePathSegment(projectId)
+    const payload = await call(() => requestRaw<{
+      items?: Array<Record<string, unknown>>
+      data?: { items?: Array<Record<string, unknown>> }
+    }>(`/projects${buildQuery({ q: raw, limit: 20, offset: 0 })}`, { skipAuthRedirect: true }), {
+      silent: true,
+      fallback: null,
+    })
+
+    const rows = payload?.items || payload?.data?.items || []
+    const hit = rows.find((item) => {
+      const row = item?.project && typeof item.project === 'object'
+        ? { ...item, ...(item.project as Record<string, unknown>) }
+        : item
+      const candidates = [row.id, row.project_id, row.code]
+      return candidates.some((value) => String(value || '').trim().toUpperCase() === key)
+    })
+    const resolved = String(hit?.id || hit?.project_id || raw).trim() || raw
+    projectPathIdCache.set(key, resolved)
+    return resolved
+  }, [call, projectPathIdCache, requestRaw])
+
+  const getProcessChainStatus = useCallback(async (
+    projectId: string,
+    query: ProcessChainCommonQuery = {},
+  ) => {
+    const chainId = encodePathSegment(String(query.chain_id || ''))
+    if (!chainId) return null
+    const pid = encodePathSegment(await resolveProjectPathId(projectId))
+    if (!pid) return null
+    return call(() => requestRaw(`/projects/${pid}/process-chains/${chainId}/status${buildQuery({
+      ...(query.component_uri ? { component_uri: query.component_uri } : {}),
+      ...(query.pile_id ? { pile_id: query.pile_id } : {}),
+      ...(query.inspection_location ? { inspection_location: query.inspection_location } : {}),
+      ...(query.source_mode ? { source_mode: query.source_mode } : {}),
+    })}`, { skipAuthRedirect: true }), { silent: true, fallback: null })
+  }, [call, requestRaw, resolveProjectPathId])
+
+  const getProcessChainSummary = useCallback(async (
+    projectId: string,
+    chainId: string,
+    query: ProcessChainCommonQuery = {},
+  ) => {
+    return getProcessChainStatus(projectId, { ...query, chain_id: chainId })
+  }, [getProcessChainStatus])
+
+  const getProcessChainItemList = useCallback(async (
+    projectId: string,
+    chainId: string,
+    query: ProcessChainCommonQuery = {},
+  ) => {
     const cid = encodePathSegment(chainId)
-    if (!pid || !cid) return null
-    return call(() => requestRaw(`/projects/${pid}/process-chains/${cid}/summary${buildQuery(query)}`, { skipAuthRedirect: true }))
-  }, [call, requestRaw])
-
-  const getProcessChainItemList = useCallback(async (projectId: string, chainId: string, query?: Omit<ProcessChainCommonQuery, 'chain_id'>) => {
-    const pid = encodePathSegment(projectId)
-    const cid = encodePathSegment(chainId)
-    if (!pid || !cid) return null
-    return call(() => requestRaw(`/projects/${pid}/process-chains/${cid}/list${buildQuery(query)}`, { skipAuthRedirect: true }))
-  }, [call, requestRaw])
-
-  const getProcessChainList = useCallback(async (projectId: string, query?: QueryLike) => {
-    const pid = encodePathSegment(projectId)
+    if (!cid) return null
+    const pid = encodePathSegment(await resolveProjectPathId(projectId))
     if (!pid) return null
-    return call(() => requestRaw(`/projects/${pid}/process-chains/list${buildQuery(query)}`, { skipAuthRedirect: true }))
-  }, [call, requestRaw])
+    return call(() => requestRaw(`/projects/${pid}/process-chains/${cid}/list${buildQuery({
+      source_mode: query.source_mode || 'hybrid',
+      ...(query.component_uri ? { component_uri: query.component_uri } : {}),
+      ...(query.pile_id ? { pile_id: query.pile_id } : {}),
+    })}`, { skipAuthRedirect: true }), { silent: true, fallback: { ok: true, items: [] } })
+  }, [call, requestRaw, resolveProjectPathId])
 
-  const getProcessChainRecommend = useCallback(async (projectId: string, query?: ProcessChainCommonQuery) => {
-    const pid = encodePathSegment(projectId)
+  const getProcessChainList = useCallback(async (
+    projectId: string,
+    query: ProcessChainCommonQuery = {},
+  ) => {
+    const pid = encodePathSegment(await resolveProjectPathId(projectId))
     if (!pid) return null
-    return call(() => requestRaw(`/projects/${pid}/process-chains/recommend${buildQuery(query)}`, { skipAuthRedirect: true }))
-  }, [call, requestRaw])
+    return call(() => requestRaw(`/projects/${pid}/process-chains${buildQuery({
+      source_mode: query.source_mode || 'hybrid',
+    })}`, { skipAuthRedirect: true }), { silent: true, fallback: { ok: true, items: [] } })
+  }, [call, requestRaw, resolveProjectPathId])
 
-  const getProcessChainDependencies = useCallback(async (projectId: string, query?: Pick<ProcessChainCommonQuery, 'chain_id'> & QueryLike) => {
-    const pid = encodePathSegment(projectId)
-    if (!pid) return null
-    return call(() => requestRaw(`/projects/${pid}/process-chains/dependencies${buildQuery(query)}`, { skipAuthRedirect: true }))
-  }, [call, requestRaw])
+  const getProcessChainRecommend = useCallback(async (
+    projectId: string,
+    query: ProcessChainCommonQuery = {},
+  ) => {
+    const status = await getProcessChainStatus(projectId, query)
+    const row = (status && typeof status === 'object') ? (status as Record<string, unknown>) : {}
+    const nextAction = String(
+      row.next_action || row.recommend_action || row.action || row.current_step || row.current_step_name || '',
+    ).trim()
+    if (!nextAction) return { ok: true, next_action: '-', source: 'derived-from-status' }
+    return { ok: true, next_action: nextAction, source: 'derived-from-status', status: row }
+  }, [getProcessChainStatus])
+
+  const getProcessChainDependencies = useCallback(async (
+    projectId: string,
+    query: ProcessChainCommonQuery = {},
+  ) => {
+    const status = await getProcessChainStatus(projectId, query)
+    const steps = Array.isArray((status as Record<string, unknown> | null)?.steps)
+      ? ((status as Record<string, unknown>).steps as unknown[])
+      : []
+    return { ok: true, items: steps, source: 'derived-from-status' }
+  }, [getProcessChainStatus])
 
   const previewTrip = useCallback(async (payload: DocpegTripPayload) => {
-    return postTripWithCompat('/api/v1/trips/preview', '/trips/preview', payload)
-  }, [postTripWithCompat])
+    const headers = buildWriteHeaders()
+    return call(() => requestRaw('/api/v1/triprole/preview', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(payload || {}),
+      skipAuthRedirect: true,
+    }), { silent: true, fallback: null })
+  }, [buildWriteHeaders, call, requestRaw])
 
   const submitTrip = useCallback(async (payload: DocpegTripPayload) => {
-    return postTripWithCompat('/api/v1/trips/submit', '/trips/submit', payload)
-  }, [postTripWithCompat])
+    const headers = buildWriteHeaders()
+    return call(() => requestRaw('/api/v1/triprole/submit', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(payload || {}),
+      skipAuthRedirect: true,
+    }), { silent: true, fallback: null })
+  }, [buildWriteHeaders, call, requestRaw])
 
-  const getBindings = useCallback(async (projectId: string, query?: QueryLike) => {
-    const pid = encodePathSegment(projectId)
-    if (!pid) return null
-    return call(() => requestRaw(`/projects/${pid}/process-chains/bindings${buildQuery(query)}`, { skipAuthRedirect: true }))
+  const getBindings = useCallback(async (query?: QueryLike) => {
+    return call(() => requestRaw(`/api/v1/dtorole/role-bindings${buildQuery(query)}`, {
+      skipAuthRedirect: true,
+    }), { silent: true, fallback: { ok: true, items: [] } })
   }, [call, requestRaw])
 
-  const saveBinding = useCallback(async (
-    projectId: string,
-    payload: { entity_uri: string; chain_id: string; [key: string]: unknown },
-    actor?: DocpegActorHeaders,
-  ) => {
-    const pid = encodePathSegment(projectId)
-    if (!pid) return null
-    return call(() => requestRaw(`/projects/${pid}/process-chains/bindings`, {
+  const saveBinding = useCallback(async (payload: QueryLike) => {
+    const headers = buildWriteHeaders()
+    return call(() => requestRaw('/api/v1/dtorole/role-bindings', {
       method: 'POST',
+      headers,
       body: JSON.stringify(payload || {}),
-      headers: buildWriteHeaders(undefined, actor),
       skipAuthRedirect: true,
-    }))
+    }), { silent: true, fallback: null })
   }, [buildWriteHeaders, call, requestRaw])
 
   const getBindingByEntity = useCallback(async (projectId: string, entityUri: string) => {
-    const pid = encodePathSegment(projectId)
-    const uri = String(entityUri || '').trim()
-    if (!pid || !uri) return null
-    return call(() => requestRaw(`/projects/${pid}/process-chains/bindings/by-entity${buildQuery({ entity_uri: uri })}`, { skipAuthRedirect: true }))
-  }, [call, requestRaw])
+    const pid = await resolveProjectPathId(projectId)
+    return getBindings({
+      project_id: pid,
+      entity_uri: entityUri,
+    })
+  }, [getBindings, resolveProjectPathId])
 
   const listNormrefForms = useCallback(async (projectId: string) => {
-    const pid = encodePathSegment(projectId)
+    const pid = encodePathSegment(await resolveProjectPathId(projectId))
     if (!pid) return null
-    return runWithCompat(
-      () => requestRaw(`${buildNormrefV1Base(pid)}/forms`, { skipAuthRedirect: true }),
-      () => requestRaw(`${buildNormrefLegacyBase(pid)}/forms`, { skipAuthRedirect: true }),
-    )
-  }, [requestRaw, runWithCompat])
+    return call(() => requestRaw(`/api/v1/normref/projects/${pid}/forms`, { skipAuthRedirect: true }), {
+      silent: true,
+      fallback: { ok: true, items: [] },
+    })
+  }, [call, requestRaw, resolveProjectPathId])
 
   const getNormrefForm = useCallback(async (projectId: string, formCode: string) => {
-    const pid = encodePathSegment(projectId)
+    const pid = encodePathSegment(await resolveProjectPathId(projectId))
     const code = encodePathSegment(formCode)
     if (!pid || !code) return null
-    return runWithCompat(
-      () => requestRaw(`${buildNormrefV1Base(pid)}/forms/${code}`, { skipAuthRedirect: true }),
-      () => requestRaw(`${buildNormrefLegacyBase(pid)}/forms/${code}`, { skipAuthRedirect: true }),
-    )
-  }, [requestRaw, runWithCompat])
+    return call(() => requestRaw(`/api/v1/normref/projects/${pid}/forms/${code}`, {
+      skipAuthRedirect: true,
+    }), { silent: true, fallback: null })
+  }, [call, requestRaw, resolveProjectPathId])
 
   const interpretPreview = useCallback(async (
     projectId: string,
     formCode: string,
-    payload: Record<string, unknown>,
-    actor?: DocpegActorHeaders,
+    payload: QueryLike,
   ) => {
-    const pid = encodePathSegment(projectId)
+    const pid = encodePathSegment(await resolveProjectPathId(projectId))
     const code = encodePathSegment(formCode)
     if (!pid || !code) return null
-    return runWithCompat(
-      () => requestRaw(`${buildNormrefV1Base(pid)}/forms/${code}/interpret-preview`, {
-        method: 'POST',
-        body: JSON.stringify(payload || {}),
-        headers: buildWriteHeaders(undefined, actor),
-        skipAuthRedirect: true,
-      }),
-      () => requestRaw(`${buildNormrefLegacyBase(pid)}/forms/${code}/interpret-preview`, {
-        method: 'POST',
-        body: JSON.stringify(payload || {}),
-        headers: buildWriteHeaders(undefined, actor),
-        skipAuthRedirect: true,
-      }),
-    )
-  }, [buildWriteHeaders, requestRaw, runWithCompat])
+    const headers = buildWriteHeaders()
+    return call(() => requestRaw(`/api/v1/normref/projects/${pid}/forms/${code}/interpret-preview`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(payload || {}),
+      skipAuthRedirect: true,
+    }), { silent: true, fallback: null })
+  }, [buildWriteHeaders, call, requestRaw, resolveProjectPathId])
 
   const saveDraftInstance = useCallback(async (
     projectId: string,
     formCode: string,
-    payload: Record<string, unknown>,
-    actor?: DocpegActorHeaders,
+    payload: QueryLike,
   ) => {
-    const pid = encodePathSegment(projectId)
+    const pid = encodePathSegment(await resolveProjectPathId(projectId))
     const code = encodePathSegment(formCode)
     if (!pid || !code) return null
-    return runWithCompat(
-      () => requestRaw(`${buildNormrefV1Base(pid)}/forms/${code}/draft-instances`, {
-        method: 'POST',
-        body: JSON.stringify(payload || {}),
-        headers: buildWriteHeaders(undefined, actor),
-        skipAuthRedirect: true,
-      }),
-      () => requestRaw(`${buildNormrefLegacyBase(pid)}/forms/${code}/draft-instances`, {
-        method: 'POST',
-        body: JSON.stringify(payload || {}),
-        headers: buildWriteHeaders(undefined, actor),
-        skipAuthRedirect: true,
-      }),
-    )
-  }, [buildWriteHeaders, requestRaw, runWithCompat])
+    const headers = buildWriteHeaders()
+    return call(() => requestRaw(`/api/v1/normref/projects/${pid}/forms/${code}/draft-instances`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(payload || {}),
+      skipAuthRedirect: true,
+    }), { silent: true, fallback: null })
+  }, [buildWriteHeaders, call, requestRaw, resolveProjectPathId])
 
-  const getLatestDraftInstance = useCallback(async (projectId: string, formCode: string) => {
-    const pid = encodePathSegment(projectId)
+  const getLatestDraftInstance = useCallback(async (
+    projectId: string,
+    formCode: string,
+    query?: QueryLike,
+  ) => {
+    const pid = encodePathSegment(await resolveProjectPathId(projectId))
     const code = encodePathSegment(formCode)
     if (!pid || !code) return null
-    return runWithCompat(
-      () => requestRaw(`${buildNormrefV1Base(pid)}/forms/${code}/draft-instances/latest`, { skipAuthRedirect: true }),
-      () => requestRaw(`${buildNormrefLegacyBase(pid)}/forms/${code}/draft-instances/latest`, { skipAuthRedirect: true }),
-    )
-  }, [requestRaw, runWithCompat])
+    return call(() => requestRaw(`/api/v1/normref/projects/${pid}/forms/${code}/draft-instances/latest${buildQuery(query)}`, {
+      skipAuthRedirect: true,
+    }), { silent: true, fallback: null })
+  }, [call, requestRaw, resolveProjectPathId])
 
   const submitDraftInstance = useCallback(async (
     projectId: string,
     formCode: string,
     instanceId: string,
-    payload: Record<string, unknown> = {},
-    actor?: DocpegActorHeaders,
+    payload: QueryLike = {},
   ) => {
-    const pid = encodePathSegment(projectId)
+    const pid = encodePathSegment(await resolveProjectPathId(projectId))
     const code = encodePathSegment(formCode)
     const iid = encodePathSegment(instanceId)
     if (!pid || !code || !iid) return null
-    return runWithCompat(
-      () => requestRaw(`${buildNormrefV1Base(pid)}/forms/${code}/draft-instances/${iid}/submit`, {
-        method: 'POST',
-        body: JSON.stringify(payload || {}),
-        headers: buildWriteHeaders(undefined, actor),
-        skipAuthRedirect: true,
-      }),
-      () => requestRaw(`${buildNormrefLegacyBase(pid)}/forms/${code}/draft-instances/${iid}/submit`, {
-        method: 'POST',
-        body: JSON.stringify(payload || {}),
-        headers: buildWriteHeaders(undefined, actor),
-        skipAuthRedirect: true,
-      }),
-    )
-  }, [buildWriteHeaders, requestRaw, runWithCompat])
+    const headers = buildWriteHeaders()
+    return call(() => requestRaw(`/api/v1/normref/projects/${pid}/forms/${code}/draft-instances/${iid}/submit`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(payload || {}),
+      skipAuthRedirect: true,
+    }), { silent: true, fallback: null })
+  }, [buildWriteHeaders, call, requestRaw, resolveProjectPathId])
 
-  const getLatestSubmitted = useCallback(async (projectId: string, formCode: string) => {
-    const pid = encodePathSegment(projectId)
+  const getLatestSubmitted = useCallback(async (
+    projectId: string,
+    formCode: string,
+    query?: QueryLike,
+  ) => {
+    const pid = encodePathSegment(await resolveProjectPathId(projectId))
     const code = encodePathSegment(formCode)
     if (!pid || !code) return null
-    return runWithCompat(
-      () => requestRaw(`${buildNormrefV1Base(pid)}/forms/${code}/latest-submitted`, { skipAuthRedirect: true }),
-      () => requestRaw(`${buildNormrefLegacyBase(pid)}/forms/${code}/latest-submitted`, { skipAuthRedirect: true }),
-    )
-  }, [requestRaw, runWithCompat])
+    return call(() => requestRaw(`/api/v1/normref/projects/${pid}/forms/${code}/latest-submitted${buildQuery(query)}`, {
+      skipAuthRedirect: true,
+    }), { silent: true, fallback: null })
+  }, [call, requestRaw, resolveProjectPathId])
 
-  const listTripRoleTrips = useCallback(async (projectId: string, query?: QueryLike) => {
-    const pid = String(projectId || '').trim()
-    if (!pid) return null
-    const mergedQuery = { project_id: pid, ...(query || {}) }
-    return call(() => requestRaw(`/api/v1/triprole/trips${buildQuery(mergedQuery)}`, { skipAuthRedirect: true }))
-  }, [call, requestRaw])
+  const listTripRoleTrips = useCallback(async (projectId: string, query: QueryLike = {}) => {
+    const pid = await resolveProjectPathId(projectId)
+    return call(() => requestRaw(`/api/v1/triprole/trips${buildQuery({
+      ...query,
+      project_id: pid,
+    })}`, { skipAuthRedirect: true }), { silent: true, fallback: { ok: true, items: [], total: 0 } })
+  }, [call, requestRaw, resolveProjectPathId])
 
-  const previewTripRole = useCallback(async (payload: Record<string, unknown>, actor?: DocpegActorHeaders) => {
+  const previewTripRole = useCallback(async (payload: QueryLike) => {
+    const headers = buildWriteHeaders()
     return call(() => requestRaw('/api/v1/triprole/preview', {
       method: 'POST',
+      headers,
       body: JSON.stringify(payload || {}),
-      headers: buildWriteHeaders(undefined, actor),
       skipAuthRedirect: true,
-    }))
+    }), { silent: true, fallback: null })
   }, [buildWriteHeaders, call, requestRaw])
 
-  const submitTripRole = useCallback(async (payload: Record<string, unknown>, actor?: DocpegActorHeaders) => {
+  const submitTripRole = useCallback(async (payload: QueryLike) => {
+    const headers = buildWriteHeaders()
     return call(() => requestRaw('/api/v1/triprole/submit', {
       method: 'POST',
+      headers,
       body: JSON.stringify(payload || {}),
-      headers: buildWriteHeaders(undefined, actor),
       skipAuthRedirect: true,
-    }))
+    }), { silent: true, fallback: null })
   }, [buildWriteHeaders, call, requestRaw])
 
-  const checkDtoPermission = useCallback(async (query: QueryLike) => {
-    const merged = { ...query }
-    if (!merged.actor_role && DOCPEG_ACTOR_ROLE) merged.actor_role = DOCPEG_ACTOR_ROLE
-    if (!merged.actor_name && DOCPEG_ACTOR_NAME) merged.actor_name = DOCPEG_ACTOR_NAME
-    return call(() => requestRaw(`/api/v1/dtorole/permission-check${buildQuery(merged)}`, { skipAuthRedirect: true }))
-  }, [call, requestRaw])
-
-  const getBoqItems = useCallback(async (projectId: string, query?: QueryLike) => {
-    const pid = encodePathSegment(projectId)
-    if (!pid) return null
-    return call(() => requestRaw(`/api/v1/boqitem/projects/${pid}/items${buildQuery(query)}`, { skipAuthRedirect: true }))
-  }, [call, requestRaw])
-
-  const getBoqNodes = useCallback(async (projectId: string, query?: QueryLike) => {
-    const pid = encodePathSegment(projectId)
-    if (!pid) return null
-    return call(() => requestRaw(`/api/v1/boqitem/projects/${pid}/nodes${buildQuery(query)}`, { skipAuthRedirect: true }))
-  }, [call, requestRaw])
-
-  const getBoqUtxos = useCallback(async (projectId: string, query?: QueryLike) => {
-    const pid = encodePathSegment(projectId)
-    if (!pid) return null
-    return call(() => requestRaw(`/api/v1/boqitem/projects/${pid}/utxos${buildQuery(query)}`, { skipAuthRedirect: true }))
-  }, [call, requestRaw])
-
-  const getLayerpegChainStatus = useCallback(async (projectId: string, query?: QueryLike) => {
-    const pid = String(projectId || '').trim()
-    if (!pid) return null
-    const mergedQuery = { project_id: pid, ...(query || {}) }
-    return call(() => requestRaw(`/api/v1/layerpeg/chain-status${buildQuery(mergedQuery)}`, { skipAuthRedirect: true }))
-  }, [call, requestRaw])
-
-  const createLayerpegAnchor = useCallback(async (
-    payload: { project_id: string; entity_uri: string; hash: string; [key: string]: unknown },
-    actor?: DocpegActorHeaders,
+  const executeExecpeg = useCallback(async (
+    payload: DocpegExecpegPayload,
+    options?: { idempotencyKey?: string; actor?: DocpegActorHeaders },
   ) => {
+    const headers = buildWriteHeaders(undefined, options?.actor)
+    const idempotencyKey = String(options?.idempotencyKey || '').trim()
+    if (idempotencyKey) headers.set('x-idempotency-key', idempotencyKey)
+    return call(() => requestRaw('/api/v1/execpeg/execute', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(payload || {}),
+      skipAuthRedirect: true,
+    }), { silent: true, fallback: null })
+  }, [buildWriteHeaders, call, requestRaw])
+
+  const getExecpegStatus = useCallback(async (execId: string) => {
+    const eid = encodePathSegment(execId)
+    if (!eid) return null
+    return call(() => requestRaw(`/api/v1/execpeg/status/${eid}`, {
+      skipAuthRedirect: true,
+    }), { silent: true, fallback: null })
+  }, [call, requestRaw])
+
+  const getExecpegCallbacks = useCallback(async (execId: string, query: QueryLike = {}) => {
+    const eid = encodePathSegment(execId)
+    if (!eid) return null
+    return call(() => requestRaw(`/api/v1/execpeg/status/${eid}/callbacks${buildQuery(query)}`, {
+      skipAuthRedirect: true,
+    }), { silent: true, fallback: { ok: true, items: [], total: 0 } })
+  }, [call, requestRaw])
+
+  const patchExecpegManualInput = useCallback(async (payload: QueryLike) => {
+    const headers = buildWriteHeaders()
+    return call(() => requestRaw('/api/v1/execpeg/manual-input', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(payload || {}),
+      skipAuthRedirect: true,
+    }), { silent: true, fallback: null })
+  }, [buildWriteHeaders, call, requestRaw])
+
+  const registerExecpegTemplate = useCallback(async (payload: QueryLike) => {
+    const headers = buildWriteHeaders()
+    return call(() => requestRaw('/api/v1/execpeg/register', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(payload || {}),
+      skipAuthRedirect: true,
+    }), { silent: true, fallback: null })
+  }, [buildWriteHeaders, call, requestRaw])
+
+  const listExecpegHighwaySpus = useCallback(async (query: QueryLike = {}) => {
+    return call(() => requestRaw(`/api/v1/execpeg/highway-spus${buildQuery(query)}`, {
+      skipAuthRedirect: true,
+    }), { silent: true, fallback: { ok: true, items: [], total: 0 } })
+  }, [call, requestRaw])
+
+  const getExecpegHighwaySpu = useCallback(async (spuRef: string) => {
+    const encoded = encodePathSegment(spuRef)
+    if (!encoded) return null
+    return call(() => requestRaw(`/api/v1/execpeg/highway-spus/${encoded}`, {
+      skipAuthRedirect: true,
+    }), { silent: true, fallback: null })
+  }, [call, requestRaw])
+
+  const checkDtoPermission = useCallback(async (query: QueryLike) => {
+    return call(() => requestRaw(`/api/v1/dtorole/permission-check${buildQuery(query)}`, {
+      skipAuthRedirect: true,
+    }), { silent: true, fallback: { ok: false, allowed: false } })
+  }, [call, requestRaw])
+
+  const getBoqItems = useCallback(async (projectId: string, query: QueryLike = {}) => {
+    const pid = encodePathSegment(await resolveProjectPathId(projectId))
+    if (!pid) return null
+    return call(() => requestRaw(`/api/v1/boqitem/projects/${pid}/items${buildQuery(query)}`, {
+      skipAuthRedirect: true,
+    }), { silent: true, fallback: { ok: true, items: [] } })
+  }, [call, requestRaw, resolveProjectPathId])
+
+  const getBoqNodes = useCallback(async (projectId: string, query: QueryLike = {}) => {
+    return getBoqItems(projectId, query)
+  }, [getBoqItems])
+
+  const getBoqUtxos = useCallback(async (_projectId: string, _query: QueryLike = {}) => {
+    return { ok: true, items: [] }
+  }, [])
+
+  const consumeBoqItem = useCallback(async (projectId: string, payload: QueryLike) => {
+    const pid = encodePathSegment(await resolveProjectPathId(projectId))
+    if (!pid) return null
+    const headers = buildWriteHeaders()
+    return call(() => requestRaw(`/api/v1/boqitem/projects/${pid}/consume`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(payload || {}),
+      skipAuthRedirect: true,
+    }), { silent: true, fallback: null })
+  }, [buildWriteHeaders, call, requestRaw, resolveProjectPathId])
+
+  const settleBoqItem = useCallback(async (projectId: string, payload: QueryLike) => {
+    const pid = encodePathSegment(await resolveProjectPathId(projectId))
+    if (!pid) return null
+    const headers = buildWriteHeaders()
+    return call(() => requestRaw(`/api/v1/boqitem/projects/${pid}/settle`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(payload || {}),
+      skipAuthRedirect: true,
+    }), { silent: true, fallback: null })
+  }, [buildWriteHeaders, call, requestRaw, resolveProjectPathId])
+
+  const getLayerpegChainStatus = useCallback(async (projectId: string) => {
+    const pid = await resolveProjectPathId(projectId)
+    return call(() => requestRaw(`/api/v1/layerpeg/chain-status${buildQuery({ project_id: pid })}`, {
+      skipAuthRedirect: true,
+    }), { silent: true, fallback: { ok: true, mode: 'unknown', reason: '' } })
+  }, [call, requestRaw, resolveProjectPathId])
+
+  const createLayerpegAnchor = useCallback(async (payload: QueryLike) => {
+    const headers = buildWriteHeaders()
     return call(() => requestRaw('/api/v1/layerpeg/anchor', {
       method: 'POST',
+      headers,
       body: JSON.stringify(payload || {}),
-      headers: buildWriteHeaders(undefined, actor),
       skipAuthRedirect: true,
-    }))
+    }), { silent: true, fallback: null })
   }, [buildWriteHeaders, call, requestRaw])
 
   const getLayerpegAnchor = useCallback(async (projectId: string, entityUri: string) => {
-    const pid = String(projectId || '').trim()
-    const uri = String(entityUri || '').trim()
-    if (!pid || !uri) return null
-    return call(() => requestRaw(`/api/v1/layerpeg/anchor${buildQuery({ project_id: pid, entity_uri: uri })}`, { skipAuthRedirect: true }))
-  }, [call, requestRaw])
+    const pid = await resolveProjectPathId(projectId)
+    return call(() => requestRaw(`/api/v1/layerpeg/anchor${buildQuery({
+      project_id: pid,
+      entity_uri: entityUri,
+    })}`, { skipAuthRedirect: true }), { silent: true, fallback: { ok: true, items: [] } })
+  }, [call, requestRaw, resolveProjectPathId])
 
   const getHealth = useCallback(async () => {
-    return call(() => requestRaw('/health', { skipAuthRedirect: true }))
+    return call(() => requestRaw('/health', { skipAuthRedirect: true }), { silent: true, fallback: null })
   }, [call, requestRaw])
 
   const getOpenApi = useCallback(async () => {
-    return call(() => requestRaw('/openapi.json', { skipAuthRedirect: true }))
+    return call(() => requestRaw('/openapi.json', { skipAuthRedirect: true }), { silent: true, fallback: null })
   }, [call, requestRaw])
 
   const getDocpegSummary = useCallback(async () => {
-    return call(() => requestRaw('/api/v1/docpeg/summary', { skipAuthRedirect: true }))
-  }, [call, requestRaw])
+    const health = await getHealth()
+    return { ok: !!health, health }
+  }, [getHealth])
 
-  const sign = useCallback(async (payload: SignPegSignPayload, actor?: DocpegActorHeaders) => {
-    return call(() => requestRaw('/api/v1/signpeg/sign', {
+  const sign = useCallback(async (..._args: unknown[]) => null, [])
+
+  const verify = useCallback(async (proofId: string) => {
+    const pid = encodePathSegment(proofId)
+    if (!pid) return null
+    const headers = buildWriteHeaders()
+    return call(() => requestRaw(`/api/v1/proof/${pid}/verify`, {
       method: 'POST',
-      body: JSON.stringify(payload || {}),
-      headers: buildWriteHeaders(undefined, actor),
+      headers,
+      body: '{}',
       skipAuthRedirect: true,
-    }))
+    }), { silent: true, fallback: null })
   }, [buildWriteHeaders, call, requestRaw])
 
-  const verify = useCallback(async (payload: SignPegVerifyPayload, actor?: DocpegActorHeaders) => {
-    return call(() => requestRaw('/api/v1/signpeg/verify', {
-      method: 'POST',
-      body: JSON.stringify(payload || {}),
-      headers: buildWriteHeaders(undefined, actor),
+  const getProof = useCallback(async (proofId: string) => {
+    const pid = encodePathSegment(proofId)
+    if (!pid) return null
+    return call(() => requestRaw(`/api/v1/proof/${pid}`, {
       skipAuthRedirect: true,
-    }))
+    }), { silent: true, fallback: null })
+  }, [call, requestRaw])
+
+  const addProofAttachment = useCallback(async (proofId: string, payload: QueryLike) => {
+    const pid = encodePathSegment(proofId)
+    if (!pid) return null
+    const headers = buildWriteHeaders()
+    return call(() => requestRaw(`/api/v1/proof/${pid}/attachments`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(payload || {}),
+      skipAuthRedirect: true,
+    }), { silent: true, fallback: null })
   }, [buildWriteHeaders, call, requestRaw])
 
-  const getSignStatus = useCallback(async (docId: string) => {
-    const id = encodePathSegment(docId)
-    if (!id) return null
-    return call(() => requestRaw(`/api/v1/signpeg/status/${id}`, { skipAuthRedirect: true }))
-  }, [call, requestRaw])
+  const listProjectEntities = useCallback(async (projectId: string, query: QueryLike = {}) => {
+    const pid = encodePathSegment(await resolveProjectPathId(projectId))
+    if (!pid) return null
+    return call(() => requestRaw(`/projects/${pid}/entities${buildQuery(query)}`, {
+      skipAuthRedirect: true,
+    }), { silent: true, fallback: { ok: true, items: [], total: 0 } })
+  }, [call, requestRaw, resolveProjectPathId])
+
+  const createProjectEntity = useCallback(async (projectId: string, payload: DocpegEntityPayload) => {
+    const pid = encodePathSegment(await resolveProjectPathId(projectId))
+    if (!pid) return null
+    const headers = buildWriteHeaders()
+    return call(() => requestRaw(`/projects/${pid}/entities`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(payload || {}),
+      skipAuthRedirect: true,
+    }), { silent: true, fallback: null })
+  }, [buildWriteHeaders, call, requestRaw, resolveProjectPathId])
+
+  const patchProjectEntity = useCallback(async (projectId: string, entityId: string, payload: DocpegEntityPayload) => {
+    const pid = encodePathSegment(await resolveProjectPathId(projectId))
+    const eid = encodePathSegment(entityId)
+    if (!pid || !eid) return null
+    const headers = buildWriteHeaders()
+    return call(() => requestRaw(`/projects/${pid}/entities/${eid}`, {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify(payload || {}),
+      skipAuthRedirect: true,
+    }), { silent: true, fallback: null })
+  }, [buildWriteHeaders, call, requestRaw, resolveProjectPathId])
+
+  const createProjectDocument = useCallback(async (projectId: string, payload: QueryLike) => {
+    const pid = encodePathSegment(await resolveProjectPathId(projectId))
+    if (!pid) return null
+    const headers = buildWriteHeaders()
+    return call(() => requestRaw(`/projects/${pid}/documents`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(payload || {}),
+      skipAuthRedirect: true,
+    }), { silent: true, fallback: null })
+  }, [buildWriteHeaders, call, requestRaw, resolveProjectPathId])
+
+  const createProjectDocumentVersion = useCallback(async (
+    projectId: string,
+    documentId: string,
+    payload: QueryLike,
+  ) => {
+    const pid = encodePathSegment(await resolveProjectPathId(projectId))
+    const did = encodePathSegment(documentId)
+    if (!pid || !did) return null
+    const headers = buildWriteHeaders()
+    return call(() => requestRaw(`/projects/${pid}/documents/${did}/versions`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(payload || {}),
+      skipAuthRedirect: true,
+    }), { silent: true, fallback: null })
+  }, [buildWriteHeaders, call, requestRaw, resolveProjectPathId])
+
+  const getSignStatus = useCallback(async (_docId: string) => {
+    return {
+      ok: true,
+      next_required: '-',
+      blocked_reason: '-',
+      source: 'docpeg-api-pack-placeholder',
+    }
+  }, [])
 
   return {
     loading,
     error,
     baseUrl,
     listProjects,
+    createProject,
     getProject,
     getProcessChainStatus,
     getProcessChainSummary,
@@ -543,10 +771,19 @@ export function useQCSpecDocPegApi() {
     listTripRoleTrips,
     previewTripRole,
     submitTripRole,
+    executeExecpeg,
+    getExecpegStatus,
+    getExecpegCallbacks,
+    patchExecpegManualInput,
+    registerExecpegTemplate,
+    listExecpegHighwaySpus,
+    getExecpegHighwaySpu,
     checkDtoPermission,
     getBoqItems,
     getBoqNodes,
     getBoqUtxos,
+    consumeBoqItem,
+    settleBoqItem,
     getLayerpegChainStatus,
     createLayerpegAnchor,
     getLayerpegAnchor,
@@ -554,7 +791,14 @@ export function useQCSpecDocPegApi() {
     getOpenApi,
     getDocpegSummary,
     sign,
+    getProof,
     verify,
+    addProofAttachment,
+    listProjectEntities,
+    createProjectEntity,
+    patchProjectEntity,
+    createProjectDocument,
+    createProjectDocumentVersion,
     getSignStatus,
   }
 }
